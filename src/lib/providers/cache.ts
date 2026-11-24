@@ -1,12 +1,14 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { tmpdir } from "node:os";
 
 /**
  * Basit önbellek: bellek + disk (.cache/). Kaynak hata verirse diskteki son veri
  * kullanılır ve bir uyarı döner ("kaynak hata verdi, önbellekteki son veri gösteriliyor").
  */
 
-const CACHE_DIR = process.env.CACHE_DIR ?? path.join(process.cwd(), ".cache");
+// Vercel gibi sunucusuz ortamlarda proje klasörü salt okunur; geçici klasör kullanılır
+const CACHE_DIR = process.env.CACHE_DIR ?? (process.env.VERCEL ? path.join(tmpdir(), "goleovip-cache") : path.join(process.cwd(), ".cache"));
 const memory = new Map<string, { at: number; text: string }>();
 
 export interface Fetched {
@@ -35,8 +37,12 @@ export async function cachedFetch(name: string, label: string, url: string, ttlM
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
     memory.set(name, { at: now, text });
-    await mkdir(CACHE_DIR, { recursive: true });
-    await writeFile(fileFor(name), JSON.stringify({ at: now, text }));
+    try {
+      await mkdir(CACHE_DIR, { recursive: true });
+      await writeFile(fileFor(name), JSON.stringify({ at: now, text }));
+    } catch {
+      // disk önbelleği yazılamazsa bellek önbelleğiyle devam
+    }
     return { text, fetchedAt: new Date(now) };
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
