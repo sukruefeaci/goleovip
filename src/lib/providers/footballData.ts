@@ -14,7 +14,11 @@ export const seasonUrl = (season: string, div: string) => `https://football-data
 export const LEAGUES: Record<string, string> = {
   E0: "Premier League",
   E1: "Championship",
+  E2: "League One",
+  E3: "League Two",
+  EC: "National League",
   SC0: "İskoçya Premiership",
+  SC1: "İskoçya Championship",
   D1: "Bundesliga",
   D2: "2. Bundesliga",
   I1: "Serie A",
