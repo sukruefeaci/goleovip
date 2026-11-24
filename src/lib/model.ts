@@ -68,7 +68,7 @@ export function statLambdas(home: TeamInput, away: TeamInput) {
   return { home: Math.max(0.15, lh), away: Math.max(0.15, la), attackPenalty: { home: atkH, away: atkA } };
 }
 
-function sigmaFor(def: MarketDef, pM: number, pS: number): number {
+function sigmaFor(def: MarketDef, pM: number, pS: number, hasCornerMarket: boolean): number {
   const disagreement = Math.abs(pM - pS);
   switch (def.kind) {
     case "ft":
@@ -78,7 +78,8 @@ function sigmaFor(def: MarketDef, pM: number, pS: number): number {
     case "cards":
       return 0.07 + 0.3 * disagreement;
     default:
-      return 0.05 + 0.4 * disagreement;
+      // korner: piyasa oranı yoksa yalnız istatistik → daha geniş belirsizlik
+      return (hasCornerMarket ? 0.05 : 0.08) + 0.4 * disagreement;
   }
 }
 
@@ -152,7 +153,7 @@ export function analyze(match: MatchInput): Analysis {
     (missingAtk.length ? ` · Eksik: ${missingAtk.join(", ")}` : "");
   const cornerBasis =
     `Korner λ ${f2(cornerStats.home)}–${f2(cornerStats.away)}` +
-    (cornerLambdaMarket ? ` · piyasa ${f2(cornerLambdaMarket.home)}–${f2(cornerLambdaMarket.away)}` : " · piyasa verisi yok");
+    (cornerLambdaMarket ? ` · piyasa ${f2(cornerLambdaMarket.home)}–${f2(cornerLambdaMarket.away)}` : " · yalnız istatistik (piyasa oranı yok)");
   const cardBasis = `Kart ort. ${home.short} ${home.cards.toFixed(1)} · ${away.short} ${away.cards.toFixed(1)} · λ ${f2(cards)}`;
 
   // 6) Her iddaa seçeneği
@@ -168,7 +169,7 @@ export function analyze(match: MatchInput): Analysis {
     const pS = probability(def, ctxStats);
     const usesMarket = def.kind === "ft" || def.kind === "ht";
     const p = usesMarket ? w * pM + (1 - w) * pS : pM; // korner/kart: ctxMarket zaten harman λ kullanıyor
-    const sigma = sigmaFor(def, pM, pS);
+    const sigma = sigmaFor(def, pM, pS, cornerLambdaMarket !== null);
     const required = 1 / line.odd;
     const ev = p * line.odd - 1;
     const evConservative = Math.max(0, p - sigma) * line.odd - 1;

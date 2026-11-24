@@ -8,12 +8,12 @@ iddaa oranlarını **Avrupa bahis piyasası** (Pinnacle vb.) ve **istatistik mod
 
 | Veri | Kaynak |
 |---|---|
-| iddaa oranları | Nesine bülteni (`bulten.nesine.com`) — format [LaAlbiceleste2026](https://github.com/ozgurozansen/LaAlbiceleste2026) incelenerek çıkarıldı |
+| iddaa oranları | **iddaa.com bülteni** (`sportsbookv2.iddaa.com`, yurt dışından da çalışır) — adres [iddaa-scanner](https://github.com/alibingul-dev/iddaa-scanner)'dan; pazar kodları gerçek bültenden istatistikle çıkarıldı. Yedek: Nesine bülteni — format [LaAlbiceleste2026](https://github.com/ozgurozansen/LaAlbiceleste2026) |
 | Avrupa oranları (Betfair Borsası, ~%1.4 marj; yoksa piyasa ortalaması) | Football-Data.co.uk `fixtures.csv` — fikir [iddaa-scanner](https://github.com/alibingul-dev/iddaa-scanner) |
 | Form, son 10 maç, korner, kart, puan durumu | Football-Data.co.uk sezon CSV'leri |
 
 `DATA_PROVIDER`: `auto` (varsayılan; canlıyı dener, olmazsa örnek veri), `live`, `mock`.
-Kapsam: Football-Data.co.uk'nin ulusal ligleri (Süper Lig, Premier Lig, La Liga, Serie A, Bundesliga…). Avrupa kupaları ve sakat/cezalı bilgisi bu kaynaklarda yok.
+Kapsam: Football-Data.co.uk'nin ulusal ligleri (Süper Lig, Premier Lig, La Liga, Serie A, Bundesliga…). Avrupa kupaları, kart oranları ve sakat/cezalı bilgisi bu kaynaklarda yok. Korner için Avrupa oranı olmadığından korner tahminleri yalnız istatistiğe dayanır (daha geniş ±).
 Nesine resmi bir API değildir; format habersiz değişebilir ve kullanım koşulları geçerlidir. Nesine yurt dışı/sunucu IP'lerinden gelen bağlantıları kesiyor; uygulamayı Türkiye'deki bir bilgisayarda çalıştırın.
 
 ## Tarayıcıda dene
