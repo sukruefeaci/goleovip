@@ -47,3 +47,13 @@ kullanım koşullarına takılabilir. Prototipte önce **elle giriş / CSV yükl
 2. `providers/apiFootball.ts`: form, son 10 maç, korner/kart, sakatlar (anahtar: `API_FOOTBALL_KEY`)
 3. iddaa oranları: elle giriş / CSV yükleme ekranı
 4. Önbellek + zaman damgası (kaynak hata verirse son veriyi göster)
+
+## Güncelleme: repo kodları incelendi ve canlı denendi (24 Kasım 2026)
+
+| Kaynak | Bulunduğu repo | Durum |
+|---|---|---|
+| `bulten.nesine.com/api/bulten/getprebultenfull` | ozgurozansen/LaAlbiceleste2026 | Kod yazıldı ve örnek veriyle test edildi. Bulut sunucusundan bağlantı kesiliyor (muhtemelen yalnız Türkiye IP'si); yerelde denenmeli |
+| `football-data.co.uk/fixtures.csv` | alibingul-dev/iddaa-scanner | **Çalışıyor.** Pinnacle kolonu artık yok; Betfair Borsası (BFE) kullanılıyor, ortalama marj %1.4 |
+| `football-data.co.uk/mmz4281/2627/T1.csv` | alibingul-dev/iddaa-scanner | **Çalışıyor.** Süper Lig 108 maç; skor, korner, kart, ayrıca xG (HxG/AxG) |
+| `sportsbookv2.iddaa.com/sportsbook/events?st=1&type=0&version=0` | alibingul-dev/iddaa-scanner | iddaa'nın kendi JSON'u. Alanlar: `data.events[]` → `i, hn, an, d (unix sn), sid (1=futbol), m[]` → `st` (1=MS, 101=Alt/Üst + `sov`, 89=KG), `o[].odd`. Bu ortamdan denenmedi |
+| `fotmob.com/api/...` | pseudo-r/Public-FotMob-API | Sakat/cezalı ve kadro için aday; eklenmedi |

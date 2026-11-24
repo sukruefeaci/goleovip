@@ -2,14 +2,14 @@ import type { FormResult, TeamInput } from "../types";
 
 /**
  * Football-Data.co.uk (ücretsiz, anahtarsız CSV):
- *  - fixtures.csv: yaklaşan maçlar + Pinnacle (PSH/PSD/PSA, P>2.5/P<2.5) ve ortalama oranlar
+ *  - fixtures.csv: yaklaşan maçlar + Betfair Borsası (BFE), Bet365, ortalama… oranları (2026 itibarıyla Pinnacle yok)
  *  - mmz4281/{sezon}/{lig}.csv: oynanmış maçlar; skor, korner (HC/AC), kart (HY/AY/HR/AR)
  * Avrupa oranlarını buradan alma fikri github.com/alibingul-dev/iddaa-scanner'dan.
  * Not: Avrupa kupaları (Şampiyonlar Ligi vb.) bu kaynakta yok; yalnız ulusal ligler.
  */
 
-export const FIXTURES_URL = "https://www.football-data.co.uk/fixtures.csv";
-export const seasonUrl = (season: string, div: string) => `https://www.football-data.co.uk/mmz4281/${season}/${div}.csv`;
+export const FIXTURES_URL = "https://football-data.co.uk/fixtures.csv";
+export const seasonUrl = (season: string, div: string) => `https://football-data.co.uk/mmz4281/${season}/${div}.csv`;
 
 export const LEAGUES: Record<string, string> = {
   E0: "Premier League",
@@ -87,7 +87,7 @@ export interface Fixture {
   bookmakers: number;
 }
 
-const BOOK_PREFIXES = ["B365", "BW", "BF", "BFE", "IW", "PS", "WH", "VC", "1XB", "BV", "CL", "LB"];
+const BOOK_PREFIXES = ["B365", "BFD", "BV", "BW", "PP", "SKB", "BFE", "IW", "PS", "WH", "VC", "1XB", "CL", "LB"];
 
 export function parseFixtures(text: string): Fixture[] {
   const out: Fixture[] = [];
@@ -95,23 +95,40 @@ export function parseFixtures(text: string): Fixture[] {
     if (!LEAGUES[r.Div]) continue;
     const d = parseDate(r.Date);
     if (!d) continue;
-    const ps = [num(r.PSH), num(r.PSD), num(r.PSA)];
-    const avg = [num(r.AvgH), num(r.AvgD), num(r.AvgA)];
-    const usePs = ps.every((x) => x !== null);
-    const h2h = (usePs ? ps : avg) as number[];
-    if (h2h.some((x) => x === null)) continue;
-    const pO = [num(r["P>2.5"]), num(r["P<2.5"])];
-    const aO = [num(r["Avg>2.5"]), num(r["Avg<2.5"])];
-    const ou = pO.every((x) => x !== null) ? pO : aO.every((x) => x !== null) ? aO : null;
+    // Öncelik: Pinnacle (PS) → Betfair Borsası (BFE, düşük marjlı) → piyasa ortalaması
+    const sources: [string, string, string, string][] = [
+      ["PS", "Pinnacle", "P", "P"],
+      ["BFE", "Betfair Borsası", "BFE", "BFE"],
+      ["Avg", "Piyasa ort.", "Avg", "Avg"],
+    ];
+    let h2h: [number, number, number] | null = null;
+    let reference = "";
+    for (const [pre, label] of sources) {
+      const o = [num(r[`${pre}H`]), num(r[`${pre}D`]), num(r[`${pre}A`])];
+      if (o.every((x) => x !== null)) {
+        h2h = o as [number, number, number];
+        reference = label;
+        break;
+      }
+    }
+    if (!h2h) continue;
+    let ou: [number, number] | null = null;
+    for (const [, , ouPre] of sources) {
+      const o = [num(r[`${ouPre}>2.5`]), num(r[`${ouPre}<2.5`])];
+      if (o.every((x) => x !== null)) {
+        ou = o as [number, number];
+        break;
+      }
+    }
     const bookmakers = BOOK_PREFIXES.filter((p) => num(r[`${p}H`]) !== null).length;
     out.push({
       div: r.Div,
       kickoff: ukToUtc(d, r.Time),
       home: r.HomeTeam,
       away: r.AwayTeam,
-      h2h: h2h as [number, number, number],
-      ou25: ou as [number, number] | null,
-      reference: usePs ? "Pinnacle" : "Piyasa ort.",
+      h2h,
+      ou25: ou,
+      reference,
       bookmakers,
     });
   }

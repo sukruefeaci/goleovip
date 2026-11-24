@@ -73,7 +73,11 @@ test("Nesine pazarları seçenek anahtarlarına çevrilir", () => {
   assert.equal(mapMarket({ MTID: 12, SOV: 2, MN: "Alt/Üst", OCA: [{ N: 1, O: 1.9 }] }), null, "tam sayı çizgi atlanır");
 });
 
-test("Football-Data fixtures: Pinnacle tercih edilir, yoksa ortalama", () => {
+test("Football-Data fixtures: Pinnacle > Betfair Borsası > ortalama", () => {
+  const bfe = parseFixtures("Div,Date,Time,HomeTeam,AwayTeam,AvgH,AvgD,AvgA,BFEH,BFED,BFEA,Avg>2.5,Avg<2.5,BFE>2.5,BFE<2.5\nE1,01/12/2026,19:45,Leeds,Hull,1.9,3.5,4.0,2.0,3.7,4.3,1.8,2.0,1.85,2.1");
+  assert.equal(bfe[0].reference, "Betfair Borsası");
+  assert.deepEqual(bfe[0].h2h, [2.0, 3.7, 4.3]);
+  assert.deepEqual(bfe[0].ou25, [1.85, 2.1]);
   const f = parseFixtures(FIXTURES);
   assert.equal(f.length, 3);
   assert.deepEqual(f[0].h2h, [1.83, 3.9, 4.4]);
