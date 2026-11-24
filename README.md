@@ -16,6 +16,12 @@ iddaa oranlarını **Avrupa bahis piyasası** (Pinnacle vb.) ve **istatistik mod
 Kapsam: Football-Data.co.uk'nin ulusal ligleri (Süper Lig, Premier Lig, La Liga, Serie A, Bundesliga…). Avrupa kupaları ve sakat/cezalı bilgisi bu kaynaklarda yok.
 Nesine resmi bir API değildir; format habersiz değişebilir ve kullanım koşulları geçerlidir. Nesine yurt dışı/sunucu IP'lerinden gelen bağlantıları kesiyor; uygulamayı Türkiye'deki bir bilgisayarda çalıştırın.
 
+## Tarayıcıda dene
+
+[![Codespaces'te aç](https://github.com/codespaces/badge.svg)](https://codespaces.new/sukruefeaci/goleovip)
+
+Açılınca kurulum 1–2 dakika sürer, ardından uygulama yeni sekmede açılır.
+
 ## Çalıştırma
 
 ```bash
