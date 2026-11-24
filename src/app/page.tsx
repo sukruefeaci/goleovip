@@ -11,8 +11,11 @@ export default async function Home() {
     .map(analyze)
     .sort((a, b) => a.match.kickoff.localeCompare(b.match.kickoff));
 
+  const banner = analyses[0]?.match.warnings.find((w) => w.startsWith("Canlı"));
+
   return (
     <>
+      {banner && <div className="warn">⚠ {banner}</div>}
       <div className="toolbar">
         <h2 style={{ margin: 0 }}>Maçlar</h2>
         <span className="muted small">Veri kaynağı: {getProvider().name}</span>

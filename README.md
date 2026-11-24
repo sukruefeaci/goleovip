@@ -2,13 +2,26 @@
 
 iddaa oranlarını **Avrupa bahis piyasası** (Pinnacle vb.) ve **istatistik modeli** ile karşılaştırıp her seçeneğin beklenen getirisini hesaplayan Next.js uygulaması.
 
-> Prototip şu an **sahte (mock) veriyle** çalışır. Kazanç garantisi vermez.
+> Kazanç garantisi vermez. Yalnız bilgi amaçlıdır.
+
+## Veri kaynakları (anahtarsız, ücretsiz)
+
+| Veri | Kaynak |
+|---|---|
+| iddaa oranları | Nesine bülteni (`bulten.nesine.com`) — format [LaAlbiceleste2026](https://github.com/ozgurozansen/LaAlbiceleste2026) incelenerek çıkarıldı |
+| Avrupa oranları (Pinnacle) | Football-Data.co.uk `fixtures.csv` — fikir [iddaa-scanner](https://github.com/alibingul-dev/iddaa-scanner) |
+| Form, son 10 maç, korner, kart, puan durumu | Football-Data.co.uk sezon CSV'leri |
+
+`DATA_PROVIDER`: `auto` (varsayılan; canlıyı dener, olmazsa örnek veri), `live`, `mock`.
+Kapsam: Football-Data.co.uk'nin ulusal ligleri (Süper Lig, Premier Lig, La Liga, Serie A, Bundesliga…). Avrupa kupaları ve sakat/cezalı bilgisi bu kaynaklarda yok.
+Nesine resmi bir API değildir; format habersiz değişebilir ve kullanım koşulları geçerlidir.
 
 ## Çalıştırma
 
 ```bash
 npm install
 npm run dev        # http://localhost:3000
+npm test           # ayrıştırıcı ve eşleştirme testleri
 ```
 
 ## Nasıl hesaplar?
