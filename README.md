@@ -30,6 +30,15 @@ npm run dev        # http://localhost:3000
 npm test           # ayrıştırıcı ve eşleştirme testleri
 ```
 
+## Yapay zekanın tercihi
+
+Her maç sayfasının üstünde modelin tercihi gösterilir (`src/lib/pick.ts`): 1.30–6.00 oran aralığında temkinli getirisi en yüksek seçenek.
+- **Güçlü**: belirsizliğin kötü ucunda bile artı getiri
+- **Zayıf**: beklenen getiri artı ama belirsizlikle eksiye düşüyor
+- **Değer yok**: hiçbir seçenek başa baş noktasını geçmiyor → oynamamak önerilir
+
+`ANTHROPIC_API_KEY` ortam değişkeni tanımlıysa Claude (`claude-opus-5-5`, düşük effort) tercihin kısa Türkçe gerekçesini yazar (`src/lib/aiComment.ts`); seçimi değiştirmez, yalnız verilen rakamları yorumlar. Yorumlar maç başına 30 dk önbelleğe alınır. Anahtar yoksa şablon gerekçe gösterilir.
+
 ## Nasıl hesaplar?
 
 1. Avrupa 1X2 ve Alt/Üst 2.5 oranlarından marj atılır → adil olasılık.

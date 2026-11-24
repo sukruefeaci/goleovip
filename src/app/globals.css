@@ -115,6 +115,31 @@ td .sub { display: block; font-size: 11px; color: var(--muted); margin-top: 2px;
 .scroll-x::-webkit-scrollbar { display: none; }
 .seg button, .tabs button { white-space: nowrap; flex-shrink: 0; }
 
+/* Yapay zekanın tercihi */
+.pick { margin: 14px 0; padding: 16px 18px; border-width: 1px; }
+.pick-strong { border-color: var(--green-dim); background: linear-gradient(135deg, #0f2a18 0%, var(--panel) 60%); }
+.pick-weak { border-color: #4a3d0a; background: linear-gradient(135deg, #1f1b08 0%, var(--panel) 60%); }
+.pick-none { border-color: #5a1d1d; background: linear-gradient(135deg, #241010 0%, var(--panel) 60%); }
+.pick-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pick-label { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.pick-level { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
+.pick-level-strong { background: var(--green); color: #04130a; }
+.pick-level-weak { background: var(--yellow); color: #1a1708; }
+.pick-level-none { background: #b91c1c; color: #fff; }
+.pick-main { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 10px; }
+.pick-market { color: var(--muted); font-size: 13px; }
+.pick-selection { font-size: 24px; font-weight: 800; line-height: 1.2; }
+.pick-odd { font-size: 34px; font-weight: 800; color: var(--yellow); }
+.pick-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+.pick-stats > div { background: rgba(0,0,0,.25); border-radius: 8px; padding: 7px 9px; }
+.pick-stats span { display: block; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.pick-stats b { font-size: 16px; }
+.pick-ai { margin: 12px 0 0; line-height: 1.6; }
+.pick-reasons { margin: 12px 0 0; padding-left: 18px; line-height: 1.6; color: #c9d5db; font-size: 13px; }
+.pick-alt { margin-top: 10px; font-size: 12px; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.pick-alt-item i { font-style: normal; }
+.pick-note { margin: 10px 0 0; font-size: 11px; color: var(--muted); }
+
 /* Tablet */
 @media (max-width: 1000px) {
   .layout { grid-template-columns: 1fr; }
@@ -183,4 +208,12 @@ td .sub { display: block; font-size: 11px; color: var(--muted); margin-top: 2px;
   .betcard .basis { margin: 8px 0 0; max-width: none; font-size: 11px; line-height: 1.4; }
 
   .prose { font-size: 15px; }
+
+  .pick { padding: 14px; margin: 10px 0; }
+  .pick-selection { font-size: 19px; }
+  .pick-odd { font-size: 28px; }
+  .pick-stats { gap: 5px; }
+  .pick-stats > div { padding: 6px; }
+  .pick-stats b { font-size: 14px; }
+  .pick-ai { font-size: 14px; }
 }

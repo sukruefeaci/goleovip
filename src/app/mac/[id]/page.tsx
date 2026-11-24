@@ -5,6 +5,8 @@ import { analyze } from "@/lib/model";
 import { initials, kickoffParts, pct } from "@/lib/format";
 import type { TeamInput } from "@/lib/types";
 import BetTable from "@/components/BetTable";
+import PickCard from "@/components/PickCard";
+import { choosePick } from "@/lib/pick";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +47,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
   const a = analyze(match);
   const { home, away } = match;
   const k = kickoffParts(match.kickoff);
+  const pick = choosePick(a);
 
   return (
     <>
@@ -86,6 +89,8 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           <div className="avatar">{initials(away.name)}</div>
         </div>
       </section>
+
+      {pick && <PickCard analysis={a} pick={pick} />}
 
       {match.warnings.length > 0 && <div className="warn">⚠ {match.warnings.join(" · ")}</div>}
 

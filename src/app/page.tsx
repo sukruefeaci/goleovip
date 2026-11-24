@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getProvider } from "@/lib/providers";
 import { analyze } from "@/lib/model";
 import { kickoffParts, pct, signedPct } from "@/lib/format";
+import { choosePick } from "@/lib/pick";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,7 @@ export default async function Home() {
         {analyses.map((a) => {
           const k = kickoffParts(a.match.kickoff);
           const good = a.rows.filter((r) => r.rating === "Avantajlı");
-          const best = [...a.rows].sort((x, y) => y.evConservative - x.evConservative)[0];
+          const pick = choosePick(a);
           return (
             <Link key={a.match.id} href={`/mac/${a.match.id}`} className="panel match-card">
               <div>
@@ -43,9 +44,20 @@ export default async function Home() {
               </div>
               <div className="stat">
                 <div className={good.length ? "pos" : "muted"}>{good.length} avantajlı</div>
-                {best && (
-                  <div className="muted small">
-                    En iyi: {best.market} {best.selection} @{best.odd.toFixed(2)} ({signedPct(best.evConservative)})
+                {pick && (
+                  <div className="small">
+                    🤖{" "}
+                    {pick.level === "değer yok" ? (
+                      <span className="muted">Değer yok — oynama</span>
+                    ) : (
+                      <>
+                        <b>
+                          {pick.row.market}: {pick.row.selection} @{pick.row.odd.toFixed(2)}
+                        </b>{" "}
+                        <span className={pick.row.ev >= 0 ? "pos" : "neg"}>{signedPct(pick.row.ev)}</span>
+                        <span className="muted"> · {pick.level}</span>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
