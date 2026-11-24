@@ -1,0 +1,231 @@
+import type { Analysis, BetRow, MatchInput, Rating, TeamInput } from "./types";
+import { buildContext, describe, probability, type MarketDef } from "./markets";
+import { lambdaForOver, normCdf, pmfVector, probWhere, scoreMatrix } from "./poisson";
+
+/** Model ayarları — Ayarlar sayfasına taşınabilir */
+export const CONFIG = {
+  marketWeight: 0.7, // harmanda piyasa modelinin ağırlığı (kalan: istatistik)
+  cornerMarketWeight: 0.6,
+  homeAdvantage: 1.06,
+  attackPenaltyPerPlayer: 0.04,
+  attackPenaltyMax: 0.15,
+  defencePenaltyPerPlayer: 0.03,
+  defencePenaltyMax: 0.1,
+  dependencyThreshold: 0.85, // seçeneğin %85+ ihtimalle bir tarafın galibiyetiyle gelmesi
+};
+
+const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+
+/** Oranlardan marjsız (adil) olasılık — orantısal yöntem */
+export function devig(odds: number[]): { fair: number[]; margin: number } {
+  const inv = odds.map((o) => 1 / o);
+  const s = inv.reduce((a, b) => a + b, 0);
+  return { fair: inv.map((x) => x / s), margin: s - 1 };
+}
+
+/** Avrupa 1X2 + Ü2.5 olasılıklarına en iyi uyan Poisson λ çiftini ızgara aramasıyla bulur */
+export function fitLambdas(p: [number, number, number], pOver25: number) {
+  const step = 0.02;
+  const values: number[] = [];
+  for (let l = 0.2; l <= 4.2; l += step) values.push(Number(l.toFixed(2)));
+  const vecs = values.map((l) => pmfVector(l));
+  let best = { home: 1.4, away: 1.1, err: Infinity };
+  for (let i = 0; i < values.length; i++) {
+    for (let j = 0; j < values.length; j++) {
+      const ph = vecs[i];
+      const pa = vecs[j];
+      let p1 = 0,
+        pX = 0,
+        pO = 0;
+      for (let h = 0; h < ph.length; h++)
+        for (let a = 0; a < pa.length; a++) {
+          const v = ph[h] * pa[a];
+          if (h > a) p1 += v;
+          else if (h === a) pX += v;
+          if (h + a > 2.5) pO += v;
+        }
+      const p2 = 1 - p1 - pX;
+      const err = (p1 - p[0]) ** 2 + (pX - p[1]) ** 2 + (p2 - p[2]) ** 2 + (pO - pOver25) ** 2;
+      if (err < best.err) best = { home: values[i], away: values[j], err };
+    }
+  }
+  return { home: best.home, away: best.away };
+}
+
+function penalty(team: TeamInput, role: "hücum" | "defans", per: number, max: number) {
+  const n = team.missing.filter((m) => m.role === role).length;
+  return Math.min(max, n * per);
+}
+
+/** Son 10 maç + eksik oyunculardan λ tahmini */
+export function statLambdas(home: TeamInput, away: TeamInput) {
+  const atkH = penalty(home, "hücum", CONFIG.attackPenaltyPerPlayer, CONFIG.attackPenaltyMax);
+  const atkA = penalty(away, "hücum", CONFIG.attackPenaltyPerPlayer, CONFIG.attackPenaltyMax);
+  const defH = penalty(home, "defans", CONFIG.defencePenaltyPerPlayer, CONFIG.defencePenaltyMax);
+  const defA = penalty(away, "defans", CONFIG.defencePenaltyPerPlayer, CONFIG.defencePenaltyMax);
+  const lh = ((avg(home.goalsFor10) + avg(away.goalsAgainst10)) / 2) * CONFIG.homeAdvantage * (1 - atkH) * (1 + defA);
+  const la = ((avg(away.goalsFor10) + avg(home.goalsAgainst10)) / 2) / CONFIG.homeAdvantage * (1 - atkA) * (1 + defH);
+  return { home: Math.max(0.15, lh), away: Math.max(0.15, la), attackPenalty: { home: atkH, away: atkA } };
+}
+
+function sigmaFor(def: MarketDef, pM: number, pS: number): number {
+  const disagreement = Math.abs(pM - pS);
+  switch (def.kind) {
+    case "ft":
+      return 0.025 + 0.5 * disagreement;
+    case "ht":
+      return 0.035 + 0.5 * disagreement;
+    case "cards":
+      return 0.07 + 0.3 * disagreement;
+    default:
+      return 0.05 + 0.4 * disagreement;
+  }
+}
+
+const pct = (x: number, d = 1) => `%${(x * 100).toFixed(d)}`;
+const f2 = (x: number) => x.toFixed(2);
+
+export function analyze(match: MatchInput): Analysis {
+  const { home, away, euro } = match;
+
+  // 1) Avrupa piyasası → adil olasılıklar
+  const e1x2 = devig(euro.h2h);
+  const euroFair = e1x2.fair as [number, number, number];
+  const euroOver25 = devig(euro.ou25).fair[0];
+
+  // 2) iddaa 1X2 marjı
+  const odd = (k: string) => match.iddaa.find((o) => o.key === k)?.odd;
+  const i1 = odd("1x2:1"),
+    iX = odd("1x2:X"),
+    i2 = odd("1x2:2");
+  const iddaaOdds = i1 && iX && i2 ? ([i1, iX, i2] as [number, number, number]) : null;
+  const iddaaDv = iddaaOdds ? devig(iddaaOdds) : null;
+
+  // 3) λ: piyasadan ve istatistikten
+  const lambdaMarket = fitLambdas(euroFair, euroOver25);
+  const st = statLambdas(home, away);
+  const lambdaStats = { home: st.home, away: st.away };
+  const w = CONFIG.marketWeight;
+  const lambda = {
+    home: w * lambdaMarket.home + (1 - w) * lambdaStats.home,
+    away: w * lambdaMarket.away + (1 - w) * lambdaStats.away,
+  };
+
+  // 4) Korner λ
+  const cornerStats = {
+    home: (home.cornersFor + away.cornersAgainst) / 2,
+    away: (away.cornersFor + home.cornersAgainst) / 2,
+  };
+  let cornerLambdaMarket: { home: number; away: number } | null = null;
+  if (euro.corners) {
+    const pOver = devig([euro.corners.over, euro.corners.under]).fair[0];
+    const total = lambdaForOver(euro.corners.line, pOver);
+    const share = cornerStats.home / (cornerStats.home + cornerStats.away);
+    cornerLambdaMarket = { home: total * share, away: total * (1 - share) };
+  }
+  const cw = cornerLambdaMarket ? CONFIG.cornerMarketWeight : 0;
+  const cornerLambda = {
+    home: cw * (cornerLambdaMarket?.home ?? 0) + (1 - cw) * cornerStats.home,
+    away: cw * (cornerLambdaMarket?.away ?? 0) + (1 - cw) * cornerStats.away,
+  };
+  const cards = home.cards + away.cards;
+
+  const ctxMarket = buildContext(lambdaMarket.home, lambdaMarket.away, cornerLambda.home, cornerLambda.away, cards);
+  const ctxStats = buildContext(lambdaStats.home, lambdaStats.away, cornerStats.home, cornerStats.away, cards);
+  const ftBlend = scoreMatrix(lambda.home, lambda.away);
+
+  const model1x2 = [
+    w * euroFair[0] + (1 - w) * probWhere(ctxStats.ft, (h, a) => h > a),
+    w * euroFair[1] + (1 - w) * probWhere(ctxStats.ft, (h, a) => h === a),
+    w * euroFair[2] + (1 - w) * probWhere(ctxStats.ft, (h, a) => h < a),
+  ] as [number, number, number];
+
+  // 5) Dayanak metinleri
+  const formStr = (t: TeamInput) => `${t.form.filter((f) => f === "G").length}/${t.form.length}`;
+  const gStr = (t: TeamInput) => `${avg(t.goalsFor10).toFixed(1)}/${avg(t.goalsAgainst10).toFixed(1)}`;
+  const missingAtk = [...home.missing, ...away.missing].filter((m) => m.role === "hücum").map((m) => m.name);
+  const goalBasis =
+    `Avrupa Ü2.5 ${pct(euroOver25)} · λ ${f2(lambda.home)}–${f2(lambda.away)} · ` +
+    `Son10 gol ${home.short} ${gStr(home)} · ${away.short} ${gStr(away)}`;
+  const resultBasis =
+    `Avrupa ${pct(euroFair[0])}/${pct(euroFair[1])}/${pct(euroFair[2])} · Form ${home.short} ${formStr(home)}, ${away.short} ${formStr(away)}` +
+    (missingAtk.length ? ` · Eksik: ${missingAtk.join(", ")}` : "");
+  const cornerBasis =
+    `Korner λ ${f2(cornerStats.home)}–${f2(cornerStats.away)}` +
+    (cornerLambdaMarket ? ` · piyasa ${f2(cornerLambdaMarket.home)}–${f2(cornerLambdaMarket.away)}` : " · piyasa verisi yok");
+  const cardBasis = `Kart ort. ${home.short} ${home.cards.toFixed(1)} · ${away.short} ${away.cards.toFixed(1)} · λ ${f2(cards)}`;
+
+  // 6) Her iddaa seçeneği
+  const rows: BetRow[] = [];
+  for (const line of match.iddaa) {
+    let def: MarketDef;
+    try {
+      def = describe(line.key, home.name, away.name);
+    } catch {
+      continue;
+    }
+    const pM = probability(def, ctxMarket);
+    const pS = probability(def, ctxStats);
+    const usesMarket = def.kind === "ft" || def.kind === "ht";
+    const p = usesMarket ? w * pM + (1 - w) * pS : pM; // korner/kart: ctxMarket zaten harman λ kullanıyor
+    const sigma = sigmaFor(def, pM, pS);
+    const required = 1 / line.odd;
+    const ev = p * line.odd - 1;
+    const evConservative = Math.max(0, p - sigma) * line.odd - 1;
+    const edgeChance = normCdf((p - required) / sigma);
+    const rating: Rating = evConservative > 0 ? "Avantajlı" : ev > 0 ? "Sınırda" : "Dezavantajlı";
+
+    let dependsOn: BetRow["dependsOn"] = null;
+    if (def.kind === "ft" && def.pred) {
+      const pSel = probWhere(ftBlend, def.pred);
+      if (pSel > 0) {
+        const hw = probWhere(ftBlend, (h, a) => def.pred!(h, a) && h > a) / pSel;
+        const aw = probWhere(ftBlend, (h, a) => def.pred!(h, a) && h < a) / pSel;
+        if (hw >= CONFIG.dependencyThreshold) dependsOn = "home";
+        else if (aw >= CONFIG.dependencyThreshold) dependsOn = "away";
+      }
+    }
+
+    rows.push({
+      key: line.key,
+      category: def.category,
+      market: def.market,
+      selection: def.selection,
+      odd: line.odd,
+      required,
+      prob: p,
+      sigma,
+      ev,
+      evConservative,
+      edgeChance,
+      basis:
+        def.kind === "cards"
+          ? cardBasis
+          : def.kind.startsWith("corners")
+            ? cornerBasis
+            : def.category === "Sonuç"
+              ? resultBasis
+              : goalBasis,
+      rating,
+      dependsOn,
+    });
+  }
+
+  return {
+    match,
+    euroFair,
+    euroMargin: e1x2.margin,
+    iddaaOdds,
+    iddaaFair: iddaaDv ? (iddaaDv.fair as [number, number, number]) : null,
+    iddaaMargin: iddaaDv ? iddaaDv.margin : null,
+    model1x2,
+    lambda,
+    lambdaMarket,
+    lambdaStats,
+    cornerLambda: cornerStats,
+    cornerLambdaMarket,
+    euroOver25,
+    attackPenalty: st.attackPenalty,
+    rows,
+  };
+}
