@@ -209,6 +209,7 @@ export function analyze(match: MatchInput): Analysis {
               : goalBasis,
       rating,
       dependsOn,
+      mbc: line.mbc ?? 1,
     });
   }
 

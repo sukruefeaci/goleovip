@@ -1,0 +1,110 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+
+/**
+ * Kullanıcı deposu.
+ *  - Upstash Redis (Vercel Marketplace → Upstash, ücretsiz): KV_REST_API_URL/TOKEN veya UPSTASH_REDIS_REST_URL/TOKEN
+ *  - Yoksa ve geliştirme ortamındaysa (veya AUTH_FILE_STORE=1 ise): .data/store.json (yerel dosya)
+ *  - Üretimde ikisi de yoksa: null (kayıt/giriş yapılamaz, sayfa nasıl kurulacağını söyler)
+ */
+
+export interface UserRecord {
+  id: string;
+  email: string;
+  name: string;
+  passwordHash: string;
+  createdAt: string;
+}
+
+interface KV {
+  get(key: string): Promise<string | null>;
+  setNX(key: string, value: string): Promise<boolean>;
+  incr(key: string, ttlSec: number): Promise<number>;
+  reset(key: string): Promise<void>;
+}
+
+function upstash(): KV | null {
+  const url = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  const cmd = async (...args: (string | number)[]) => {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(args),
+      cache: "no-store",
+    });
+    const json = (await res.json()) as { result?: unknown; error?: string };
+    if (!res.ok || json.error) throw new Error(`Veritabanı hatası: ${json.error ?? res.status}`);
+    return json.result;
+  };
+  return {
+    get: async (k) => ((await cmd("GET", k)) as string | null) ?? null,
+    setNX: async (k, v) => (await cmd("SET", k, v, "NX")) === "OK",
+    incr: async (k, ttl) => {
+      const n = (await cmd("INCR", k)) as number;
+      if (n === 1) await cmd("EXPIRE", k, ttl);
+      return n;
+    },
+    reset: async (k) => {
+      await cmd("DEL", k);
+    },
+  };
+}
+
+function fileStore(): KV {
+  const file = path.join(process.cwd(), ".data", "store.json");
+  const counters = new Map<string, { n: number; until: number }>();
+  const load = async (): Promise<Record<string, string>> => {
+    try {
+      return JSON.parse(await readFile(file, "utf8"));
+    } catch {
+      return {};
+    }
+  };
+  const save = async (d: Record<string, string>) => {
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, JSON.stringify(d, null, 1));
+  };
+  return {
+    get: async (k) => (await load())[k] ?? null,
+    setNX: async (k, v) => {
+      const d = await load();
+      if (k in d) return false;
+      d[k] = v;
+      await save(d);
+      return true;
+    },
+    incr: async (k, ttl) => {
+      const now = Date.now();
+      const c = counters.get(k);
+      const next = c && c.until > now ? { n: c.n + 1, until: c.until } : { n: 1, until: now + ttl * 1000 };
+      counters.set(k, next);
+      return next.n;
+    },
+    reset: async (k) => {
+      counters.set(k, { n: 0, until: 0 });
+    },
+  };
+}
+
+export function getStore(): KV | null {
+  const allowFile = process.env.NODE_ENV !== "production" || process.env.AUTH_FILE_STORE === "1";
+  return upstash() ?? (allowFile ? fileStore() : null);
+}
+
+const userKey = (email: string) => `user:${email.trim().toLowerCase()}`;
+
+export async function findUser(email: string): Promise<UserRecord | null> {
+  const store = getStore();
+  if (!store) return null;
+  const raw = await store.get(userKey(email));
+  return raw ? (JSON.parse(raw) as UserRecord) : null;
+}
+
+/** false: e-posta zaten kayıtlı */
+export async function createUser(u: UserRecord): Promise<boolean> {
+  const store = getStore();
+  if (!store) throw new Error("Veritabanı ayarlanmamış");
+  return store.setNX(userKey(u.email), JSON.stringify(u));
+}

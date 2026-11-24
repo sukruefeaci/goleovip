@@ -1,4 +1,4 @@
-# Maç Değerleme (prototip)
+# goleo VIP — maç değerleme
 
 iddaa oranlarını **Avrupa bahis piyasası** (Pinnacle vb.) ve **istatistik modeli** ile karşılaştırıp her seçeneğin beklenen getirisini hesaplayan Next.js uygulaması.
 
@@ -29,6 +29,25 @@ npm install
 npm run dev        # http://localhost:3000
 npm test           # ayrıştırıcı ve eşleştirme testleri
 ```
+
+## Üyelik (giriş / kayıt)
+
+Maçlar, kupon oluşturucu ve `/api/*` yalnız giriş yapmış kullanıcılara açıktır (`src/middleware.ts`).
+Şifreler scrypt ile saklanır; oturum, imzalı (HMAC-SHA256) httpOnly çerezdir. 5 hatalı girişte 15 dk kilit.
+
+Vercel'de gerekenler:
+1. **AUTH_SECRET**: en az 32 karakterlik rastgele bir metin (Settings → Environment Variables).
+2. **Kullanıcı veritabanı**: Vercel → Storage / Marketplace → **Upstash Redis** (ücretsiz) projeye bağlanır; `KV_REST_API_URL` ve `KV_REST_API_TOKEN` kendiliğinden eklenir.
+
+Yerelde (`npm run dev`) ikisine de gerek yok: kullanıcılar `.data/store.json` dosyasına yazılır.
+Kendi sunucunuzda `npm start` ile Upstash'siz çalıştırmak için `AUTH_FILE_STORE=1` ve `AUTH_SECRET` verin.
+
+## Kupon oluşturucu
+
+Ana sayfada maç sayısı, tutar, maç başı minimum oran ve strateji (Güvenli / Dengeli) seçilir (`src/lib/coupon.ts`).
+Her maçtan en fazla bir seçenek alınır; Güvenli strateji belirsizliği düşülmüş olasılığı en yüksek seçenekleri seçer.
+iddaa'nın MBS kuralına uyar (MBS 3 olan seçenek ancak 3+ maçlık kupona girer). Başlamış maçlar alınmaz.
+Tutma olasılığı = seçenek olasılıklarının çarpımı (maçlar bağımsız varsayılır); beklenen dönüş de gösterilir.
 
 ## Yapay zekanın tercihi
 

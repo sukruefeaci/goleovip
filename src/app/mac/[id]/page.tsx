@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getProvider } from "@/lib/providers";
 import { analyze } from "@/lib/model";
-import { initials, kickoffParts, pct } from "@/lib/format";
+import { kickoffParts, pct } from "@/lib/format";
 import type { TeamInput } from "@/lib/types";
 import BetTable from "@/components/BetTable";
 import PickCard from "@/components/PickCard";
@@ -10,33 +10,35 @@ import { choosePick } from "@/lib/pick";
 
 export const dynamic = "force-dynamic";
 
+const FORM_TITLE = { G: "Galibiyet", B: "Beraberlik", M: "Mağlubiyet" } as const;
+
 function Form({ team }: { team: TeamInput }) {
   return (
-    <div className="form">
+    <div className="dots" aria-label="Son 5 maç">
       {team.form.map((f, i) => (
-        <span key={i} className={f}>
-          {f}
-        </span>
+        <i key={i} className={`dot dot-${f}`} title={FORM_TITLE[f]} />
       ))}
     </div>
   );
 }
 
-function Bar({ label, right, values, colors }: { label: string; right: string; values: number[]; colors: string[] }) {
+function ProbRow({ label, sub, values, highlight }: { label: string; sub: string; values: number[]; highlight?: boolean }) {
+  const max = Math.max(...values);
   return (
-    <div className="barrow">
-      <div className="lbl">
-        <b>{label}</b>
-        <span className="muted">{right}</span>
-      </div>
-      <div className="bar">
-        {values.map((v, i) => (
-          <div key={i} style={{ width: `${v * 100}%`, background: colors[i] }}>
-            {v > 0.07 ? pct(v) : ""}
-          </div>
-        ))}
-      </div>
-    </div>
+    <tr className={highlight ? "hl" : ""}>
+      <th>
+        {label}
+        <small>{sub}</small>
+      </th>
+      {values.map((v, i) => (
+        <td key={i} className={v === max ? "max" : ""}>
+          <b>{pct(v)}</b>
+          <span className="minibar">
+            <i style={{ width: `${v * 100}%` }} />
+          </span>
+        </td>
+      ))}
+    </tr>
   );
 }
 
@@ -51,119 +53,118 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
 
   return (
     <>
-      <div className="toolbar">
-        <Link href="/" className="muted">
-          ← Maçlar
-        </Link>
-        <span className="muted small">Güncellendi: {new Date(match.updatedAt).toLocaleTimeString("tr-TR")}</span>
-      </div>
+      <Link href="/" className="back">
+        ‹ Tüm maçlar
+      </Link>
 
-      <section className="panel hero">
-        <div className="hero-league muted">{match.league}</div>
-        <div className="side">
-          <div className="avatar">{initials(home.name)}</div>
-          <div>
+      <section className="board">
+        <span className="chip">{match.league}</span>
+        <div className="board-row">
+          <div className="team">
             <h1>{home.name}</h1>
             <Form team={home} />
-            <div className="muted small">
-              Puan durumu: <b>{home.rank}.</b> · {home.points} p
-            </div>
+            <span className="muted small">
+              {home.rank ? `${home.rank}. sıra · ${home.points} puan` : "Ev sahibi"}
+            </span>
           </div>
-        </div>
-        <div className="center">
-          <div className="muted hide-sm">{match.league}</div>
-          <div className="time">{k.time}</div>
-          <div className="muted">{k.date}</div>
-          <div style={{ marginTop: 8 }} className="hide-sm">
-            <span className="chip">Avrupa + istatistik</span>
+          <div className="kick">
+            <b>{k.time}</b>
+            <span>{k.date}</span>
           </div>
-        </div>
-        <div className="side away">
-          <div>
+          <div className="team right">
             <h1>{away.name}</h1>
             <Form team={away} />
-            <div className="muted small">
-              Puan durumu: <b>{away.rank}.</b> · {away.points} p
-            </div>
+            <span className="muted small">
+              {away.rank ? `${away.rank}. sıra · ${away.points} puan` : "Deplasman"}
+            </span>
           </div>
-          <div className="avatar">{initials(away.name)}</div>
+        </div>
+        <div className="xg">
+          <span>Gol beklentisi</span>
+          <b>{a.lambda.home.toFixed(2)}</b>
+          <span className="xg-bar">
+            <i style={{ flex: a.lambda.home }} />
+            <i style={{ flex: a.lambda.away }} />
+          </span>
+          <b>{a.lambda.away.toFixed(2)}</b>
         </div>
       </section>
 
       {pick && <PickCard analysis={a} pick={pick} />}
 
-      {match.warnings.length > 0 && <div className="warn">⚠ {match.warnings.join(" · ")}</div>}
+      {match.warnings.length > 0 && (
+        <div className="notice subtle">
+          {match.warnings.map((w) => (
+            <span key={w}>ⓘ {w}</span>
+          ))}
+        </div>
+      )}
 
-      <div className="layout">
-        <div className="side-col">
-          <aside className="panel side-panel">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h3>AVRUPA PİYASASI</h3>
-              <span className="chip">✓ {match.euro.bookmakers} şirket</span>
-            </div>
-            <div className="muted small" style={{ display: "flex", justifyContent: "space-between" }}>
-              <span>1 · {home.short}</span>
-              <span>X</span>
-              <span>{away.short} · 2</span>
-            </div>
-            <Bar
-              label="Avrupa adil"
-              right={`${match.euro.reference} ${match.euro.h2h.map((o) => o.toFixed(2)).join(" / ")}`}
-              values={a.euroFair}
-              colors={["var(--green)", "var(--grey)", "var(--blue)"]}
-            />
-            {a.iddaaFair && a.iddaaOdds && (
-              <Bar
-                label="iddaa (marjsız)"
-                right={a.iddaaOdds.map((o) => o.toFixed(2)).join(" / ")}
-                values={a.iddaaFair}
-                colors={["var(--yellow)", "#7c6a1a", "#a08a12"]}
-              />
+      <div className="detail-grid">
+        <BetTable rows={a.rows} homeName={home.name} awayName={away.name} homeShort={home.short} awayShort={away.short} fileName={`${match.id}.csv`} />
+
+        <aside className="side-col">
+          <section className="card pad">
+            <h3 className="card-title">Olasılık karşılaştırması</h3>
+            <table className="probtable">
+              <thead>
+                <tr>
+                  <th />
+                  <th>1</th>
+                  <th>X</th>
+                  <th>2</th>
+                </tr>
+              </thead>
+              <tbody>
+                <ProbRow label="Avrupa" sub={`${match.euro.reference}`} values={a.euroFair} />
+                {a.iddaaFair && <ProbRow label="iddaa" sub="marjı atılmış" values={a.iddaaFair} />}
+                <ProbRow label="Model" sub="harman" values={a.model1x2} highlight />
+              </tbody>
+            </table>
+            {a.iddaaOdds && (
+              <p className="muted small">
+                iddaa oranları {a.iddaaOdds.map((o) => o.toFixed(2)).join(" · ")} · Avrupa {match.euro.h2h.map((o) => o.toFixed(2)).join(" · ")}
+              </p>
             )}
-            <Bar
-              label="Model (harman)"
-              right={`λ ${a.lambda.home.toFixed(2)} – ${a.lambda.away.toFixed(2)}`}
-              values={a.model1x2}
-              colors={["var(--green-dim)", "var(--grey)", "#0369a1"]}
-            />
-            <div className="tiles">
-              <div className="tile">
-                <span className="muted small">iddaa marjı</span>
-                <b style={{ color: "var(--yellow)" }}>{a.iddaaMargin !== null ? pct(a.iddaaMargin) : "—"}</b>
+            <div className="margins">
+              <div>
+                <span>iddaa marjı</span>
+                <b className="neg">{a.iddaaMargin !== null ? pct(a.iddaaMargin) : "—"}</b>
               </div>
-              <div className="tile">
-                <span className="muted small">Avrupa marjı</span>
-                <b style={{ color: "var(--green)" }}>{pct(a.euroMargin)}</b>
+              <div>
+                <span>Avrupa marjı</span>
+                <b className="pos">{pct(a.euroMargin)}</b>
+              </div>
+              <div>
+                <span>2.5 Üst (Avrupa)</span>
+                <b>{pct(a.euroOver25)}</b>
               </div>
             </div>
-            <div className="small">
-              Avrupa 2.5 üst: <b>{pct(a.euroOver25)}</b>
-              <br />
-              <span className="muted">
-                λ piyasa {a.lambdaMarket.home.toFixed(2)}–{a.lambdaMarket.away.toFixed(2)} · istatistik{" "}
-                {a.lambdaStats.home.toFixed(2)}–{a.lambdaStats.away.toFixed(2)}
-              </span>
-            </div>
-          </aside>
+          </section>
 
-          <aside className="panel side-panel">
-            <h3>KADRO · SAKAT / CEZALI</h3>
-            <div>
-              {a.attackPenalty.home > 0 && <span className="badge">{home.short} hücum −%{(a.attackPenalty.home * 100).toFixed(0)}</span>}
-              {a.attackPenalty.away > 0 && <span className="badge">{away.short} hücum −%{(a.attackPenalty.away * 100).toFixed(0)}</span>}
-            </div>
+          <section className="card pad">
+            <h3 className="card-title">Takım bilgisi</h3>
             {[home, away].map((t) => (
-              <div key={t.short} className="small">
-                <b>{t.name}:</b>{" "}
-                <span className="muted">{t.missing.length ? t.missing.map((m) => `${m.name} (${m.role})`).join(", ") : "eksik yok"}</span>
+              <div key={t.short} className="teaminfo">
+                <b>{t.name}</b>
+                <span className="muted small">
+                  Son {t.goalsFor10.length} maç: {t.goalsFor10.reduce((x, y) => x + y, 0)} attı, {t.goalsAgainst10.reduce((x, y) => x + y, 0)} yedi ·
+                  korner ort. {t.cornersFor.toFixed(1)}
+                </span>
+                <span className="small">
+                  Eksikler:{" "}
+                  <span className="muted">{t.missing.length ? t.missing.map((m) => `${m.name} (${m.role})`).join(", ") : "bilgi yok"}</span>
+                </span>
               </div>
             ))}
-            <h3 style={{ marginTop: 6 }}>ARALARINDAKİ MAÇLAR</h3>
-            <div className="small muted">{match.headToHead.length ? match.headToHead.map((s) => `${s.home}-${s.away}`).join(" · ") : "Son iki sezonda karşılaşma yok"}</div>
-          </aside>
-        </div>
-
-        <BetTable rows={a.rows} homeName={home.name} awayName={away.name} homeShort={home.short} awayShort={away.short} fileName={`${match.id}.csv`} />
+            <div className="teaminfo">
+              <b>Aralarındaki son maçlar</b>
+              <span className="muted small">
+                {match.headToHead.length ? match.headToHead.map((s) => `${s.home}-${s.away}`).join(" · ") : "Son iki sezonda karşılaşma yok"}
+              </span>
+            </div>
+          </section>
+        </aside>
       </div>
     </>
   );

@@ -7,7 +7,7 @@ import { pct, signedPct } from "@/lib/format";
 const LEVEL_TEXT: Record<Pick["level"], string> = {
   güçlü: "Güçlü tercih",
   zayıf: "Zayıf tercih",
-  "değer yok": "Değer yok — oynama",
+  "değer yok": "Değer yok · pas geç",
 };
 
 async function AiText({ analysis, pick }: { analysis: Analysis; pick: Pick }) {
@@ -30,9 +30,9 @@ export default function PickCard({ analysis, pick }: { analysis: Analysis; pick:
   const r = pick.row;
   const lvl = pick.level === "güçlü" ? "strong" : pick.level === "zayıf" ? "weak" : "none";
   return (
-    <section className={`panel pick pick-${lvl}`}>
+    <section className={`card pick pick-${lvl}`}>
       <div className="pick-head">
-        <span className="pick-label">🤖 Yapay zekanın tercihi</span>
+        <span className="pick-label"><span className="ai">AI</span> Yapay zekanın tercihi</span>
         <span className={`pick-level pick-level-${lvl}`}>{LEVEL_TEXT[pick.level]}</span>
       </div>
       <div className="pick-main">
@@ -40,15 +40,15 @@ export default function PickCard({ analysis, pick }: { analysis: Analysis; pick:
           <div className="pick-market">{r.market}</div>
           <div className="pick-selection">{r.selection}</div>
         </div>
-        <div className="pick-odd">{r.odd.toFixed(2)}</div>
+        <div className="pick-odd oddpill">{r.odd.toFixed(2)}</div>
       </div>
       <div className="pick-stats">
         <div>
-          <span>Tahmin</span>
+          <span>Model</span>
           <b>{pct(r.prob)}</b>
         </div>
         <div>
-          <span>Gereken</span>
+          <span>Başa baş</span>
           <b>{pct(r.required)}</b>
         </div>
         <div>
@@ -56,7 +56,7 @@ export default function PickCard({ analysis, pick }: { analysis: Analysis; pick:
           <b className={r.ev >= 0 ? "pos" : "neg"}>{signedPct(r.ev)}</b>
         </div>
         <div>
-          <span>Temkinli</span>
+          <span>Güvenli</span>
           <b className={r.evConservative >= 0 ? "pos" : "neg"}>{signedPct(r.evConservative)}</b>
         </div>
       </div>

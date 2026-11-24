@@ -6,7 +6,7 @@ const { aiComment, aiEnabled } = await import("../src/lib/aiComment.ts");
 
 const row = (key: string, odd: number, prob: number, sigma = 0.03) => ({
   key, category: "Gol", market: "Alt/Üst 2.5", selection: key, odd, required: 1 / odd, prob, sigma,
-  ev: prob * odd - 1, evConservative: (prob - sigma) * odd - 1, edgeChance: 0.5, basis: "test", rating: "Dezavantajlı", dependsOn: null,
+  ev: prob * odd - 1, evConservative: (prob - sigma) * odd - 1, edgeChance: 0.5, basis: "test", rating: "Dezavantajlı", dependsOn: null, mbc: 1,
 });
 const analysis = (rows: any[]) => ({ rows, iddaaMargin: 0.158, match: { home: { name: "A" }, away: { name: "B" } } }) as any;
 

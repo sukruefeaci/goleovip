@@ -23,6 +23,7 @@ export interface TeamInput {
 export interface OddsLine {
   key: string;
   odd: number;
+  mbc?: number; // iddaa minimum bahis sayısı (kuponda en az kaç maç)
 }
 
 export interface EuroMarket {
@@ -66,6 +67,7 @@ export interface BetRow {
   basis: string;
   rating: Rating;
   dependsOn: "home" | "away" | null; // seçenek büyük ölçüde bir tarafın galibiyetine bağlı mı
+  mbc: number; // iddaa minimum bahis sayısı
 }
 
 export interface Analysis {

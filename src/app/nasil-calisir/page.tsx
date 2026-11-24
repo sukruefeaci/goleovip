@@ -27,6 +27,12 @@ export default function HowItWorks() {
           <b>Değerlendirme:</b> Getiri = tahmin × oran − 1. Temkinli getiri belirsizliğin kötü ucundan hesaplanır.
         </li>
       </ol>
+      <h3>Kupon oluşturucu</h3>
+      <p>
+        Her maçtan en fazla bir seçenek alınır. <b>Güvenli</b> strateji, belirsizlik payı düşüldükten sonra olasılığı en yüksek
+        seçenekleri seçer; <b>Dengeli</b> olasılık ile getiriyi birlikte gözetir. iddaa'nın MBS kuralına uyulur. Kuponun tutma
+        olasılığı seçeneklerin olasılıklarının çarpımıdır; maç sayısı arttıkça hızla düşer.
+      </p>
       <p className="muted">
         Not: iddaa marjı genellikle %15 civarında, Avrupa piyasası %3–6. Bu fark yüzünden seçeneklerin büyük çoğunluğu
         dezavantajlı çıkar — bu bir hata değil, aracın asıl gösterdiği şeydir. Bu prototip sahte veriyle çalışır; kazanç

@@ -22,6 +22,7 @@ interface RawOutcome {
   odd?: number;
 }
 interface RawMarket {
+  mbc?: number;
   st?: number;
   sov?: string | null;
   o?: RawOutcome[];
@@ -99,7 +100,7 @@ export function parseIddaa(raw: IddaaRaw): OddsEvent[] {
         // 1.00 = kapalı seçenek
         if (!o.odd || o.odd <= 1.01 || seen.has(key)) continue;
         seen.add(key);
-        lines.push({ key, odd: o.odd });
+        lines.push({ key, odd: o.odd, mbc: m.mbc ?? 1 });
       }
       if (!any) unmapped++;
     }

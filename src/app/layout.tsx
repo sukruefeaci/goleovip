@@ -1,32 +1,87 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import "./globals.css";
+import { currentUser } from "@/lib/auth/current";
+import { logout } from "@/lib/auth/actions";
 
 export const metadata: Metadata = {
-  title: "Maç Değerleme",
-  description: "iddaa oranlarını Avrupa piyasası ve istatistik modeliyle karşılaştırır.",
+  title: "goleo VIP — maç değerleme",
+  description: "iddaa oranlarını Avrupa piyasası ve istatistik modeliyle karşılaştırır, otomatik kupon oluşturur.",
 };
 
-export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#0b1114" };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#0b0b1a" };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+function Brand() {
+  return (
+    <Link href="/" className="brand">
+      <span className="brand-mark">G</span>
+      <span className="brand-name">
+        goleo<span className="brand-vip">VIP</span>
+      </span>
+    </Link>
+  );
+}
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const user = await currentUser();
   return (
     <html lang="tr">
       <body>
         <header className="topbar">
-          <Link href="/" className="brand">
-            <span className="logo">◉</span>
-            <span>
-              <strong>Maç Değerleme</strong>
-              <small className="hide-sm">iddaa · Avrupa piyasası · istatistik</small>
-            </span>
-          </Link>
-          <nav>
-            <Link href="/">Maçlar</Link>
-            <Link href="/nasil-calisir">Nasıl çalışır?</Link>
-          </nav>
+          <div className="topbar-inner">
+            <Brand />
+            {user && (
+              <nav className="topnav">
+                <Link href="/">Maçlar</Link>
+                <Link href="/#kupon">Kupon</Link>
+                <Link href="/nasil-calisir">Nasıl çalışır?</Link>
+              </nav>
+            )}
+            <div className="userbox">
+              {user ? (
+                <>
+                  <span className="avatar-sm" title={user.email}>
+                    {user.name.slice(0, 1).toUpperCase()}
+                  </span>
+                  <span className="hide-sm">{user.name}</span>
+                  <form action={logout}>
+                    <button className="btn ghost sm">Çıkış</button>
+                  </form>
+                </>
+              ) : (
+                <>
+                  <Link href="/giris" className="btn ghost sm">
+                    Giriş
+                  </Link>
+                  <Link href="/kayit" className="btn primary sm">
+                    Kaydol
+                  </Link>
+                </>
+              )}
+            </div>
+          </div>
         </header>
+
         <main className="container">{children}</main>
+
+        {user && (
+          <nav className="bottomnav" aria-label="Alt menü">
+            <Link href="/">
+              <span aria-hidden>⚽</span>Maçlar
+            </Link>
+            <Link href="/#kupon">
+              <span aria-hidden>🎟️</span>Kupon
+            </Link>
+            <Link href="/nasil-calisir">
+              <span aria-hidden>📘</span>Bilgi
+            </Link>
+          </nav>
+        )}
+
+        <footer className="footer">
+          18 yaş altı kullanamaz. Bu site yalnız bilgi amaçlıdır; hiçbir tahmin kazanç garantisi vermez. Kumar bağımlılığı için yardım:
+          Yeşilay Danışmanlık Merkezi <b>115</b>.
+        </footer>
       </body>
     </html>
   );

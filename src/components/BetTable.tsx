@@ -4,6 +4,9 @@ import { useMemo, useState } from "react";
 import { CATEGORIES, type BetRow, type Category } from "@/lib/types";
 import { pct, signedPct } from "@/lib/format";
 
+const LABEL = { Avantajlı: "Değerli", Sınırda: "Sınırda", Dezavantajlı: "Değersiz" } as const;
+const ICON = { Avantajlı: "▲", Sınırda: "◆", Dezavantajlı: "▼" } as const;
+
 type SortKey = "market" | "odd" | "required" | "prob" | "ev" | "evConservative";
 
 const MIN_ODDS: (number | null)[] = [null, 1.4, 1.5, 1.8, 2.0, 3.0];
@@ -96,7 +99,7 @@ export default function BetTable({ rows, homeName, awayName, homeShort, awayShor
   }
 
   return (
-    <section className="panel table-panel">
+    <section className="card table-panel">
       <div className="filters">
         <span className="muted">Min. oran</span>
         <div className="seg scroll-x">
@@ -116,29 +119,27 @@ export default function BetTable({ rows, homeName, awayName, homeShort, awayShor
           onChange={(e) => setMinOdd(e.target.value ? Number(e.target.value) : null)}
         />
         <label>
-          <input type="checkbox" checked={showBad} onChange={(e) => setShowBad(e.target.checked)} /> Dezavantajlıları göster{" "}
+          <input type="checkbox" checked={showBad} onChange={(e) => setShowBad(e.target.checked)} /> Değersizleri göster{" "}
           <span className="muted">({badCount})</span>
         </label>
         <label>
-          <input type="checkbox" checked={onlyGood} onChange={(e) => setOnlyGood(e.target.checked)} /> Yalnız avantajlı{" "}
+          <input type="checkbox" checked={onlyGood} onChange={(e) => setOnlyGood(e.target.checked)} /> Yalnız değerli{" "}
           <span className="muted">({goodCount})</span>
         </label>
         <button className="btn" onClick={() => setHelp((h) => !h)}>
           ⓘ <span className="hide-sm">Sütunlar ne anlama geliyor?</span><span className="show-sm">Açıklama</span>
         </button>
         <button className="btn primary csv" onClick={downloadCsv}>
-          ⭳ CSV indir
+          CSV
         </button>
       </div>
 
       {help && (
         <div className="help">
-          <b>Oran:</b> iddaa oranı. <b>Gereken:</b> bu oranın başa baş noktası (1/oran). <b>Tahmin:</b> modelin olasılığı
-          (Avrupa piyasasından çıkarılan λ ile son maç istatistiklerinin harmanı); ± belirsizlik payıdır.{" "}
-          <b>Getiri:</b> beklenen değer = tahmin × oran − 1. <b>Temkinli getiri:</b> tahminin kötümser ucu (tahmin − ±) ile
-          hesaplanan getiri; ayrıca gerçek olasılığın gerekeni aşma ihtimali (avantaj ihtimali). <b>Değerlendirme:</b>{" "}
-          temkinli getiri &gt; 0 ise Avantajlı, yalnız getiri &gt; 0 ise Sınırda, aksi halde Dezavantajlı. Bu bir tahmin
-          aracıdır; kazanç garantisi vermez.
+          <b>Oran:</b> iddaa oranı. <b>Başa baş:</b> bu oranın zarar etmemesi için gereken olasılık (1/oran). <b>Model:</b> Avrupa
+          piyasası ile son maç istatistiklerinden hesaplanan olasılık; ± belirsizlik payıdır. <b>Getiri:</b> model × oran − 1.{" "}
+          <b>Güvenli getiri:</b> belirsizliğin kötü ucuyla hesaplanan getiri. <b>Sonuç:</b> güvenli getiri artıysa Değerli, yalnız
+          getiri artıysa Sınırda, ikisi de eksiyse Değersiz. Kazanç garantisi yoktur.
         </div>
       )}
 
@@ -155,8 +156,8 @@ export default function BetTable({ rows, homeName, awayName, homeShort, awayShor
         <>
           <div className="dep">
             <span>
-              ⚠ Bu <b>{dep.list.length}</b> artı getirili seçenek <b>{dep.side} galibiyetine</b> bağlı — birlikte oynamak riski
-              çeşitlendirmez.
+              Dikkat: <b>{dep.list.length}</b> artı getirili seçenek <b>{dep.side} galibiyetine</b> bağlı; aynı kuponda oynamak riski
+              artırır.
             </span>
             <button className="btn" onClick={() => setShowDep((s) => !s)}>
               {showDep ? "Gizle" : "Göster"}
@@ -180,12 +181,12 @@ export default function BetTable({ rows, homeName, awayName, homeShort, awayShor
             <tr>
               {th("market", "Bahis")}
               {th("odd", "Oran")}
-              {th("required", "Gereken")}
-              {th("prob", "Tahmin")}
+              {th("required", "Başa baş")}
+              {th("prob", "Model")}
               {th("ev", "Getiri")}
-              {th("evConservative", "Temkinli getiri")}
-              <th>Dayanak</th>
-              <th>Değerlendirme</th>
+              {th("evConservative", "Güvenli getiri")}
+              <th>Neden</th>
+              <th>Sonuç</th>
             </tr>
           </thead>
           <tbody>
@@ -197,7 +198,9 @@ export default function BetTable({ rows, homeName, awayName, homeShort, awayShor
                   </b>
                   <span className="sub">{r.category}</span>
                 </td>
-                <td className="odd">{r.odd.toFixed(2)}</td>
+                <td>
+                  <span className="oddpill">{r.odd.toFixed(2)}</span>
+                </td>
                 <td className="muted">{pct(r.required)}</td>
                 <td>
                   <b>{pct(r.prob)}</b>
@@ -216,8 +219,7 @@ export default function BetTable({ rows, homeName, awayName, homeShort, awayShor
                 <td className="basis">{r.basis}</td>
                 <td>
                   <span className={`rating ${r.rating}`}>
-                    {r.rating === "Avantajlı" ? "✓ " : r.rating === "Sınırda" ? "~ " : "✕ "}
-                    {r.rating}
+                    {ICON[r.rating]} {LABEL[r.rating]}
                   </span>
                 </td>
               </tr>
@@ -238,9 +240,9 @@ export default function BetTable({ rows, homeName, awayName, homeShort, awayShor
               setSort({ key: key as SortKey, dir: Number(dir) as 1 | -1 });
             }}
           >
-            <option value="evConservative:-1">Temkinli getiri (yüksek → düşük)</option>
+            <option value="evConservative:-1">Güvenli getiri (yüksek → düşük)</option>
             <option value="ev:-1">Getiri (yüksek → düşük)</option>
-            <option value="prob:-1">Tahmin (yüksek → düşük)</option>
+            <option value="prob:-1">Model olasılığı (yüksek → düşük)</option>
             <option value="odd:1">Oran (düşük → yüksek)</option>
             <option value="odd:-1">Oran (yüksek → düşük)</option>
             <option value="market:1">Bahis adı (A → Z)</option>
@@ -256,28 +258,27 @@ export default function BetTable({ rows, homeName, awayName, homeShort, awayShor
                 <span className="sub">{r.category}</span>
               </div>
               <span className={`rating ${r.rating}`}>
-                {r.rating === "Avantajlı" ? "✓ " : r.rating === "Sınırda" ? "~ " : "✕ "}
-                {r.rating}
+                {ICON[r.rating]} {LABEL[r.rating]}
               </span>
             </header>
             <div className="betstats">
               <div>
                 <span>Oran</span>
-                <b className="odd">{r.odd.toFixed(2)}</b>
+                <b className="oddpill">{r.odd.toFixed(2)}</b>
               </div>
               <div>
-                <span>Gereken</span>
+                <span>Başa baş</span>
                 <b className="muted">{pct(r.required)}</b>
               </div>
               <div>
-                <span>Tahmin</span>
+                <span>Model</span>
                 <b>{pct(r.prob)}</b>
                 <small className="muted">±{(r.sigma * 100).toFixed(1)}</small>
               </div>
               <div>
                 <span>Getiri</span>
                 <b className={r.ev >= 0 ? "pos" : "neg"}>{signedPct(r.ev)}</b>
-                <small className={r.evConservative >= 0 ? "pos" : "neg"}>temkinli {signedPct(r.evConservative)}</small>
+                <small className={r.evConservative >= 0 ? "pos" : "neg"}>güvenli {signedPct(r.evConservative)}</small>
               </div>
             </div>
             <p className="basis">{r.basis}</p>
