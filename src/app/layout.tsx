@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import "./globals.css";
 
@@ -6,6 +6,8 @@ export const metadata: Metadata = {
   title: "Maç Değerleme",
   description: "iddaa oranlarını Avrupa piyasası ve istatistik modeliyle karşılaştırır.",
 };
+
+export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#0b1114" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -16,7 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <span className="logo">◉</span>
             <span>
               <strong>Maç Değerleme</strong>
-              <small>iddaa · Avrupa piyasası · istatistik</small>
+              <small className="hide-sm">iddaa · Avrupa piyasası · istatistik</small>
             </span>
           </Link>
           <nav>

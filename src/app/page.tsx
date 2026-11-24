@@ -28,7 +28,7 @@ export default async function Home() {
           return (
             <Link key={a.match.id} href={`/mac/${a.match.id}`} className="panel match-card">
               <div>
-                <div style={{ fontSize: 20, fontWeight: 800 }}>{k.time}</div>
+                <div className="mc-time">{k.time}</div>
                 <div className="muted small">{k.date}</div>
               </div>
               <div>

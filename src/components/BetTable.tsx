@@ -99,7 +99,7 @@ export default function BetTable({ rows, homeName, awayName, homeShort, awayShor
     <section className="panel table-panel">
       <div className="filters">
         <span className="muted">Min. oran</span>
-        <div className="seg">
+        <div className="seg scroll-x">
           {MIN_ODDS.map((m) => (
             <button key={String(m)} className={minOdd === m ? "on" : ""} onClick={() => setMinOdd(m)}>
               {m === null ? "Sınırsız" : m.toFixed(2)}
@@ -116,7 +116,7 @@ export default function BetTable({ rows, homeName, awayName, homeShort, awayShor
           onChange={(e) => setMinOdd(e.target.value ? Number(e.target.value) : null)}
         />
         <label>
-          <input type="checkbox" checked={showBad} onChange={(e) => setShowBad(e.target.checked)} /> Dezavantajlıları da göster{" "}
+          <input type="checkbox" checked={showBad} onChange={(e) => setShowBad(e.target.checked)} /> Dezavantajlıları göster{" "}
           <span className="muted">({badCount})</span>
         </label>
         <label>
@@ -124,9 +124,9 @@ export default function BetTable({ rows, homeName, awayName, homeShort, awayShor
           <span className="muted">({goodCount})</span>
         </label>
         <button className="btn" onClick={() => setHelp((h) => !h)}>
-          ⓘ Sütunlar ne anlama geliyor?
+          ⓘ <span className="hide-sm">Sütunlar ne anlama geliyor?</span><span className="show-sm">Açıklama</span>
         </button>
-        <button className="btn primary" onClick={downloadCsv} style={{ marginLeft: "auto" }}>
+        <button className="btn primary csv" onClick={downloadCsv}>
           ⭳ CSV indir
         </button>
       </div>
@@ -142,8 +142,8 @@ export default function BetTable({ rows, homeName, awayName, homeShort, awayShor
         </div>
       )}
 
-      <div className="tabs">
-        {(["Tümü", ...CATEGORIES] as const).map((c) => (
+      <div className="tabs scroll-x">
+        {(["Tümü", ...CATEGORIES] as const).filter((c) => c === "Tümü" || rows.some((r) => r.category === c)).map((c) => (
           <button key={c} className={cat === c ? "on" : ""} onClick={() => setCat(c)}>
             {c}
             <small>{c === "Tümü" ? base.length : base.filter((r) => r.category === c).length}</small>
@@ -224,6 +224,65 @@ export default function BetTable({ rows, homeName, awayName, homeShort, awayShor
             ))}
           </tbody>
         </table>
+        {shown.length === 0 && <div className="empty">Bu filtrelerle seçenek yok.</div>}
+      </div>
+
+      {/* Telefon görünümü: kartlar */}
+      <div className="cardlist">
+        <div className="mobile-sort">
+          <span className="muted small">Sırala</span>
+          <select
+            value={`${sort.key}:${sort.dir}`}
+            onChange={(e) => {
+              const [key, dir] = e.target.value.split(":");
+              setSort({ key: key as SortKey, dir: Number(dir) as 1 | -1 });
+            }}
+          >
+            <option value="evConservative:-1">Temkinli getiri (yüksek → düşük)</option>
+            <option value="ev:-1">Getiri (yüksek → düşük)</option>
+            <option value="prob:-1">Tahmin (yüksek → düşük)</option>
+            <option value="odd:1">Oran (düşük → yüksek)</option>
+            <option value="odd:-1">Oran (yüksek → düşük)</option>
+            <option value="market:1">Bahis adı (A → Z)</option>
+          </select>
+        </div>
+        {shown.map((r) => (
+          <article key={r.key} className="betcard">
+            <header>
+              <div>
+                <b>
+                  {r.market}: {r.selection}
+                </b>
+                <span className="sub">{r.category}</span>
+              </div>
+              <span className={`rating ${r.rating}`}>
+                {r.rating === "Avantajlı" ? "✓ " : r.rating === "Sınırda" ? "~ " : "✕ "}
+                {r.rating}
+              </span>
+            </header>
+            <div className="betstats">
+              <div>
+                <span>Oran</span>
+                <b className="odd">{r.odd.toFixed(2)}</b>
+              </div>
+              <div>
+                <span>Gereken</span>
+                <b className="muted">{pct(r.required)}</b>
+              </div>
+              <div>
+                <span>Tahmin</span>
+                <b>{pct(r.prob)}</b>
+                <small className="muted">±{(r.sigma * 100).toFixed(1)}</small>
+              </div>
+              <div>
+                <span>Getiri</span>
+                <b className={r.ev >= 0 ? "pos" : "neg"}>{signedPct(r.ev)}</b>
+                <small className={r.evConservative >= 0 ? "pos" : "neg"}>temkinli {signedPct(r.evConservative)}</small>
+              </div>
+            </div>
+            <p className="basis">{r.basis}</p>
+          </article>
+        ))}
         {shown.length === 0 && <div className="empty">Bu filtrelerle seçenek yok.</div>}
       </div>
       <div className="muted small" style={{ padding: "10px 16px" }}>

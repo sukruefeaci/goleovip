@@ -56,6 +56,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
       </div>
 
       <section className="panel hero">
+        <div className="hero-league muted">{match.league}</div>
         <div className="side">
           <div className="avatar">{initials(home.name)}</div>
           <div>
@@ -67,10 +68,10 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           </div>
         </div>
         <div className="center">
-          <div className="muted">{match.league}</div>
+          <div className="muted hide-sm">{match.league}</div>
           <div className="time">{k.time}</div>
           <div className="muted">{k.date}</div>
-          <div style={{ marginTop: 8 }}>
+          <div style={{ marginTop: 8 }} className="hide-sm">
             <span className="chip">Avrupa + istatistik</span>
           </div>
         </div>
@@ -89,7 +90,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
       {match.warnings.length > 0 && <div className="warn">⚠ {match.warnings.join(" · ")}</div>}
 
       <div className="layout">
-        <div style={{ display: "grid", gap: 16 }}>
+        <div className="side-col">
           <aside className="panel side-panel">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h3>AVRUPA PİYASASI</h3>
@@ -153,7 +154,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
               </div>
             ))}
             <h3 style={{ marginTop: 6 }}>ARALARINDAKİ MAÇLAR</h3>
-            <div className="small muted">{match.headToHead.map((s) => `${s.home}-${s.away}`).join(" · ")}</div>
+            <div className="small muted">{match.headToHead.length ? match.headToHead.map((s) => `${s.home}-${s.away}`).join(" · ") : "Son iki sezonda karşılaşma yok"}</div>
           </aside>
         </div>
 
