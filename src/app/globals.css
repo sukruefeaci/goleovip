@@ -653,3 +653,6 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .adm-nums b { font-size: 1.15rem; }
 .adm-preview { width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); display: block; }
 .adm-list { margin-top: 14px; }
+.oa-row.oa-won { border-color: rgba(34, 196, 147, 0.55); }
+.oa-row.oa-lost { border-color: rgba(239, 68, 68, 0.45); }
+.oa-top .mrow-score { margin-left: auto; }
