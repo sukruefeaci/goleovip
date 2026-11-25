@@ -56,6 +56,7 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .topnav { display: flex; gap: 6px; }
 .topnav a { padding: 7px 12px; border-radius: 10px; color: var(--muted); font-weight: 600; }
 .topnav a:hover { color: var(--text); background: var(--surface-2); }
+.topnav a.active { color: #fff; background: var(--brand-soft); box-shadow: inset 0 0 0 1px rgba(139, 92, 246, 0.5); }
 .userbox { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .userbox form { margin: 0; }
 .avatar-sm { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; background: var(--brand-soft); color: #c4b5fd; border: 1px solid rgba(139, 92, 246, 0.4); }
@@ -101,17 +102,35 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .auth-switch { margin: 4px 0 0; text-align: center; color: var(--muted); font-size: 13px; }
 .auth-switch a { color: #c4b5fd; font-weight: 700; }
 
+/* ---------- Sayfa düzeni ---------- */
+.page-narrow { max-width: 860px; margin: 0 auto; }
+.page-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.page-head h1 { margin: 0; font-size: 26px; }
+
+/* ---------- Banko ---------- */
+.banko-list { display: grid; gap: 14px; margin-top: 14px; }
+.banko { display: grid; grid-template-columns: 48px 1fr; gap: 14px; padding: 18px; border-color: rgba(16, 185, 129, 0.45);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), transparent 55%), var(--surface); transition: transform 0.15s, border-color 0.15s; }
+.banko:hover { transform: translateY(-1px); border-color: rgba(16, 185, 129, 0.8); }
+.banko-rank { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; font-size: 22px; font-weight: 900; color: #022c22; background: linear-gradient(135deg, var(--good), #6ee7b7); }
+.banko-body { display: grid; gap: 8px; min-width: 0; }
+.banko-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.banko-match { font-size: 18px; font-weight: 800; }
+.banko-match .vs { font-size: 11px; color: var(--muted); font-weight: 600; margin: 0 4px; }
+.banko-pick { display: grid; gap: 1px; }
+.banko-pick .muted { font-size: 13px; }
+.banko-pick b { font-size: 24px; line-height: 1.15; }
+.banko-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.banko-stats > div { background: rgba(11, 11, 26, 0.5); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; display: grid; gap: 2px; }
+.banko-stats span { font-size: 10.5px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.banko-stats b { font-size: 17px; justify-self: start; }
+.confbar { height: 7px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.confbar i { display: block; height: 100%; background: linear-gradient(90deg, var(--good), #6ee7b7); }
+.banko-mbs { margin: 0; }
+.banko-combo { margin-top: 14px; }
+.banko-combo .coupon-totals { margin-top: 0; }
+
 /* ---------- Ana sayfa ---------- */
-.welcome { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
-.welcome h1 { margin: 0; font-size: 28px; }
-.welcome p { margin: 4px 0 0; }
-.kpis { display: flex; gap: 10px; }
-.kpi { min-width: 120px; padding: 10px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
-.kpi span { display: block; font-size: 11.5px; color: var(--muted); font-weight: 600; }
-.kpi b { font-size: 22px; }
-.home-grid { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 20px; align-items: start; }
-.home-coupon { grid-column: 2; grid-row: 1; position: sticky; top: 76px; scroll-margin-top: 80px; }
-.home-matches { grid-column: 1; grid-row: 1; }
 .section-title { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; gap: 10px; }
 .section-title h2 { margin: 0; font-size: 20px; }
 .day { margin-top: 14px; }
@@ -306,9 +325,6 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 
 /* ---------- Tablet ---------- */
 @media (max-width: 1080px) {
-  .home-grid { grid-template-columns: 1fr; }
-  .home-coupon { grid-column: 1; grid-row: 1; position: static; }
-  .home-matches { grid-row: 2; }
   .detail-grid { grid-template-columns: 1fr; }
   .side-col { grid-template-columns: 1fr 1fr; }
 }
@@ -324,15 +340,18 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   .container { padding: 14px 12px 30px; }
   .footer { padding-bottom: 100px; }
 
-  .bottomnav { display: grid; grid-template-columns: repeat(3, 1fr); position: fixed; left: 10px; right: 10px; bottom: 10px; z-index: 30; padding: 6px; border-radius: 18px; background: rgba(21, 21, 46, 0.92); backdrop-filter: blur(14px); border: 1px solid var(--line); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5); }
+  .bottomnav { display: grid; grid-template-columns: repeat(4, 1fr); position: fixed; left: 10px; right: 10px; bottom: 10px; z-index: 30; padding: 6px; border-radius: 18px; background: rgba(21, 21, 46, 0.92); backdrop-filter: blur(14px); border: 1px solid var(--line); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5); }
   .bottomnav a { display: grid; justify-items: center; gap: 1px; font-size: 11px; font-weight: 700; color: var(--muted); padding: 6px 0; border-radius: 12px; }
   .bottomnav a span { font-size: 18px; }
   .bottomnav a:active { background: var(--surface-2); }
+  .bottomnav a.active { color: #fff; background: var(--brand-soft); }
+  .page-head h1 { font-size: 22px; }
+  .banko { grid-template-columns: 1fr; padding: 14px; gap: 10px; }
+  .banko-rank { width: 34px; height: 34px; font-size: 17px; border-radius: 11px; }
+  .banko-pick b { font-size: 20px; }
+  .banko-stats { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .banko-stats b { font-size: 15px; }
 
-  .welcome h1 { font-size: 22px; }
-  .kpis { width: 100%; }
-  .kpi { flex: 1; min-width: 0; padding: 8px 10px; }
-  .kpi b { font-size: 18px; }
 
   .coupon { padding: 14px; }
   .coupon-form { gap: 10px; }

@@ -3,6 +3,7 @@ import Link from "next/link";
 import "./globals.css";
 import { currentUser } from "@/lib/auth/current";
 import { logout } from "@/lib/auth/actions";
+import NavLinks from "@/components/NavLinks";
 
 export const metadata: Metadata = {
   title: "goleo VIP — maç değerleme",
@@ -30,13 +31,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <header className="topbar">
           <div className="topbar-inner">
             <Brand />
-            {user && (
-              <nav className="topnav">
-                <Link href="/">Maçlar</Link>
-                <Link href="/#kupon">Kupon</Link>
-                <Link href="/nasil-calisir">Nasıl çalışır?</Link>
-              </nav>
-            )}
+            {user && <NavLinks variant="top" />}
             <div className="userbox">
               {user ? (
                 <>
@@ -64,19 +59,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
         <main className="container">{children}</main>
 
-        {user && (
-          <nav className="bottomnav" aria-label="Alt menü">
-            <Link href="/">
-              <span aria-hidden>⚽</span>Maçlar
-            </Link>
-            <Link href="/#kupon">
-              <span aria-hidden>🎟️</span>Kupon
-            </Link>
-            <Link href="/nasil-calisir">
-              <span aria-hidden>📘</span>Bilgi
-            </Link>
-          </nav>
-        )}
+        {user && <NavLinks variant="bottom" />}
 
         <footer className="footer">
           18 yaş altı kullanamaz. Bu site yalnız bilgi amaçlıdır; hiçbir tahmin kazanç garantisi vermez. Kumar bağımlılığı için yardım:

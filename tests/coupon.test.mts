@@ -47,3 +47,16 @@ test("kupon metni", () => {
   const r = buildCoupon(matches, { legs: 2, stake: 100, mode: "guvenli", minOdd: 1.2, excluded: [], now });
   assert.match(couponText(r.coupon!, 100), /Toplam oran: 1\.63/);
 });
+
+test("banko: yalnız maç sonucu/gol/ilk yarı, en az 1.25 oran, farklı maçlar", async () => {
+  const { bankoPicks } = await import("../src/lib/coupon.ts");
+  const ms = [
+    match("k", [{ ...opt("kor", 1.3, 0.95), category: "Korner" }, opt("k1", 1.2, 0.9)]),
+    match("x", [opt("x1", 1.3, 0.8), opt("x2", 1.28, 0.78)]),
+    match("y", [opt("y1", 1.4, 0.7)]),
+    match("z", [opt("z1", 1.26, 0.74, 3)]),
+  ];
+  const r = bankoPicks(ms, 2, now);
+  const keys = r.coupon!.legs.map((l) => l.pick.key).sort();
+  assert.deepEqual(keys, ["x1", "y1"], "korner ve 1.25 altı elenir; MBS 3 ikiliye girmez; maç başına bir tercih");
+});

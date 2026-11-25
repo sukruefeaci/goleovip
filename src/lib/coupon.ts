@@ -115,3 +115,19 @@ export function couponText(c: Coupon, stake: number): string {
     `Model tutma olasılığı: %${(c.winProb * 100).toFixed(1)}`,
   ].join("\n");
 }
+
+/** Banko için yalnız Avrupa piyasasıyla doğrulanan pazarlar (korner/kart yalnız istatistik, İY/MS çok belirsiz) */
+export const BANKO_CATEGORIES = ["Sonuç", "Gol", "İlk Yarı"];
+export const BANKO_MIN_ODD = 1.25;
+
+/**
+ * Banko: tüm yaklaşan maçlar içinden en güvenilir iki tercih (farklı maçlardan).
+ * Güvenilirlik = belirsizlik payı düşülmüş model olasılığı. İkili kupon olarak da oynanabilmesi için MBS ≤ 2.
+ */
+export function bankoPicks(matches: CouponMatch[], count = 2, now = Date.now()): CouponResult {
+  const filtered = matches.map((m) => ({
+    ...m,
+    options: m.options.filter((o) => BANKO_CATEGORIES.includes(o.category)),
+  }));
+  return buildCoupon(filtered, { legs: count, stake: 100, mode: "guvenli", minOdd: BANKO_MIN_ODD, excluded: [], now });
+}
