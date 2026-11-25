@@ -1,0 +1,153 @@
+import { currentUser } from "@/lib/auth/current";
+import { adminEmails, isAdmin } from "@/lib/admin";
+import { getStore } from "@/lib/auth/store";
+import { isTelegramEnabled, telegramConfig } from "@/lib/telegram";
+import { SCOPE_LABEL, sharedStats, type StatsScope } from "@/lib/tgStats";
+import { shareStats, toggleTelegram } from "./actions";
+
+export const dynamic = "force-dynamic";
+
+const SCOPES = Object.keys(SCOPE_LABEL) as StatsScope[];
+
+export default async function AdminPage({ searchParams }: { searchParams: Promise<{ ok?: string; err?: string; d?: string }> }) {
+  const user = await currentUser();
+  if (!isAdmin(user)) {
+    return (
+      <div className="page-narrow">
+        <h1>Admin paneli</h1>
+        <div className="card pad">
+          {adminEmails().length === 0 ? (
+            <>
+              <p style={{ marginTop: 0 }}>Admin henüz tanımlı değil.</p>
+              <p className="muted small">
+                Vercel → Settings → Environment Variables bölümüne <code>ADMIN_EMAILS</code> adında bir ayar ekleyip değerine siteye giriş yaptığın
+                e-posta adresini yaz, sonra Redeploy yap.
+              </p>
+            </>
+          ) : (
+            <p style={{ margin: 0 }}>Bu sayfayı yalnız admin görebilir.</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const { ok, err, d } = await searchParams;
+  const scope: StatsScope = d && d in SCOPE_LABEL ? (d as StatsScope) : "bugun";
+  const cfg = telegramConfig();
+  const tracking = !!getStore();
+  const [enabled, st] = await Promise.all([isTelegramEnabled(), tracking ? sharedStats(scope) : Promise.resolve(null)]);
+  const p = st?.pnl;
+
+  return (
+    <div className="page-narrow">
+      <div className="page-head">
+        <h1>Admin paneli</h1>
+      </div>
+      {ok && <div className="notice subtle">✓ {ok}</div>}
+      {err && <div className="notice">⚠ {err}</div>}
+
+      <section className="card pad adm">
+        <h2 className="card-title">Telegram paylaşımı</h2>
+        {!cfg ? (
+          <p className="muted small">Telegram ayarlı değil (TELEGRAM_BOT_TOKEN ve TELEGRAM_CHAT_ID). /kurulum sayfasından kontrol edebilirsin.</p>
+        ) : (
+          <>
+            <div className="adm-status">
+              <span className={`adm-dot ${enabled ? "on" : "off"}`} aria-hidden />
+              <b>{enabled ? "Açık" : "Durduruldu"}</b>
+              <span className="muted small">
+                {enabled
+                  ? `Güven ≥ %${cfg.minConf}, oran ≥ 1.45; iki paylaşım arası en az ${cfg.cooldownMin} dk.`
+                  : "Canlı sekmesi açılsa bile kanala hiçbir tahmin gönderilmez."}
+              </span>
+            </div>
+            <form action={toggleTelegram}>
+              <input type="hidden" name="on" value={enabled ? "0" : "1"} />
+              <button className={`btn ${enabled ? "danger" : "primary"} block`}>{enabled ? "⏸ Paylaşımı durdur" : "▶ Paylaşımı başlat"}</button>
+            </form>
+          </>
+        )}
+      </section>
+
+      <section className="card pad adm">
+        <h2 className="card-title">Kanal istatistiği</h2>
+        <p className="muted small" style={{ marginTop: 0 }}>
+          Kanalda paylaşılan canlı tahminlerin kaçta kaçının tuttuğu, tutanların oranları ve her tahmine 100 TL ile kâr/zarar. Dönemi seç, görseli
+          kontrol et, sonra kanalda paylaş.
+        </p>
+        <div className="daytabs adm-tabs" role="tablist">
+          {SCOPES.map((k) => (
+            <a key={k} href={`/admin?d=${k}`} className={k === scope ? "on" : ""} role="tab" aria-selected={k === scope}>
+              {k === "tum" ? "Tümü" : SCOPE_LABEL[k]}
+            </a>
+          ))}
+        </div>
+
+        {st && p ? (
+          <>
+            <div className="adm-nums">
+              <div>
+                <span className="muted small">Paylaşılan</span>
+                <b>{p.shared}</b>
+              </div>
+              <div>
+                <span className="muted small">Tuttu</span>
+                <b className="pos">
+                  {p.hits}/{p.settled}
+                </b>
+              </div>
+              <div>
+                <span className="muted small">İsabet</span>
+                <b>{p.settled ? `%${Math.round((p.hits / p.settled) * 100)}` : "—"}</b>
+              </div>
+              <div>
+                <span className="muted small">Tutan ort. oran</span>
+                <b>{st.avgWinOdd ? st.avgWinOdd.toFixed(2) : "—"}</b>
+              </div>
+              <div>
+                <span className="muted small">100 TL ile</span>
+                <b className={p.profit >= 0 ? "pos" : "neg"}>{p.counted ? `${p.profit >= 0 ? "+" : "−"}${Math.abs(Math.round(p.profit))} TL` : "—"}</b>
+              </div>
+            </div>
+            {p.settled > 0 ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img className="adm-preview" src={`/api/admin/stats-image?d=${scope}`} alt="Kanalda paylaşılacak istatistik görseli" />
+                <form action={shareStats}>
+                  <input type="hidden" name="scope" value={scope} />
+                  <button className="btn primary block" disabled={!cfg}>
+                    📤 {SCOPE_LABEL[scope]} istatistiğini kanalda paylaş
+                  </button>
+                </form>
+              </>
+            ) : (
+              <p className="muted small">
+                Bu dönemde sonuçlanmış paylaşım yok{p.shared ? ` (${p.shared} tahmin sonuç bekliyor)` : ""}. Paylaşım kaydı bu özellikle başladı; daha önce
+                kanala gidenler sayılmaz.
+              </p>
+            )}
+            {st.rows.length > 0 && (
+              <div className="adm-list">
+                {st.rows.slice(0, 30).map((r) => (
+                  <div key={r.id + r.at} className="learn-row">
+                    <b className={r.won === true ? "pos" : r.won === false ? "neg" : "muted"}>{r.won === true ? "✓" : r.won === false ? "✗" : "…"}</b>
+                    <span className="small">
+                      {r.home} – {r.away} · {r.minute} {r.hg}-{r.ag}
+                    </span>
+                    <span className="small">
+                      <b>{r.label}</b> @ {r.odd.toFixed(2)}
+                      {r.fhg !== undefined ? ` · son ${r.fhg}-${r.fag}` : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="muted small">Veritabanı bağlı değil.</p>
+        )}
+      </section>
+    </div>
+  );
+}

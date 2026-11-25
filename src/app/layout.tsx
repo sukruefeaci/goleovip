@@ -4,6 +4,7 @@ import "./globals.css";
 import { currentUser } from "@/lib/auth/current";
 import { logout } from "@/lib/auth/actions";
 import NavLinks from "@/components/NavLinks";
+import { isAdmin } from "@/lib/admin";
 
 export const metadata: Metadata = {
   title: "goleo VIP — maç değerleme",
@@ -39,6 +40,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     {user.name.slice(0, 1).toUpperCase()}
                   </span>
                   <span className="hide-sm">{user.name}</span>
+                  {isAdmin(user) && (
+                    <Link href="/admin" className="btn ghost sm" aria-label="Admin paneli">
+                      ⚙︎<span className="hide-sm"> Admin</span>
+                    </Link>
+                  )}
                   <Link href="/nasil-calisir" className="show-sm muted small" aria-label="Bilgi">
                     ⓘ
                   </Link>

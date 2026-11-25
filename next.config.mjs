@@ -5,5 +5,7 @@ export default {
   outputFileTracingIncludes: {
     "/canli": ["./assets/fonts/**"],
     "/api/telegram/test": ["./assets/fonts/**"],
+    "/admin": ["./assets/fonts/**"],
+    "/api/admin/stats-image": ["./assets/fonts/**"],
   },
 };

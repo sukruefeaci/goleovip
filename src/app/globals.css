@@ -637,3 +637,19 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .pb-counts, .pb-money { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; }
 .pb-profit { font-weight: 800; font-size: 1.05rem; margin-left: auto; white-space: nowrap; }
 .pb-profit small { font-weight: 600; font-size: 0.78rem; }
+
+/* Admin paneli */
+.adm { margin-bottom: 16px; }
+.adm form { margin-top: 12px; }
+.btn.danger { border: 0; color: #fff; background: linear-gradient(135deg, #ef4444, #b91c1c); }
+.adm-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.adm-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.adm-dot.on { background: var(--good); box-shadow: 0 0 0 4px rgba(34, 196, 147, 0.18); }
+.adm-dot.off { background: var(--bad); box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.18); }
+.adm-tabs { margin: 10px 0 14px; grid-template-columns: repeat(4, 1fr); }
+.adm-tabs a { font-size: 13px; text-align: center; }
+.adm-nums { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; margin-bottom: 12px; }
+.adm-nums > div { display: grid; gap: 2px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
+.adm-nums b { font-size: 1.15rem; }
+.adm-preview { width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); display: block; }
+.adm-list { margin-top: 14px; }

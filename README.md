@@ -159,3 +159,11 @@ Vercel → Settings → Environment Variables:
 - `TELEGRAM_COOLDOWN_MIN` — iki paylaşım arası en az süre, dakika (varsayılan 30). Bekleme bitince uygun öneriler arasından olasılık × güveni en yüksek olan tek öneri gönderilir.
 
 `/kurulum` sayfası bot ve kanal erişimini denetler; giriş yaptıktan sonra `/api/telegram/test` kanala deneme kartı gönderir. Yazı tipi: Inter (`assets/fonts`, SIL OFL 1.1).
+
+## Admin paneli (`/admin`)
+
+Vercel'de `ADMIN_EMAILS` (virgülle ayrılmış e-postalar) tanımlı kullanıcılar görür; üst çubukta ⚙︎ düğmesi çıkar.
+- **Telegram paylaşımı:** durdur / başlat (`tg:enabled`). Durdurulunca Canlı sekmesi açılsa bile kanala gönderilmez.
+- **Kanal istatistiği:** kanalda paylaşılan canlı tahminlerin (`tg:shared:v1`) Bugün / Dün / Son 7 gün / Tümü karnesi: tutan/sonuçlanan, isabet, tutanların ortalama oranı, 100 TL ile kâr/zarar ve son 10 sonuç. Görsel önizlenir (`/api/admin/stats-image`), düğmeyle kanala gönderilir.
+- `/api/telegram/test` admin tanımlıysa yalnız admin içindir.
+

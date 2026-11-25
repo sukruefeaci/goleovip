@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
+import { currentUser } from "@/lib/auth/current";
+import { adminEmails, isAdmin } from "@/lib/admin";
 import { renderShareImage, sendPhoto, shareCaption, telegramConfig, type LiveShare } from "@/lib/telegram";
 
 export const dynamic = "force-dynamic";
 
-/** Giriş yapmış kullanıcı için: kanala örnek bir canlı tercih kartı gönderir (kurulumu denemek için) */
+/** Admin (tanımlı değilse giriş yapmış kullanıcı) için: kanala örnek bir canlı tercih kartı gönderir (kurulumu denemek için) */
 export async function GET() {
+  // Admin tanımlıysa yalnız admin deneme gönderebilir
+  if (adminEmails().length && !isAdmin(await currentUser())) return NextResponse.json({ ok: false, error: "Yetki yok" }, { status: 403 });
   const cfg = telegramConfig();
   if (!cfg) return NextResponse.json({ ok: false, error: "TELEGRAM_BOT_TOKEN ve TELEGRAM_CHAT_ID ayarlı değil" }, { status: 503 });
   const sample: LiveShare = {

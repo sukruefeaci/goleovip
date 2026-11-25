@@ -1,7 +1,7 @@
 import { createElement as h, type CSSProperties, type ReactNode } from "react";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { getStore } from "./auth/store";
+import { getJSON, getStore, setJSON } from "./auth/store";
 import { LIVE_MIN_ODD, type LiveBet, type LiveStats } from "./liveModel";
 
 /**
@@ -40,7 +40,7 @@ export interface LiveShare {
 /* ------------------------------------------------------------ görsel */
 
 let fonts: { name: string; data: Buffer; weight: 400 | 700; style: "normal" }[] | null = null;
-async function loadFonts() {
+export async function loadFonts() {
   if (fonts) return fonts;
   const dir = path.join(process.cwd(), "assets", "fonts");
   const [r, b] = await Promise.all([readFile(path.join(dir, "Inter-Regular.otf")), readFile(path.join(dir, "Inter-Bold.otf"))]);
@@ -51,9 +51,9 @@ async function loadFonts() {
   return fonts;
 }
 
-const C = { bg: "#0b0b1a", card: "#15152b", line: "#2a2a4a", text: "#ecebff", muted: "#9a98c6", accent: "#7c5cff", good: "#22c493", gold: "#f5c542" };
+export const C = { bg: "#0b0b1a", card: "#15152b", line: "#2a2a4a", text: "#ecebff", muted: "#9a98c6", accent: "#7c5cff", good: "#22c493", gold: "#f5c542" };
 
-const div = (style: CSSProperties, ...children: ReactNode[]) => h("div", { style: { display: "flex", ...style } }, ...children);
+export const div = (style: CSSProperties, ...children: ReactNode[]) => h("div", { style: { display: "flex", ...style } }, ...children);
 
 function stat(label: string, value: string, color = C.text) {
   return div(
@@ -167,6 +167,69 @@ export async function sendPhoto(token: string, chat: string, png: Buffer, captio
   }
 }
 
+/* ------------------------------------------------------------ açma / kapama ve paylaşım kaydı */
+
+const ENABLED_KEY = "tg:enabled";
+let enabledMemo: { at: number; v: boolean } | null = null;
+
+/** Admin panelinden kapatılmadıysa açık (varsayılan açık) */
+export async function isTelegramEnabled(): Promise<boolean> {
+  if (enabledMemo && Date.now() - enabledMemo.at < 15_000) return enabledMemo.v;
+  const v = (await getStore()?.get(ENABLED_KEY).catch(() => null)) !== "0";
+  enabledMemo = { at: Date.now(), v };
+  return v;
+}
+
+export async function setTelegramEnabled(on: boolean): Promise<void> {
+  await getStore()?.set(ENABLED_KEY, on ? "1" : "0");
+  enabledMemo = { at: Date.now(), v: on };
+}
+
+/** Kanala gönderilen canlı tahminler (istatistik için) */
+export interface SharedPick {
+  id: string; // fotmobId|label (canlı kayıttaki kimlik)
+  date: string; // Türkiye günü
+  fotmobId: number;
+  league: string;
+  home: string;
+  away: string;
+  label: string;
+  odd: number;
+  prob: number;
+  confidence: number;
+  minute: string;
+  hg: number;
+  ag: number;
+  at: string;
+}
+export const SHARED_KEY = "tg:shared:v1";
+const trDay = (ms: number) => new Date(ms + 3 * 3600_000).toISOString().slice(0, 10);
+
+async function addShared(s: LiveShare, now: number) {
+  const list = (await getJSON<SharedPick[]>(SHARED_KEY)) ?? [];
+  list.push({
+    id: `${s.fotmobId}|${s.rec.label}`,
+    date: trDay(now),
+    fotmobId: s.fotmobId,
+    league: s.league,
+    home: s.home,
+    away: s.away,
+    label: s.rec.label,
+    odd: s.rec.odd!,
+    prob: s.rec.prob,
+    confidence: s.rec.confidence,
+    minute: s.minute,
+    hg: s.hg,
+    ag: s.ag,
+    at: new Date(now).toISOString(),
+  });
+  await setJSON(SHARED_KEY, list.slice(-1000));
+}
+
+export async function loadShared(): Promise<SharedPick[]> {
+  return (await getJSON<SharedPick[]>(SHARED_KEY).catch(() => null)) ?? [];
+}
+
 const COOLDOWN_KEY = "tg:cooldown";
 const LAST_KEY = "tg:last";
 const recKey = (s: LiveShare) => `tg:${s.fotmobId}|${s.rec.label}`;
@@ -182,6 +245,7 @@ export async function shareLivePicks(list: LiveShare[], budgetMs = 7000, now = D
   const cfg = telegramConfig();
   const store = getStore();
   if (!cfg || !store) return 0;
+  if (!(await isTelegramEnabled())) return 0; // admin panelinden durdurulmuş
   const todo = list
     .filter((s) => s.rec.confidence >= cfg.minConf && !!s.rec.odd && s.rec.odd >= LIVE_MIN_ODD)
     .sort((a, b) => b.rec.prob * b.rec.confidence - a.rec.prob * a.rec.confidence);
@@ -219,6 +283,7 @@ export async function shareLivePicks(list: LiveShare[], budgetMs = 7000, now = D
         return 0;
       }
       await store.set(LAST_KEY, String(now));
+      await addShared(pick, now).catch(() => {});
       return 1;
     } catch (e) {
       console.error("Telegram görseli hazırlanamadı:", (e as Error).message);
