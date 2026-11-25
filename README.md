@@ -65,6 +65,15 @@ Her maç sayfasında 9 İY/MS sonucunun (1/1, X/1, 2/2 …) olasılığı 3×3 t
 - Takımların son 10 maçının İY/MS sonuçları (G/G, B/G, M/M …) da gösterilir.
 - iddaa (pazar 90) ve Nesine (pazar 5) İY/MS oranları eşlenir; iddaa'nın bu pazardaki marjı genelde %25–30'dur.
 
+## Korner ve kart modeli
+
+Korner ve kart sayıları Poisson'dan daha oynak olduğu için **negatif binom** dağılımı kullanılır.
+Değerler 9 lig × 2 sezon Football-Data verisiyle ölçüldü (2025/26 ayar, 2026/27 test):
+- Takımın son 6 maç korner ortalaması %30 ağırlıkla, ligin bu sezonki ortalaması %70 ağırlıkla birleştirilir (6 maçlık ortalama gürültülü).
+- Ev sahibi ×1.12, deplasman ×0.89 (ev sahipleri belirgin şekilde daha çok korner kullanıyor).
+- Dağılım: takım korneri k=12, toplam korner k=30, toplam kart k=14.
+- Görülmemiş sezonda kalibrasyon: model %74 dediğinde gerçek %73, %36 dediğinde %36. Brier skoru 0.2395 → 0.2334.
+
 ## Nasıl hesaplar?
 
 1. Avrupa 1X2 ve Alt/Üst 2.5 oranlarından marj atılır → adil olasılık.

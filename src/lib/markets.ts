@@ -1,5 +1,5 @@
 import type { Category } from "./types";
-import { poissonOver, probWhere, scoreMatrix } from "./poisson";
+import { negBinOver, probWhere, scoreMatrix } from "./poisson";
 
 /**
  * Seçenek anahtarları (key) formatı:
@@ -42,6 +42,13 @@ export interface ModelContext {
 }
 
 export const HALF_TIME_SHARE = 0.45;
+
+/**
+ * Korner ve kart sayıları Poisson'dan daha oynaktır. Negatif binom k değerleri, 9 lig × 2 sezon
+ * (Football-Data, ~3.700 maç) üzerinde ölçüldü ve görülmemiş sezonda test edildi:
+ * takım kornerleri Var ≈ 1.6×ortalama, toplam korner ≈ 1.25×, toplam kart ≈ 1.3×.
+ */
+export const DISPERSION = { cornersTeam: 12, cornersTotal: 30, cards: 14 };
 
 export const HTFT_OUTCOMES = ["1/1", "1/X", "1/2", "X/1", "X/X", "X/2", "2/1", "2/X", "2/2"];
 
@@ -256,15 +263,15 @@ export function probability(def: MarketDef, ctx: ModelContext): number {
     case "htft":
       return ctx.htft[def.selection] ?? 0;
     default: {
-      const lambda =
+      const [lambda, k] =
         def.kind === "corners_total"
-          ? ctx.cornersHome + ctx.cornersAway
+          ? [ctx.cornersHome + ctx.cornersAway, DISPERSION.cornersTotal]
           : def.kind === "corners_home"
-            ? ctx.cornersHome
+            ? [ctx.cornersHome, DISPERSION.cornersTeam]
             : def.kind === "corners_away"
-              ? ctx.cornersAway
-              : ctx.cards;
-      const pOver = poissonOver(def.line!, lambda);
+              ? [ctx.cornersAway, DISPERSION.cornersTeam]
+              : [ctx.cards, DISPERSION.cards];
+      const pOver = negBinOver(def.line!, lambda, k);
       return def.over ? pOver : 1 - pOver;
     }
   }

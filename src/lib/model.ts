@@ -13,6 +13,11 @@ export const CONFIG = {
   defencePenaltyMax: 0.1,
   dependencyThreshold: 0.85, // seçeneğin %85+ ihtimalle bir tarafın galibiyetiyle gelmesi
   halfShrinkGoals: 15, // ilk yarı payını lig ortalamasına çeken "sanal gol" sayısı
+  // Korner: 9 lig × 2 sezon geçmiş maçla ayarlandı (2025/26 ayar, 2026/27 test)
+  cornerTeamWeight: 0.3, // takımın son 6 maç ortalamasının ağırlığı; kalanı lig ortalaması
+  cornerHomeFactor: 1.12, // ev sahipleri formülün tahmininden ~%12 fazla korner kullanıyor
+  cornerAwayFactor: 0.89,
+  cornerLeagueDefault: { home: 5.5, away: 4.5 },
 };
 
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
@@ -83,7 +88,8 @@ function sigmaFor(def: MarketDef, pM: number, pS: number, hasCornerMarket: boole
       return 0.07 + 0.3 * disagreement;
     default:
       // korner: piyasa oranı yoksa yalnız istatistik → daha geniş belirsizlik
-      return (hasCornerMarket ? 0.05 : 0.08) + 0.4 * disagreement;
+      // korner: piyasa oranı yoksa yalnız istatistik → biraz daha geniş belirsizlik
+      return (hasCornerMarket ? 0.04 : 0.06) + 0.4 * disagreement;
   }
 }
 
@@ -116,10 +122,13 @@ export function analyze(match: MatchInput): Analysis {
     away: w * lambdaMarket.away + (1 - w) * lambdaStats.away,
   };
 
-  // 4) Korner λ
+  // 4) Korner λ: son 6 maç ortalaması ev/deplasman farkıyla düzeltilir ve lig ortalamasına çekilir
+  //    (6 maçlık ortalama gürültülü; ağırlıklar geçmiş sezonlarda ölçüldü, bkz. CONFIG.corner*)
+  const league = match.leagueCorners ?? CONFIG.cornerLeagueDefault;
+  const wc = CONFIG.cornerTeamWeight;
   const cornerStats = {
-    home: (home.cornersFor + away.cornersAgainst) / 2,
-    away: (away.cornersFor + home.cornersAgainst) / 2,
+    home: wc * ((home.cornersFor + away.cornersAgainst) / 2) * CONFIG.cornerHomeFactor + (1 - wc) * league.home,
+    away: wc * ((away.cornersFor + home.cornersAgainst) / 2) * CONFIG.cornerAwayFactor + (1 - wc) * league.away,
   };
   let cornerLambdaMarket: { home: number; away: number } | null = null;
   if (euro.corners) {
@@ -170,8 +179,9 @@ export function analyze(match: MatchInput): Analysis {
     `Avrupa ${pct(euroFair[0])}/${pct(euroFair[1])}/${pct(euroFair[2])} · Form ${home.short} ${formStr(home)}, ${away.short} ${formStr(away)}` +
     (missingAtk.length ? ` · Eksik: ${missingAtk.join(", ")}` : "");
   const cornerBasis =
-    `Korner λ ${f2(cornerStats.home)}–${f2(cornerStats.away)}` +
-    (cornerLambdaMarket ? ` · piyasa ${f2(cornerLambdaMarket.home)}–${f2(cornerLambdaMarket.away)}` : " · yalnız istatistik (piyasa oranı yok)");
+    `Beklenen korner: ${home.short} ${cornerStats.home.toFixed(1)} – ${away.short} ${cornerStats.away.toFixed(1)} ` +
+    `(toplam ≈${(cornerStats.home + cornerStats.away).toFixed(1)}) · son 6 maç + lig ortalaması` +
+    (cornerLambdaMarket ? ` · piyasa ${f2(cornerLambdaMarket.home + cornerLambdaMarket.away)}` : " · piyasa oranı yok");
   const histStr = (t: TeamInput) => {
     const h = t.htftHistory ?? [];
     const lead = h.filter((x) => x.startsWith("G/")).length;

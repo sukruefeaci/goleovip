@@ -33,6 +33,21 @@ export function poissonOver(line: number, lambda: number): number {
   return Math.max(0, 1 - cdf);
 }
 
+/**
+ * Negatif binom: P(X > line), ortalama mu, dağılım parametresi k.
+ * Var(X) = mu + mu²/k → Poisson'dan daha oynak. k → ∞ iken Poisson'a eşit olur.
+ */
+export function negBinOver(line: number, mu: number, k: number): number {
+  if (!Number.isFinite(k) || k > 1e6) return poissonOver(line, mu);
+  let p = Math.pow(k / (k + mu), k);
+  let cdf = p;
+  for (let y = 0; y < Math.floor(line); y++) {
+    p *= ((y + k) / (y + 1)) * (mu / (k + mu));
+    cdf += p;
+  }
+  return Math.max(0, 1 - cdf);
+}
+
 /** P(X > line) için lambda'yı ikili arama ile bulur */
 export function lambdaForOver(line: number, pOver: number): number {
   let lo = 0.05;

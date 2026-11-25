@@ -51,6 +51,8 @@ export interface MatchInput {
   iddaa: OddsLine[];
   updatedAt: string;
   warnings: string[];
+  /** Ligin bu sezonki maç başı korner ortalaması (ev sahibi / deplasman) */
+  leagueCorners?: { home: number; away: number };
 }
 
 export type Category = "Sonuç" | "Gol" | "İlk Yarı" | "İY/MS" | "Korner" | "Kart";

@@ -128,6 +128,7 @@ async function buildAll(): Promise<MatchInput[]> {
       home,
       away,
       headToHead: headToHead(fx.home, fx.away, r.all),
+      leagueCorners: leagueCorners(r.current.length >= 30 ? r.current : r.all),
       euro: {
         bookmakers: fx.bookmakers,
         reference: fx.reference,
@@ -139,6 +140,14 @@ async function buildAll(): Promise<MatchInput[]> {
       warnings: fx.ou25 ? warnings : [...warnings, "Avrupa Alt/Üst 2.5 oranı yok, varsayılan kullanıldı"],
     } satisfies MatchInput;
   });
+}
+
+function leagueCorners(results: PlayedMatch[]) {
+  const hc = results.map((m) => m.hc).filter((x): x is number => x !== null);
+  const ac = results.map((m) => m.ac).filter((x): x is number => x !== null);
+  if (hc.length < 20 || ac.length < 20) return undefined;
+  const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  return { home: avg(hc), away: avg(ac) };
 }
 
 let inflight: Promise<MatchInput[]> | null = null;
