@@ -1,3 +1,4 @@
+import { inBackground } from "./background";
 import { cachedFetch } from "./providers/cache";
 import { LEAGUES, parseCsv, parseDate, seasonCode, seasonUrl } from "./providers/footballData";
 
@@ -68,10 +69,39 @@ export function parseHistory(text: string, league: string): HistMatch[] {
 }
 
 let memo: { at: number; data: HistMatch[]; files: number } | null = null;
+let inflight: Promise<{ matches: HistMatch[]; files: number }> | null = null;
 
-/** Tüm liglerin son üç sezonu (12 saat önbellek). Hata veren dosyalar atlanır. */
+/** Tüm liglerin son üç sezonu (6 saat önbellek; eskiyse eskisi hemen verilir, arka planda yenilenir). */
 export async function loadHistory(now = new Date()): Promise<{ matches: HistMatch[]; files: number }> {
   if (memo && Date.now() - memo.at < 6 * 60 * 60_000) return { matches: memo.data, files: memo.files };
+  if (memo) {
+    if (!inflight) void fetchHistory(now).catch(() => {});
+    return { matches: memo.data, files: memo.files };
+  }
+  return fetchHistory(now);
+}
+
+/**
+ * Arşiv hazırsa hemen, değilse en fazla budgetMs bekler; yetişmezse null döner (yükleme arka planda sürer).
+ * Sayfaların arşiv yüklenirken uzun süre beklememesi için.
+ */
+export async function historyIfReady(budgetMs = 2500): Promise<{ matches: HistMatch[]; files: number } | null> {
+  if (memo) return loadHistory();
+  const job = loadHistory();
+  const r = await Promise.race([job, new Promise<null>((res) => setTimeout(() => res(null), budgetMs).unref?.())]);
+  if (!r) inBackground(() => job); // yanıt gittikten sonra da yükleme tamamlansın (sunucu fonksiyonu açık kalır)
+  return r;
+}
+
+function fetchHistory(now: Date): Promise<{ matches: HistMatch[]; files: number }> {
+  if (inflight) return inflight;
+  inflight = fetchHistoryNow(now).finally(() => {
+    inflight = null;
+  });
+  return inflight;
+}
+
+async function fetchHistoryNow(now: Date): Promise<{ matches: HistMatch[]; files: number }> {
   const seasons = [0, 1, 2].map((y) => seasonCode(new Date(Date.UTC(now.getUTCFullYear() - y, now.getUTCMonth(), 1))));
   const jobs = Object.keys(LEAGUES).flatMap((div) => seasons.map((s) => ({ div, s })));
   const results: HistMatch[][] = [];

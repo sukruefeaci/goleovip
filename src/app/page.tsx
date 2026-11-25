@@ -1,3 +1,4 @@
+import { inBackground } from "@/lib/background";
 import Link from "next/link";
 import { kickoffParts, signedPct } from "@/lib/format";
 import { loadAnalyses } from "@/lib/data";
@@ -95,7 +96,8 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
 
   const today = trDate(now),
     yesterday = trDate(now - 86400_000);
-  if (tracking) await Promise.all([settleDay(today, now, 3000).catch(() => 0), settleDay(yesterday, now, 3000).catch(() => 0)]);
+  // Bitmiş maçların sonuçlandırılması sayfayı bekletmez (arka planda; sonuç bir sonraki açılışta görünür)
+  if (tracking) inBackground(() => Promise.all([settleDay(today, now, 8000), settleDay(yesterday, now, 8000)]));
   const loadSnaps = (d: string) => (tracking ? loadDay(d).catch(() => [] as SnapEntry[]) : Promise.resolve([] as SnapEntry[]));
   const [{ analyses, source, banner }, todaySnaps, ydaySnaps, otherSnaps, learning] = await Promise.all([
     loadAnalyses(),

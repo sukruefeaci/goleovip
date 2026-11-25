@@ -1,5 +1,5 @@
 import { loadAnalyses } from "./data";
-import { loadHistory, TOLERANCE } from "./history";
+import { historyIfReady, TOLERANCE } from "./history";
 import { bestOddsPick, matchAllSelections, ODDS_PICK_MIN, type SelectionMatch } from "./oddsMatch";
 import type { Analysis } from "./types";
 
@@ -20,8 +20,10 @@ export type OddsRow = { a: Analysis; pick: (SelectionMatch & { confidence: numbe
 let cache: { key: unknown; hist: unknown; rows: OddsRow[] } | null = null;
 
 /** Tüm analizler için Oran analizi tercihi (analizler değişmedikçe yeniden hesaplanmaz) */
-export async function computeOddsPicks(): Promise<{ rows: OddsRow[]; banner: string | null; histCount: number }> {
-  const [{ analyses, banner }, hist] = await Promise.all([loadAnalyses(), loadHistory()]);
+export async function computeOddsPicks(): Promise<{ rows: OddsRow[]; banner: string | null; histCount: number; loading: boolean }> {
+  const [{ analyses, banner }, hist] = await Promise.all([loadAnalyses(), historyIfReady()]);
+  // Arşiv henüz yüklenmediyse sayfa beklemez: önceki sonuç (varsa) ya da boş liste, "yükleniyor" işaretiyle
+  if (!hist) return { rows: cache?.rows ?? [], banner: banner ?? null, histCount: 0, loading: true };
   if (!cache || cache.key !== analyses || cache.hist !== hist.matches) {
     cache = {
       key: analyses,
@@ -32,5 +34,5 @@ export async function computeOddsPicks(): Promise<{ rows: OddsRow[]; banner: str
       }),
     };
   }
-  return { rows: cache.rows, banner: banner ?? null, histCount: hist.matches.length };
+  return { rows: cache.rows, banner: banner ?? null, histCount: hist.matches.length, loading: false };
 }

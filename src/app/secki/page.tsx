@@ -1,3 +1,4 @@
+import { inBackground } from "@/lib/background";
 import Link from "next/link";
 import { kickoffParts } from "@/lib/format";
 import { loadAnalyses } from "@/lib/data";
@@ -116,7 +117,7 @@ export default async function SeckiPage({ searchParams }: { searchParams: Promis
   const date = trDate(now + DAYS[day] * 86400_000);
   const tracking = !!getStore();
 
-  if (tracking) await Promise.all([settleDay(date, now, 3000).catch(() => 0), settleLive(date, now, 3000).catch(() => 0)]);
+  if (tracking) inBackground(() => Promise.all([settleDay(date, now, 8000), settleLive(date, now, 8000)]));
   const [{ analyses }, snaps, liveRecs, odds] = await Promise.all([
     loadAnalyses(),
     tracking ? loadDay(date).catch(() => [] as SnapEntry[]) : Promise.resolve([] as SnapEntry[]),

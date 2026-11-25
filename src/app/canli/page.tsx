@@ -1,3 +1,4 @@
+import { inBackground } from "@/lib/background";
 import Link from "next/link";
 import { loadLive, type LiveItem } from "@/lib/liveData";
 import AutoRefresh from "@/components/AutoRefresh";
@@ -244,7 +245,7 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
   const today = trDate(now),
     yesterday = trDate(now - 86400_000);
   const histDate = histDay === "dun" ? yesterday : today;
-  if (tracking) await Promise.all([settleLive(today, now, 3000).catch(() => 0), settleLive(yesterday, now, 3000).catch(() => 0)]);
+  if (tracking) inBackground(() => Promise.all([settleLive(today, now, 8000), settleLive(yesterday, now, 8000)]));
   // Önce canlı öneriler hesaplanıp kaydedilir, sonra geçmiş okunur
   const { items, total, at } = await loadLive();
   const loadRecs = (d: string) => (tracking ? loadLiveDay(d).catch(() => [] as LiveRecord[]) : Promise.resolve([] as LiveRecord[]));

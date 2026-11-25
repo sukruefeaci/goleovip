@@ -325,7 +325,11 @@ export async function settleDay(date: string, now = Date.now(), budgetMs = 4000)
     settled++;
   }
   if (settled) {
-    await setJSON(snapKey(date), snap);
+    // Bu arada başka bir istek kayda yazmış olabilir: en güncel kaydı okuyup yalnız sonuçları üzerine işle
+    const latest = (await getJSON<Snap>(snapKey(date))) ?? {};
+    for (const e of Object.values(snap)) if (e.result) latest[e.id] = { ...(latest[e.id] ?? e), result: e.result };
+    Object.assign(snap, latest);
+    await setJSON(snapKey(date), latest);
     await setJSON(LEARN_KEY, learn);
     learnMemo = null;
     const list = Object.values(snap);

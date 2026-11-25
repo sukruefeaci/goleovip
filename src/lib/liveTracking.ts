@@ -1,4 +1,5 @@
 import { getJSON, getStore, setJSON } from "./auth/store";
+import { inBackground } from "./background";
 import { cachedFetch } from "./providers/cache";
 import { loadDay, parseFotmobResults, parseHalfTime, trDate } from "./tracking";
 import { nameSimilarity } from "./providers/teamNames";
@@ -155,7 +156,8 @@ let learnMemo: { at: number; data: LiveLearning } | null = null;
 
 export async function getLiveLearning(): Promise<LiveLearning> {
   if (learnMemo && Date.now() - learnMemo.at < 10 * MIN) return learnMemo.data;
-  await ensureAnalyzedOnly().catch(() => {});
+  // Tek seferlik geçiş sayfayı bekletmesin (arka planda; sonuçlandırma da ayrıca çağırır)
+  if (!analyzedChecked) inBackground(() => ensureAnalyzedOnly());
   const data = (getStore() && (await getJSON<LiveLearning>(LEARN_KEY).catch(() => null))) || {};
   learnMemo = { at: Date.now(), data };
   return data;
@@ -292,6 +294,11 @@ export async function settleLive(date: string, now = Date.now(), budgetMs = 4000
     changed++;
   }
   if (changed) {
+    // Bu arada yeni öneri kaydedilmiş olabilir: en güncel kaydı okuyup yalnız sonuçları üzerine işle
+    const latest = (await getJSON<Day>(liveKey(date))) ?? {};
+    for (const [id, r] of Object.entries(day)) if (r.result) latest[id] = { ...(latest[id] ?? r), result: r.result, analyzed: r.analyzed };
+    for (const k of Object.keys(day)) delete day[k];
+    Object.assign(day, latest);
     await setJSON(liveKey(date), day);
     await setJSON(LEARN_KEY, learn);
     await setJSON(SIT_KEY, sit);

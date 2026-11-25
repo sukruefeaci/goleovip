@@ -1,3 +1,4 @@
+import { inBackground } from "@/lib/background";
 import Link from "next/link";
 import { ODDS_PICK_MIN } from "@/lib/oddsMatch";
 import { kickoffParts, signedPct } from "@/lib/format";
@@ -83,7 +84,7 @@ function OddsRowCard({ r, now }: { r: Row; now: number }) {
 export default async function OddsAnalysisPage({ searchParams }: { searchParams: Promise<{ gun?: string }> }) {
   const { gun } = await searchParams;
   const day: DayKey = gun && gun in DAYS ? (gun as DayKey) : "bugun";
-  const { rows: computed, banner, histCount } = await computeOddsPicks();
+  const { rows: computed, banner, histCount, loading } = await computeOddsPicks();
 
   // Takip: tercihleri günlük kayda ekle, bitmiş maçları sonuçlandır, 100 TL kâr/zarar
   const tracking = !!getStore();
@@ -93,15 +94,19 @@ export default async function OddsAnalysisPage({ searchParams }: { searchParams:
   const snapsByDate = new Map<string, SnapEntry[]>();
   let board: { t: ReturnType<typeof dayPnl>; y: ReturnType<typeof dayPnl>; total: Awaited<ReturnType<typeof totalPnl>> } | null = null;
   if (tracking) {
-    await recordOddsPicks(
-      computed.map(({ a, pick }) => ({
+    // Kayıt ve sonuçlandırma sayfayı bekletmez (arka planda)
+    if (!loading) {
+      const toRecord = computed.map(({ a, pick }) => ({
         id: a.match.id,
         kickoff: a.match.kickoff,
         pick: pick && { key: pick.key, market: pick.market, selection: pick.selection, odd: pick.odd, rate: pick.rate, n: pick.n, confidence: pick.confidence },
-      })),
-      now,
-    ).catch(() => {});
-    await Promise.all([settleDay(today, now, 3000).catch(() => 0), settleDay(yesterday, now, 3000).catch(() => 0)]);
+      }));
+      // aynı günlük kayda sırayla yazılsın (önce tercih kaydı, sonra sonuçlandırma)
+      inBackground(async () => {
+        await recordOddsPicks(toRecord, now).catch(() => {});
+        await Promise.all([settleDay(today, now, 8000), settleDay(yesterday, now, 8000)]);
+      });
+    } else inBackground(() => Promise.all([settleDay(today, now, 8000), settleDay(yesterday, now, 8000)]));
     const [ts, ys] = await Promise.all([loadDay(today).catch(() => [] as SnapEntry[]), loadDay(yesterday).catch(() => [] as SnapEntry[])]);
     snapsByDate.set(today, ts);
     snapsByDate.set(yesterday, ys);
@@ -161,6 +166,8 @@ export default async function OddsAnalysisPage({ searchParams }: { searchParams:
         Her maç için, geçmişte aynı oranla oynanmış maçlarda en güvenilir sonucu veren tek tercih. Gösterilen: oran {SHOW_MIN_ODD.toFixed(2)} ve üstü, güven
         %{SHOW_MIN_CONF} ve üstü (%{STRONG_CONF}+ Güçlü). Güven: geçmişteki tutma oranının, bugünkü oranın ima ettiği olasılığı ne kadar kesin aştığı.
       </p>
+
+      {loading && <div className="notice subtle">Geçmiş maç arşivi yükleniyor; birkaç saniye sonra sayfayı yenile.</div>}
 
       <div className="daytabs" role="tablist">
         {(Object.keys(DAYS) as DayKey[]).map((k) => (

@@ -1,3 +1,4 @@
+import { inBackground } from "@/lib/background";
 import Link from "next/link";
 import { kickoffParts } from "@/lib/format";
 import { getStore } from "@/lib/auth/store";
@@ -58,7 +59,7 @@ export default async function UcluPage() {
   const now = Date.now();
   const today = trDate(now);
   const tracking = !!getStore();
-  if (tracking) await settleConsensus(today, now).catch(() => 0);
+  if (tracking) inBackground(() => settleConsensus(today, now, 8000));
   const [{ consensus, at }, waiting, hist] = await Promise.all([
     loadLive(),
     waitingConsensus().catch(() => []),

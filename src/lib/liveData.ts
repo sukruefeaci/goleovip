@@ -6,6 +6,7 @@ import { calibrateLive, liveModel, liveRecommendations, type LiveBet, type LiveO
 import { getLiveLearning, getLiveSituations, liveFactorFn, recordLive, type LiveCtx } from "./liveTracking";
 import { shareLivePicks } from "./telegram";
 import { liveConsensus, recordConsensus, type ConsMatch } from "./consensus";
+import { inBackground } from "./background";
 import { fetchLiveOdds, fetchLiveProgram, matchIddaaLive } from "./providers/iddaaLive";
 import { loadDay, parseHalfTime, priorOf, trDate, type LivePrior, type SnapEntry } from "./tracking";
 
@@ -145,8 +146,38 @@ function findPre(r: RawLive, src: Awaited<ReturnType<typeof priorsSources>>): { 
 
 let memo: { at: number; items: LiveItem[]; total: number; consensus: ConsMatch[] } | null = null;
 
-export async function loadLive(): Promise<{ items: LiveItem[]; total: number; at: number; consensus: ConsMatch[] }> {
-  if (memo && Date.now() - memo.at < 30_000) return memo;
+type LiveMemo = { at: number; items: LiveItem[]; total: number; consensus: ConsMatch[] };
+let inflight: Promise<LiveMemo> | null = null;
+
+/**
+ * Canlı maçlar. 30 sn tazeyse önbellekten; 3 dk'ya kadar eskiyse eskisini hemen döndürüp arka planda yeniler
+ * (sayfa beklemez). Kayıt, Telegram ve üçlü onay sayfayı bekletmeden arka planda çalışır.
+ */
+export async function loadLive(): Promise<LiveMemo> {
+  const age = memo ? Date.now() - memo.at : Infinity;
+  if (memo && age < 30_000) return memo;
+  if (memo && age < 3 * 60_000) {
+    if (!inflight) inBackground(() => refreshLive(true));
+    return memo;
+  }
+  return refreshLive(false);
+}
+
+function refreshLive(background: boolean): Promise<LiveMemo> {
+  if (inflight) return inflight;
+  inflight = (async () => {
+    const { items, total } = await computeLive();
+    memo = { at: Date.now(), items, total, consensus: memo?.consensus ?? [] };
+    if (background) await liveSideEffects(items);
+    else inBackground(() => liveSideEffects(items));
+    return memo;
+  })().finally(() => {
+    inflight = null;
+  });
+  return inflight;
+}
+
+async function computeLive(): Promise<{ items: LiveItem[]; total: number }> {
   const now = new Date();
   const days = [ymd(now), ymd(new Date(now.getTime() - 86400_000))];
   const lists = await Promise.all(
@@ -183,7 +214,7 @@ export async function loadLive(): Promise<{ items: LiveItem[]; total: number; at
       }
     }),
   );
-  await Promise.race([work, new Promise((res) => setTimeout(res, 6000).unref?.())]);
+  await Promise.race([work, new Promise((res) => setTimeout(res, 3500).unref?.())]);
 
   const [learning, situations] = await Promise.all([
     getLiveLearning().catch(() => ({})),
@@ -227,7 +258,7 @@ export async function loadLive(): Promise<{ items: LiveItem[]; total: number; at
 
   // iddaa canlı oranları: eşleşen maçların önerilerine oran ve getiri ekle (süre sınırlı)
   try {
-    const program = await Promise.race([fetchLiveProgram(), new Promise<never>((_, rej) => setTimeout(() => rej(new Error("süre")), 4000).unref?.())]);
+    const program = await Promise.race([fetchLiveProgram(), new Promise<never>((_, rej) => setTimeout(() => rej(new Error("süre")), 2500).unref?.())]);
     const pairs = items
       .map((it) => ({ it, ev: matchIddaaLive({ home: it.home, away: it.away, kickoff: new Date(it.kickoff), hg: it.hg, ag: it.ag }, program) }))
       .filter((p) => p.ev);
@@ -253,13 +284,18 @@ export async function loadLive(): Promise<{ items: LiveItem[]; total: number; at
         }
       }),
     );
-    await Promise.race([job, new Promise((res) => setTimeout(res, 4000).unref?.())]);
+    await Promise.race([job, new Promise((res) => setTimeout(res, 2500).unref?.())]);
   } catch {
     /* canlı oran kaynağına ulaşılamadı */
   }
   // Öneriler canlı oranlar eklendikten sonra seçilir (oran ≥ 1.45 şartı)
   // Canlı tercih yalnız maç öncesi analizi olan maçlara verilir (öğrenme de yalnız bunlardan yapılır)
   for (const it of items) it.recs = it.pre ? liveRecommendations(it.model) : [];
+  return { items, total: raw.length };
+}
+
+/** Kayıt, Telegram ve üçlü onay (arka planda) */
+async function liveSideEffects(items: LiveItem[]): Promise<void> {
   // Yeni önerileri takip için kaydet (ilk öneri anı esas alınır)
   await recordLive(
     items
@@ -294,17 +330,12 @@ export async function loadLive(): Promise<{ items: LiveItem[]; total: number; at
       })),
     ),
   ).catch(() => 0);
-  // Üçlü onay: aynı seçenek için Maçlar + Oranlar + Canlı güveni ≥ %65 (süre sınırlı; ilk çalışmada arşiv yüklenirken atlanabilir)
-  let consensus: ConsMatch[] = memo?.consensus ?? [];
-  await Promise.race([
-    liveConsensus(items.filter((it) => it.pre))
-      .then(async (c) => {
-        consensus = c;
-        await recordConsensus(c);
-      })
-      .catch(() => {}),
-    new Promise((res) => setTimeout(res, 3500).unref?.()),
-  ]);
-  memo = { at: Date.now(), items, total: raw.length, consensus };
-  return memo;
+  // Üçlü onay: aynı seçenek için Maçlar + Oranlar + Canlı güveni ≥ %65
+  try {
+    const c = await liveConsensus(items.filter((it) => it.pre));
+    if (memo && memo.items === items) memo.consensus = c;
+    await recordConsensus(c);
+  } catch {
+    /* geçmiş arşivi hazır değilse bir sonraki yenilemede */
+  }
 }

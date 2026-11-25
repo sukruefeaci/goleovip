@@ -1,7 +1,7 @@
 import { getJSON, getStore, setJSON } from "./auth/store";
 import { cachedFetch } from "./providers/cache";
 import { loadAnalyses } from "./data";
-import { loadHistory, TOLERANCE } from "./history";
+import { historyIfReady, loadHistory, TOLERANCE } from "./history";
 import { matchAllSelections, type SelectionMatch } from "./oddsMatch";
 import { oddsConfidence } from "./oddsPicks";
 import { parseFotmobResults, parseHalfTime, trDate } from "./tracking";
@@ -130,6 +130,7 @@ export async function liveConsensus(items: LiveItem[], min = CONS_MIN): Promise<
 
 /** Başlamamış maçlarda Maçlar + Oranlar'ın ≥ %65 verdiği seçenekler (canlı onayını bekleyenler) */
 export async function waitingConsensus(min = CONS_MIN, now = Date.now()) {
+  if (!(await historyIfReady())) return []; // arşiv yükleniyor; sayfa beklemesin
   const { analyses } = await loadAnalyses();
   const today = trDate(now);
   const out: { a: Analysis; sels: { key: string; label: string; mac: SysScore; oran: SysScore & { rate: number; n: number } }[] }[] = [];
@@ -271,6 +272,10 @@ export async function settleConsensus(date: string, now = Date.now(), budgetMs =
     r.result = { hg: fm.hg, ag: fm.ag, won, early: true };
     changed++;
   }
-  if (changed) await setJSON(dayKey(date), day);
+  if (changed) {
+    const latest = (await getJSON<Day>(dayKey(date))) ?? {};
+    for (const [id, r] of Object.entries(day)) if (r.result) latest[id] = { ...(latest[id] ?? r), result: r.result };
+    await setJSON(dayKey(date), latest);
+  }
   return changed;
 }
