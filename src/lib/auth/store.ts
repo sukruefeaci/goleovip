@@ -22,6 +22,8 @@ interface KV {
   setNX(key: string, value: string): Promise<boolean>;
   incr(key: string, ttlSec: number): Promise<number>;
   reset(key: string): Promise<void>;
+  /** Önekle başlayan anahtarlar (az sayıda anahtar için; bakım işlerinde kullanılır) */
+  keys(prefix: string): Promise<string[]>;
 }
 
 /**
@@ -74,6 +76,17 @@ function upstash(): KV | null {
     reset: async (k) => {
       await cmd("DEL", k);
     },
+    keys: async (prefix) => {
+      const out: string[] = [];
+      let cursor = "0";
+      for (let i = 0; i < 50; i++) {
+        const [next, batch] = (await cmd("SCAN", cursor, "MATCH", `${prefix}*`, "COUNT", 500)) as [string, string[]];
+        out.push(...batch);
+        cursor = String(next);
+        if (cursor === "0") break;
+      }
+      return [...new Set(out)];
+    },
   };
 }
 
@@ -114,7 +127,13 @@ function fileStore(): KV {
     },
     reset: async (k) => {
       counters.set(k, { n: 0, until: 0 });
+      const d = await load();
+      if (k in d) {
+        delete d[k];
+        await save(d);
+      }
     },
+    keys: async (prefix) => Object.keys(await load()).filter((k) => k.startsWith(prefix)),
   };
 }
 

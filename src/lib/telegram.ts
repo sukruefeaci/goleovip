@@ -227,7 +227,56 @@ async function addShared(s: LiveShare, now: number) {
 }
 
 export async function loadShared(): Promise<SharedPick[]> {
-  return (await getJSON<SharedPick[]>(SHARED_KEY).catch(() => null)) ?? [];
+  const list = (await getJSON<SharedPick[]>(SHARED_KEY).catch(() => null)) ?? [];
+  return (await backfillShared(list).catch(() => null)) ?? list;
+}
+
+const BACKFILL_KEY = "tg:shared:backfill:v1";
+type LiveRec = { fotmobId: number; home: string; away: string; league: string; minute: string; hg: number; ag: number; label: string; prob: number; confidence: number; odd?: number };
+
+/**
+ * Paylaşım kaydı başlamadan önce kanala gönderilmiş kartları bir kez geri kazanır:
+ * her gönderim tg:<maç>|<tercih> anahtarında gönderim zamanıyla durur; ayrıntılar canlı kayıttan alınır.
+ */
+async function backfillShared(list: SharedPick[]): Promise<SharedPick[] | null> {
+  const store = getStore();
+  if (!store || (await store.get(BACKFILL_KEY))) return null;
+  const known = new Set(list.map((p) => p.id));
+  const keys = (await store.keys("tg:")).filter((k) => /^tg:\d+\|/.test(k) && !known.has(k.slice(3)));
+  const added: SharedPick[] = [];
+  const dayCache = new Map<string, Record<string, LiveRec> | null>();
+  for (const k of keys) {
+    const id = k.slice(3);
+    const at = await store.get(k);
+    const t = at ? Date.parse(at) : NaN;
+    if (!Number.isFinite(t)) continue;
+    for (const date of [trDay(t), trDay(t - 86400_000)]) {
+      if (!dayCache.has(date)) dayCache.set(date, await getJSON<Record<string, LiveRec>>(`live:${date}`).catch(() => null));
+      const r = dayCache.get(date)?.[id];
+      if (!r || !r.odd) continue;
+      added.push({
+        id,
+        date,
+        fotmobId: r.fotmobId,
+        league: r.league,
+        home: r.home,
+        away: r.away,
+        label: r.label,
+        odd: r.odd,
+        prob: r.prob,
+        confidence: r.confidence,
+        minute: r.minute,
+        hg: r.hg,
+        ag: r.ag,
+        at: new Date(t).toISOString(),
+      });
+      break;
+    }
+  }
+  const merged = [...list, ...added].sort((a, b) => a.at.localeCompare(b.at)).slice(-1000);
+  if (added.length) await setJSON(SHARED_KEY, merged);
+  await store.set(BACKFILL_KEY, new Date().toISOString());
+  return merged;
 }
 
 const COOLDOWN_KEY = "tg:cooldown";
