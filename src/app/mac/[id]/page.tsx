@@ -119,14 +119,19 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
                 </tr>
               </thead>
               <tbody>
-                <ProbRow label="Avrupa" sub={`${match.euro.reference}`} values={a.euroFair} />
+                <ProbRow
+                  label={match.source === "elo" ? "Referans" : "Avrupa"}
+                  sub={match.source === "elo" ? "ClubElo + iddaa ort." : match.euro.reference}
+                  values={a.euroFair}
+                />
                 {a.iddaaFair && <ProbRow label="iddaa" sub="marjı atılmış" values={a.iddaaFair} />}
                 <ProbRow label="Model" sub="harman" values={a.model1x2} highlight />
               </tbody>
             </table>
             {a.iddaaOdds && (
               <p className="muted small">
-                iddaa oranları {a.iddaaOdds.map((o) => o.toFixed(2)).join(" · ")} · Avrupa {match.euro.h2h.map((o) => o.toFixed(2)).join(" · ")}
+                iddaa oranları {a.iddaaOdds.map((o) => o.toFixed(2)).join(" · ")}
+                {match.source !== "elo" && <> · Avrupa {match.euro.h2h.map((o) => o.toFixed(2)).join(" · ")}</>}
               </p>
             )}
             <div className="margins">
@@ -136,10 +141,10 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
               </div>
               <div>
                 <span>Avrupa marjı</span>
-                <b className="pos">{pct(a.euroMargin)}</b>
+                <b className="pos">{match.source === "elo" ? "—" : pct(a.euroMargin)}</b>
               </div>
               <div>
-                <span>2.5 Üst (Avrupa)</span>
+                <span>2.5 Üst ({match.source === "elo" ? "iddaa, marjsız" : "Avrupa"})</span>
                 <b>{pct(a.euroOver25)}</b>
               </div>
             </div>
@@ -147,7 +152,12 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
 
           <section className="card pad">
             <h3 className="card-title">Takım bilgisi</h3>
-            {[home, away].map((t) => (
+            {match.source === "elo" && (
+              <p className="muted small" style={{ marginTop: 0 }}>
+                Bu maç Football-Data kapsamında değil; olasılıklar ClubElo güç puanından. Takım istatistiği, korner ve kart tahmini yok.
+              </p>
+            )}
+            {[home, away].filter((t) => t.goalsFor10.length > 0).map((t) => (
               <div key={t.short} className="teaminfo">
                 <b>{t.name}</b>
                 <span className="muted small">

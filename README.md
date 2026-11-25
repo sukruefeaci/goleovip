@@ -11,6 +11,9 @@ iddaa oranlarını **Avrupa bahis piyasası** (Pinnacle vb.) ve **istatistik mod
 | iddaa oranları | **iddaa.com bülteni** (`sportsbookv2.iddaa.com`, yurt dışından da çalışır) — adres [iddaa-scanner](https://github.com/alibingul-dev/iddaa-scanner)'dan; pazar kodları gerçek bültenden istatistikle çıkarıldı. Yedek: Nesine bülteni — format [LaAlbiceleste2026](https://github.com/ozgurozansen/LaAlbiceleste2026) |
 | Avrupa oranları (Betfair Borsası, ~%1.4 marj; yoksa piyasa ortalaması) | Football-Data.co.uk `fixtures.csv` — fikir [iddaa-scanner](https://github.com/alibingul-dev/iddaa-scanner) |
 | Form, son 10 maç, korner, kart, puan durumu | Football-Data.co.uk sezon CSV'leri |
+| Avrupa kupaları ve diğer ligler için maç olasılıkları | **ClubElo** (`clubelo.com/Fixtures`, ücretsiz, anahtarsız) |
+
+**ClubElo maçları:** Football-Data'da Avrupa oranı olmayan iddaa maçları (Şampiyonlar Ligi, Avrupa Ligi, diğer ligler) ClubElo'nun Elo tabanlı 1/X/2 olasılığı ile iddaa'nın marjsız olasılığının ortalamasıyla analiz edilir; gol beklentisi iddaa'nın Alt/Üst 2.5 oranından (marjsız). Takım istatistiği olmadığından korner/kart gösterilmez, belirsizlik payı ClubElo–iddaa farkıyla büyür, güven puanı düşüktür, banko seçimine girmez; iddaa 1X2 oranı yoksa hiçbir seçenek "Değerli" olmaz. ClubElo'nun CSV API'si yalnız HTTP verdiği için HTTPS sayfası ayrıştırılır; sayfa değişirse site ClubElo'suz çalışmaya devam eder.
 
 `DATA_PROVIDER`: `auto` (varsayılan; canlıyı dener, olmazsa örnek veri), `live`, `mock`.
 Kapsam: Football-Data.co.uk'nin ulusal ligleri (Süper Lig, Premier Lig, La Liga, Serie A, Bundesliga…). Avrupa kupaları, kart oranları ve sakat/cezalı bilgisi bu kaynaklarda yok. Korner için Avrupa oranı olmadığından korner tahminleri yalnız istatistiğe dayanır (daha geniş ±).

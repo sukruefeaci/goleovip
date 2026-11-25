@@ -13,6 +13,7 @@ export const CONFIG = {
   defencePenaltyMax: 0.1,
   dependencyThreshold: 0.85, // seçeneğin %85+ ihtimalle bir tarafın galibiyetiyle gelmesi
   halfShrinkGoals: 15, // ilk yarı payını lig ortalamasına çeken "sanal gol" sayısı
+  eloExtraSigma: 0.04, // ClubElo kaynaklı maçlarda ek belirsizlik
   // Korner: 9 lig × 2 sezon geçmiş maçla ayarlandı (2025/26 ayar, 2026/27 test)
   cornerTeamWeight: 0.3, // takımın son 6 maç ortalamasının ağırlığı; kalanı lig ortalaması
   cornerHomeFactor: 1.12, // ev sahipleri formülün tahmininden ~%12 fazla korner kullanıyor
@@ -99,6 +100,8 @@ function sigmaFor(def: MarketDef, pM: number, pS: number, hasCornerMarket: boole
  */
 export function confidenceFor(input: {
   kind: MarketDef["kind"];
+  /** ClubElo kaynaklı maç (Avrupa piyasa oranı yok) */
+  elo?: boolean;
   hasOu25: boolean;
   hasCornerMarket: boolean;
   pMarket: number;
@@ -108,8 +111,15 @@ export function confidenceFor(input: {
   games: number; // iki takımın hesaba giren toplam geçmiş maç sayısı
 }): { score: number; parts: ConfidencePart[] } {
   const { kind } = input;
-  const source =
+  const eloSource =
     kind === "ft"
+      ? { s: 0.6, n: "ClubElo güç puanı + iddaa alt/üst (Avrupa piyasa oranı yok)" }
+      : kind === "ht"
+        ? { s: 0.45, n: "ClubElo'dan türetiliyor, ilk yarı için dolaylı" }
+        : { s: 0.35, n: "ClubElo'dan türetiliyor, 9 seçenekli pazar çok belirsiz" };
+  const source = input.elo
+    ? eloSource
+    : kind === "ft"
       ? input.hasOu25
         ? { s: 0.95, n: "Avrupa piyasasıyla doğrudan doğrulanıyor" }
         : { s: 0.7, n: "Avrupa maç sonucu oranı var, alt/üst oranı yok" }
@@ -123,7 +133,8 @@ export function confidenceFor(input: {
               ? { s: 0.7, n: "İstatistik + piyasa oranı" }
               : { s: 0.45, n: "Yalnız istatistik, piyasa oranı yok" };
   const diff = Math.abs(input.pMarket - input.pStats);
-  const agreement = kind === "ft" || kind === "ht" || kind === "htft" ? Math.max(0, 1 - diff / 0.15) : 0.6;
+  const twoSources = !input.elo && (kind === "ft" || kind === "ht" || kind === "htft");
+  const agreement = twoSources ? Math.max(0, 1 - diff / 0.15) : input.elo ? 0.4 : 0.6;
   const precision = Math.max(0, 1 - input.sigma / 0.12);
   const sample = Math.min(1, input.games / 20);
   const parts: ConfidencePart[] = [
@@ -132,9 +143,10 @@ export function confidenceFor(input: {
       label: "Kaynak uyumu",
       score: agreement,
       weight: 0.2,
-      note:
-        kind === "ft" || kind === "ht" || kind === "htft"
-          ? `Piyasa %${(input.pMarket * 100).toFixed(0)}, istatistik %${(input.pStats * 100).toFixed(0)} diyor`
+      note: twoSources
+        ? `Piyasa %${(input.pMarket * 100).toFixed(0)}, istatistik %${(input.pStats * 100).toFixed(0)} diyor`
+        : input.elo
+          ? "Takım istatistiği yok; ClubElo tek kaynak"
           : "Karşılaştırılacak ikinci kaynak yok",
     },
     { label: "Kesinlik", score: precision, weight: 0.15, note: `Belirsizlik payı ±${(input.sigma * 100).toFixed(1)} puan` },
@@ -171,9 +183,12 @@ export function analyze(match: MatchInput): Analysis {
 
   // 3) λ: piyasadan ve istatistikten
   const lambdaMarket = fitLambdas(euroFair, euroOver25);
-  const st = statLambdas(home, away);
+  // Takım geçmişi yoksa (ClubElo maçları) istatistik modeli yok sayılır, yalnız referans olasılıklar kullanılır
+  const hasHistory = home.goalsFor10.length >= 3 && away.goalsFor10.length >= 3;
+  const elo = match.source === "elo";
+  const st = hasHistory ? statLambdas(home, away) : { ...lambdaMarket, attackPenalty: { home: 0, away: 0 } };
   const lambdaStats = { home: st.home, away: st.away };
-  const w = CONFIG.marketWeight;
+  const w = hasHistory ? CONFIG.marketWeight : 1;
   const lambda = {
     home: w * lambdaMarket.home + (1 - w) * lambdaStats.home,
     away: w * lambdaMarket.away + (1 - w) * lambdaStats.away,
@@ -229,11 +244,13 @@ export function analyze(match: MatchInput): Analysis {
   const formStr = (t: TeamInput) => `${t.form.filter((f) => f === "G").length}/${t.form.length}`;
   const gStr = (t: TeamInput) => `${avg(t.goalsFor10).toFixed(1)}/${avg(t.goalsAgainst10).toFixed(1)}`;
   const missingAtk = [...home.missing, ...away.missing].filter((m) => m.role === "hücum").map((m) => m.name);
+  const ref = elo ? "ClubElo" : "Avrupa";
   const goalBasis =
-    `Avrupa Ü2.5 ${pct(euroOver25)} · λ ${f2(lambda.home)}–${f2(lambda.away)} · ` +
-    `Son10 gol ${home.short} ${gStr(home)} · ${away.short} ${gStr(away)}`;
+    `${elo ? "iddaa Ü2.5 (marjsız)" : "Avrupa Ü2.5"} ${pct(euroOver25)} · λ ${f2(lambda.home)}–${f2(lambda.away)}` +
+    (hasHistory ? ` · Son10 gol ${home.short} ${gStr(home)} · ${away.short} ${gStr(away)}` : "");
   const resultBasis =
-    `Avrupa ${pct(euroFair[0])}/${pct(euroFair[1])}/${pct(euroFair[2])} · Form ${home.short} ${formStr(home)}, ${away.short} ${formStr(away)}` +
+    `${ref} ${pct(euroFair[0])}/${pct(euroFair[1])}/${pct(euroFair[2])}` +
+    (hasHistory ? ` · Form ${home.short} ${formStr(home)}, ${away.short} ${formStr(away)}` : " · takım istatistiği yok") +
     (missingAtk.length ? ` · Eksik: ${missingAtk.join(", ")}` : "");
   const cornerBasis =
     `Beklenen korner: ${home.short} ${cornerStats.home.toFixed(1)} – ${away.short} ${cornerStats.away.toFixed(1)} ` +
@@ -267,12 +284,17 @@ export function analyze(match: MatchInput): Analysis {
     const pS = probability(def, ctxStats);
     const usesMarket = def.kind === "ft" || def.kind === "ht" || def.kind === "htft";
     const p = usesMarket ? w * pM + (1 - w) * pS : pM; // korner/kart: ctxMarket zaten harman λ kullanıyor
-    const sigma = sigmaFor(def, pM, pS, cornerLambdaMarket !== null);
+    // ClubElo olasılıkları piyasa kadar keskin değil (sakatlık, kadro bilgisi yok): daha geniş belirsizlik
+    //    ClubElo ile iddaa ayrıştıkça belirsizlik büyür; iddaa 1X2 yoksa sabit geniş pay.
+    const eloSigma = !elo ? 0 : match.eloDisagreement == null ? 0.08 : CONFIG.eloExtraSigma + 0.6 * match.eloDisagreement;
+    const sigma = sigmaFor(def, pM, pS, cornerLambdaMarket !== null) + eloSigma;
     const required = 1 / line.odd;
     const ev = p * line.odd - 1;
     const evConservative = Math.max(0, p - sigma) * line.odd - 1;
     const edgeChance = normCdf((p - required) / sigma);
-    const rating: Rating = evConservative > 0 ? "Avantajlı" : ev > 0 ? "Sınırda" : "Dezavantajlı";
+    let rating: Rating = evConservative > 0 ? "Avantajlı" : ev > 0 ? "Sınırda" : "Dezavantajlı";
+    // ClubElo'yu doğrulayacak iddaa 1X2 oranı yoksa "Değerli" demeyiz
+    if (elo && match.eloDisagreement == null && rating === "Avantajlı") rating = "Sınırda";
 
     let dependsOn: BetRow["dependsOn"] = null;
     if (def.kind === "ft" && def.pred) {
@@ -313,6 +335,7 @@ export function analyze(match: MatchInput): Analysis {
       ...(() => {
         const c = confidenceFor({
           kind: def.kind,
+          elo,
           hasOu25: !match.warnings.some((w) => w.includes("Alt/Üst 2.5 oranı yok")),
           hasCornerMarket: cornerLambdaMarket !== null,
           pMarket: pM,

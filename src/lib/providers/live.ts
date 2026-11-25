@@ -16,7 +16,9 @@ import {
   type Fixture,
   type PlayedMatch,
 } from "./footballData";
-import { nameSimilarity, shortName } from "./teamNames";
+import { nameSimilarity, normName, shortName } from "./teamNames";
+import { CLUBELO_FIXTURES_URL, parseClubEloFixtures, type EloFixture } from "./clubelo";
+import type { TeamInput } from "../types";
 
 const MIN = 60_000;
 const MATCH_THRESHOLD = 0.72;
@@ -24,7 +26,7 @@ const DAYS_AHEAD = 7;
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-function findEvent(fx: Fixture, events: NesineEvent[]) {
+function findEvent(fx: { home: string; away: string; kickoff: Date }, events: NesineEvent[]) {
   let best: NesineEvent | null = null;
   let bestScore = 0;
   for (const ev of events) {
@@ -39,6 +41,21 @@ function findEvent(fx: Fixture, events: NesineEvent[]) {
     }
   }
   return bestScore >= MATCH_THRESHOLD ? best : null;
+}
+
+/**
+ * Yedek eşleştirme (ClubElo kısa adları için: "Sporting" ↔ "Sporting Lizbon", "AZ" ↔ "AZ Alkmaar"):
+ * başlama saati 15 dk içinde ve takımlardan biri neredeyse birebir aynıysa, diğeri de en az kısmen benziyorsa.
+ */
+function findBySameKickoff(f: { home: string; away: string; kickoff: Date }, events: NesineEvent[]) {
+  const cands = events
+    .filter((e) => Math.abs(e.kickoff.getTime() - f.kickoff.getTime()) <= 15 * MIN)
+    .map((e) => ({ e, h: nameSimilarity(e.home, f.home), a: nameSimilarity(e.away, f.away) }))
+    .filter((c) => Math.max(c.h, c.a) >= 0.95 && Math.min(c.h, c.a) >= 0.15)
+    .sort((x, y) => y.h + y.a - (x.h + x.a));
+  // Belirsizse (aynı saatte birden çok aday) eşleştirme yapma
+  if (cands.length === 0 || (cands.length > 1 && cands[1].h + cands[1].a > cands[0].h + cands[0].a - 0.3)) return null;
+  return cands[0].e;
 }
 
 async function loadResults(div: string, now: Date, warnings: string[]): Promise<{ current: PlayedMatch[]; all: PlayedMatch[] }> {
@@ -63,13 +80,14 @@ async function buildAll(): Promise<MatchInput[]> {
   const now = new Date();
   const sourceWarnings: string[] = [];
 
-  const [fxRes, idRes, nsRes] = await Promise.allSettled([
+  const [fxRes, idRes, nsRes, eloRes] = await Promise.allSettled([
     cachedFetch("fd-fixtures.csv", "Avrupa oranları (Football-Data)", FIXTURES_URL, 30 * MIN),
     cachedFetch("iddaa-bulten.json", "iddaa oranları (iddaa.com)", IDDAA_URL, 5 * MIN),
     cachedFetch("nesine-bulten.json", "iddaa oranları (Nesine)", NESINE_URL, 5 * MIN),
+    cachedFetch("clubelo-fixtures.html", "ClubElo maç olasılıkları", CLUBELO_FIXTURES_URL, 60 * MIN),
   ]);
-  if (fxRes.status === "rejected") throw fxRes.reason;
-  if (fxRes.value.warning) sourceWarnings.push(fxRes.value.warning);
+  if (fxRes.status === "rejected" && eloRes.status === "rejected") throw fxRes.reason;
+  if (fxRes.status === "fulfilled" && fxRes.value.warning) sourceWarnings.push(fxRes.value.warning);
 
   // iddaa oranları: önce iddaa.com, olmazsa Nesine
   let events: NesineEvent[] = [];
@@ -98,7 +116,8 @@ async function buildAll(): Promise<MatchInput[]> {
   const oddsFetchedAt = (oddsSource === "iddaa.com" ? idRes : nsRes) as PromiseFulfilledResult<{ fetchedAt: Date }>;
 
   const horizon = now.getTime() + DAYS_AHEAD * 24 * 60 * MIN;
-  const fixtures = parseFixtures(fxRes.value.text).filter(
+  const fxFetchedAt = fxRes.status === "fulfilled" ? fxRes.value.fetchedAt : new Date();
+  const fixtures = (fxRes.status === "fulfilled" ? parseFixtures(fxRes.value.text) : []).filter(
     (f) => f.kickoff.getTime() > now.getTime() - 2 * 60 * MIN && f.kickoff.getTime() < horizon,
   );
 
@@ -111,7 +130,25 @@ async function buildAll(): Promise<MatchInput[]> {
   const resultWarnings: string[] = [];
   const results = new Map(await Promise.all(divs.map(async (d) => [d, await loadResults(d, now, resultWarnings)] as const)));
 
-  return pairs.map(({ fx, ev }) => {
+  const updatedAt = (oddsFetchedAt.value.fetchedAt > fxFetchedAt ? fxFetchedAt : oddsFetchedAt.value.fetchedAt).toISOString();
+
+  // ClubElo: Football-Data'da olmayan iddaa maçları (Avrupa kupaları, diğer ligler)
+  const used = new Set(pairs.map((p) => p.ev));
+  const eloMatches: MatchInput[] = [];
+  if (eloRes.status === "fulfilled") {
+    const eloFx = parseClubEloFixtures(eloRes.value.text).filter(
+      (f) => f.kickoff.getTime() > now.getTime() && f.kickoff.getTime() < horizon,
+    );
+    for (const f of eloFx) {
+      const free = events.filter((e) => !used.has(e));
+      const ev = findEvent(f, free) ?? findBySameKickoff(f, free);
+      if (!ev) continue;
+      used.add(ev);
+      eloMatches.push(eloMatch(f, ev, updatedAt, oddsSource));
+    }
+  }
+
+  const marketMatches = pairs.map(({ fx, ev }) => {
     const r = results.get(fx.div)!;
     const table = standings(r.current);
     const home = teamFromResults(fx.home, shortName(ev.home), r.all, table);
@@ -136,10 +173,77 @@ async function buildAll(): Promise<MatchInput[]> {
         ou25: fx.ou25 ?? [1.9, 1.9],
       },
       iddaa: ev.lines,
-      updatedAt: (oddsFetchedAt.value.fetchedAt > fxRes.value.fetchedAt ? fxRes.value.fetchedAt : oddsFetchedAt.value.fetchedAt).toISOString(),
+      updatedAt,
       warnings: fx.ou25 ? warnings : [...warnings, "Avrupa Alt/Üst 2.5 oranı yok, varsayılan kullanıldı"],
+      source: "market",
     } satisfies MatchInput;
   });
+
+  return [...marketMatches, ...eloMatches];
+}
+
+const COMPETITION_TR: [RegExp, string][] = [
+  [/^UCL/i, "UEFA Şampiyonlar Ligi"],
+  [/^UEL/i, "UEFA Avrupa Ligi"],
+  [/^UECL|^UCOL|Conference/i, "UEFA Konferans Ligi"],
+];
+
+function competitionName(c: string) {
+  for (const [re, tr] of COMPETITION_TR) if (re.test(c)) return tr;
+  return c.replace(/\s+\d{2,4}(\/\d{2,4})?$/, "").trim() || "Diğer";
+}
+
+/** Takım istatistiği olmayan (ClubElo) maçlar için boş takım */
+function emptyTeam(name: string): TeamInput {
+  return { name, short: shortName(name), rank: 0, points: 0, form: [], goalsFor10: [], goalsAgainst10: [], cornersFor: 0, cornersAgainst: 0, cards: 0, missing: [] };
+}
+
+/** ClubElo olasılıkları + iddaa'nın kendi Alt/Üst 2.5 oranı (marjı atılmış) ile maç girdisi */
+function eloMatch(f: EloFixture, ev: NesineEvent, updatedAt: string, oddsSource: string): MatchInput {
+  const odd = (k: string) => ev.lines.find((l) => l.key === k)?.odd;
+  const o = odd("ou:2.5:o"),
+    u = odd("ou:2.5:u");
+  let ou25: [number, number] = [1.9, 1.9];
+  const warnings = [
+    "Avrupa piyasa oranı yok: 1/X/2 olasılıkları ClubElo güç puanı ile iddaa'nın marjsız oranlarının ortalaması; gol beklentisi iddaa'nın alt/üst oranından (marjı atılarak)",
+    "Takım istatistiği yok: korner ve kart tahmini gösterilmiyor; güven puanı daha düşük",
+  ];
+  if (o && u) {
+    const s = 1 / o + 1 / u;
+    ou25 = [s * o, s * u]; // marjsız (adil) oranlar
+  } else warnings.push("iddaa Alt/Üst 2.5 oranı yok, varsayılan kullanıldı");
+
+  // ClubElo kadro/sakatlık bilmez: iddaa'nın marjsız 1X2 olasılığıyla yarı yarıya harmanla.
+  // İkisi ne kadar ayrışırsa model o kadar belirsiz sayılır (eloDisagreement).
+  let p: [number, number, number] = f.p;
+  let eloDisagreement: number | null = null;
+  const i1 = odd("1x2:1"),
+    iX = odd("1x2:X"),
+    i2 = odd("1x2:2");
+  if (i1 && iX && i2) {
+    const inv = [1 / i1, 1 / iX, 1 / i2];
+    const sum = inv[0] + inv[1] + inv[2];
+    const fair = inv.map((x) => x / sum);
+    eloDisagreement = Math.max(...fair.map((x, i) => Math.abs(x - f.p[i])));
+    p = [0, 1, 2].map((i) => 0.5 * f.p[i] + 0.5 * fair[i]) as [number, number, number];
+    if (eloDisagreement > 0.15)
+      warnings.push(`ClubElo ile iddaa olasılıkları çok farklı (%${Math.round(eloDisagreement * 100)} puan): tahminler belirsiz`);
+  } else warnings.push("iddaa maç sonucu oranı yok; yalnız ClubElo kullanıldı");
+  if (ev.unmapped) warnings.push(`${oddsSource} bülteninde modelin hesaplamadığı ${ev.unmapped} pazar atlandı`);
+  return {
+    id: `elo-${slug(normName(ev.home))}-${slug(normName(ev.away))}-${f.kickoff.toISOString().slice(0, 10)}`,
+    league: competitionName(f.competition),
+    kickoff: ev.kickoff.toISOString(),
+    home: emptyTeam(ev.home),
+    away: emptyTeam(ev.away),
+    headToHead: [],
+    euro: { bookmakers: 0, reference: "ClubElo", h2h: [1 / p[0], 1 / p[1], 1 / p[2]], ou25 },
+    eloDisagreement,
+    iddaa: ev.lines.filter((l) => !/^(cor|hcor|acor|card):/.test(l.key)),
+    updatedAt,
+    warnings,
+    source: "elo",
+  };
 }
 
 function leagueCorners(results: PlayedMatch[]) {
@@ -153,7 +257,7 @@ function leagueCorners(results: PlayedMatch[]) {
 let inflight: Promise<MatchInput[]> | null = null;
 
 export const liveProvider: MatchProvider = {
-  name: "canlı (iddaa.com / Nesine + Football-Data.co.uk)",
+  name: "canlı (iddaa.com / Nesine + Football-Data.co.uk + ClubElo)",
   async listMatches() {
     inflight ??= buildAll().finally(() => setTimeout(() => (inflight = null), 30_000).unref?.());
     return inflight;

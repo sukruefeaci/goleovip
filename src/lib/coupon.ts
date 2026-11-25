@@ -23,6 +23,7 @@ export interface CouponCandidate {
 
 export interface CouponMatch {
   id: string;
+  source?: "market" | "elo";
   home: string;
   away: string;
   league: string;
@@ -128,7 +129,8 @@ export const BANKO_MIN_ODD = 1.25;
  * Güvenilirlik = belirsizlik payı düşülmüş model olasılığı. İkili kupon olarak da oynanabilmesi için MBS ≤ 2.
  */
 export function bankoPicks(matches: CouponMatch[], count = 2, now = Date.now()): CouponResult {
-  const filtered = matches.map((m) => ({
+  // Banko yalnız Avrupa piyasasıyla doğrulanan maçlardan (ClubElo maçları hariç)
+  const filtered = matches.filter((m) => m.source !== "elo").map((m) => ({
     ...m,
     options: m.options.filter((o) => BANKO_CATEGORIES.includes(o.category)),
   }));

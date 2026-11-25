@@ -51,6 +51,10 @@ export interface MatchInput {
   iddaa: OddsLine[];
   updatedAt: string;
   warnings: string[];
+  /** Olasılık kaynağı: "market" = Avrupa bahis piyasası (varsayılan), "elo" = ClubElo güç puanı */
+  source?: "market" | "elo";
+  /** ClubElo maçlarında: ClubElo ile iddaa'nın marjsız 1/X/2 olasılıkları arasındaki en büyük fark (0–1); iddaa 1X2 yoksa null */
+  eloDisagreement?: number | null;
   /** Ligin bu sezonki maç başı korner ortalaması (ev sahibi / deplasman) */
   leagueCorners?: { home: number; away: number };
 }

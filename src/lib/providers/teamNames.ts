@@ -5,7 +5,7 @@
  */
 
 const ALIAS: [RegExp, string][] = [
-  [/\bb munih\b|\bbayern munih\b|\bmunih\b|\bmuenchen\b/, "bayern munich"],
+  [/\bb munih\b|\bbayern munih\b|\bbayern munchen\b|\bmunih\b|\bmuenchen\b|\bmunchen\b/, "bayern munich"],
   [/\bb dortmund\b|\bborussia dortmund\b/, "dortmund"],
   [/\bman city\b|\bmanchester city\b/, "man city"],
   [/\bman utd\b|\bman united\b|\bmanchester united\b/, "man united"],

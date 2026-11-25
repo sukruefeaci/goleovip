@@ -15,6 +15,7 @@ export async function loadAnalyses(): Promise<{ analyses: Analysis[]; source: st
 export function toCouponMatches(analyses: Analysis[]): CouponMatch[] {
   return analyses.map((a) => ({
     id: a.match.id,
+    source: a.match.source,
     home: a.match.home.name,
     away: a.match.away.name,
     league: a.match.league,
