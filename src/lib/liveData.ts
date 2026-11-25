@@ -4,6 +4,7 @@ import { loadAnalyses } from "./data";
 import { getStore } from "./auth/store";
 import { calibrateLive, liveModel, liveRecommendations, type LiveBet, type LiveOutput, type LiveState, type LiveStats } from "./liveModel";
 import { getLiveLearning, getLiveSituations, liveFactorFn, recordLive, type LiveCtx } from "./liveTracking";
+import { shareLivePicks } from "./telegram";
 import { fetchLiveOdds, fetchLiveProgram, matchIddaaLive } from "./providers/iddaaLive";
 import { loadDay, parseHalfTime, priorOf, trDate, type LivePrior, type SnapEntry } from "./tracking";
 
@@ -273,6 +274,23 @@ export async function loadLive(): Promise<{ items: LiveItem[]; total: number; at
         ctx: it.ctx,
         recs: it.recs,
       })),
+  ).catch(() => 0);
+  // Güveni yüksek yeni önerileri Telegram kanalına gönder (ayarlıysa; her öneri bir kez)
+  await shareLivePicks(
+    items.flatMap((it) =>
+      it.recs.map((rec) => ({
+        fotmobId: it.id,
+        league: it.league,
+        home: it.home,
+        away: it.away,
+        hg: it.hg,
+        ag: it.ag,
+        minute: it.minuteLabel,
+        tempo: it.model.tempo.label,
+        stats: it.stats,
+        rec,
+      })),
+    ),
   ).catch(() => 0);
   memo = { at: Date.now(), items, total: raw.length };
   return memo;

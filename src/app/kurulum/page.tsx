@@ -1,5 +1,6 @@
 import { authSecret } from "@/lib/auth/session";
 import { getStore, upstashCredentials } from "@/lib/auth/store";
+import { telegramConfig } from "@/lib/telegram";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,28 @@ export default async function SetupPage() {
     } catch (e) {
       pingOk = false;
       pingError = (e as Error).message;
+    }
+  }
+  // Telegram (isteğe bağlı): bot geçerli mi, kanala erişebiliyor mu (adlar/değerler gösterilmez)
+  const tg = telegramConfig();
+  let tgBot: boolean | null = null,
+    tgChat: boolean | null = null,
+    tgErr = "";
+  if (tg) {
+    try {
+      const me = await fetch(`https://api.telegram.org/bot${tg.token}/getMe`, { cache: "no-store", signal: AbortSignal.timeout(5000) }).then((r) => r.json());
+      tgBot = !!me.ok;
+      if (tgBot) {
+        const ch = await fetch(`https://api.telegram.org/bot${tg.token}/getChat?chat_id=${encodeURIComponent(tg.chat)}`, {
+          cache: "no-store",
+          signal: AbortSignal.timeout(5000),
+        }).then((r) => r.json());
+        tgChat = !!ch.ok;
+        if (!ch.ok) tgErr = String(ch.description ?? "");
+      }
+    } catch (e) {
+      tgBot = false;
+      tgErr = (e as Error).message;
     }
   }
   const names = Object.keys(process.env)
@@ -49,6 +72,14 @@ export default async function SetupPage() {
           />
           {creds && <Row ok={pingOk} label="Veritabanına erişim" hint={pingOk ? undefined : `Bağlanılamadı: ${pingError}`} />}
           <Row ok={storeOk && secretOk && pingOk !== false} label="Kayıt / giriş kullanılabilir" />
+        </ul>
+        <h3 style={{ marginBottom: 4 }}>Telegram (isteğe bağlı)</h3>
+        <ul style={{ listStyle: "none", padding: 0, marginTop: 0 }}>
+          <Row ok={!!tg} label="TELEGRAM_BOT_TOKEN ve TELEGRAM_CHAT_ID" hint={tg ? `Eşik: güven ≥ %${tg.minConf}` : "Canlı tercihleri kanala göndermek için ikisini de ekleyip Redeploy yapın."} />
+          {tg && <Row ok={tgBot} label="Bot anahtarı geçerli" hint={tgBot ? undefined : "Anahtar hatalı; BotFather'dan aldığın anahtarı kontrol et."} />}
+          {tg && tgBot && (
+            <Row ok={tgChat} label="Bot kanala erişebiliyor" hint={tgChat ? "Giriş yaptıktan sonra /api/telegram/test adresini açarak deneme kartı gönderebilirsin." : `Botu kanala yönetici olarak ekle. (${tgErr})`} />
+          )}
         </ul>
         <p className="muted small">Bulunan ilgili ayar isimleri (değerler gösterilmez):</p>
         <code className="small" style={{ display: "block", whiteSpace: "pre-wrap" }}>

@@ -147,3 +147,14 @@ Maçlar, Oranlar ve Canlı sayfalarının en üstünde: her tahmine 100 TL yatı
 - Canlı: kaydedilen canlı öneriler; iddaa canlı oranı olmayanlar kâr hesabına katılmaz (sayısı ayrıca yazılır).
 - Başından beri toplam `pnl:v1` anahtarında gün gün tutulur; her sonuçlandırmada güncellenir, ilk çalışmada son 60 günün kayıtlarından kurulur.
 
+
+## Telegram kanalı (canlı tercihler)
+
+Canlı bölümünde güveni **%70 ve üstü** yeni bir öneri çıkınca görsel kart (`src/lib/telegram.ts`, `next/og` ile PNG) hazırlanıp Telegram kanalına gönderilir. Her maç + öneri bir kez gönderilir (`tg:` anahtarı); gönderim başarısız olursa sonraki yenilemede tekrar denenir.
+
+Vercel → Settings → Environment Variables:
+- `TELEGRAM_BOT_TOKEN` — BotFather'dan alınan bot anahtarı (gizli)
+- `TELEGRAM_CHAT_ID` — kanal adı (`@kanaladi`) ya da sayısal kimlik; bot kanala yönetici olarak eklenmeli
+- `TELEGRAM_MIN_CONF` — isteğe bağlı eşik (varsayılan 70)
+
+`/kurulum` sayfası bot ve kanal erişimini denetler; giriş yaptıktan sonra `/api/telegram/test` kanala deneme kartı gönderir. Yazı tipi: Inter (`assets/fonts`, SIL OFL 1.1).
