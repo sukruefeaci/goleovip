@@ -156,5 +156,6 @@ Vercel → Settings → Environment Variables:
 - `TELEGRAM_BOT_TOKEN` — BotFather'dan alınan bot anahtarı (gizli)
 - `TELEGRAM_CHAT_ID` — kanal adı (`@kanaladi`) ya da sayısal kimlik; bot kanala yönetici olarak eklenmeli
 - `TELEGRAM_MIN_CONF` — isteğe bağlı eşik (varsayılan 70)
+- `TELEGRAM_COOLDOWN_MIN` — iki paylaşım arası en az süre, dakika (varsayılan 30). Bekleme bitince uygun öneriler arasından olasılık × güveni en yüksek olan tek öneri gönderilir.
 
 `/kurulum` sayfası bot ve kanal erişimini denetler; giriş yaptıktan sonra `/api/telegram/test` kanala deneme kartı gönderir. Yazı tipi: Inter (`assets/fonts`, SIL OFL 1.1).

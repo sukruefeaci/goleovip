@@ -10,15 +10,18 @@ import { LIVE_MIN_ODD, type LiveBet, type LiveStats } from "./liveModel";
  *   TELEGRAM_BOT_TOKEN  BotFather'dan alınan bot anahtarı (gizli)
  *   TELEGRAM_CHAT_ID    kanal adı (@kanal) ya da sayısal kimlik
  *   TELEGRAM_MIN_CONF   isteğe bağlı eşik (varsayılan 70)
+ *   TELEGRAM_COOLDOWN_MIN  iki paylaşım arası en az süre, dakika (varsayılan 30)
  * Aynı maç + aynı öneri bir kez gönderilir (veritabanında tg: anahtarı).
  */
 
-export function telegramConfig(): { token: string; chat: string; minConf: number } | null {
+export function telegramConfig(): { token: string; chat: string; minConf: number; cooldownMin: number } | null {
   const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
   const chat = process.env.TELEGRAM_CHAT_ID?.trim();
   if (!token || !chat) return null;
   const m = Number(process.env.TELEGRAM_MIN_CONF);
-  return { token, chat, minConf: Number.isFinite(m) && m > 0 ? m : 70 };
+  const cdRaw = process.env.TELEGRAM_COOLDOWN_MIN?.trim();
+  const cd = cdRaw ? Number(cdRaw) : NaN;
+  return { token, chat, minConf: Number.isFinite(m) && m > 0 ? m : 70, cooldownMin: Number.isFinite(cd) && cd >= 0 ? cd : 30 };
 }
 
 export interface LiveShare {
@@ -164,34 +167,64 @@ export async function sendPhoto(token: string, chat: string, png: Buffer, captio
   }
 }
 
-/** Eşiği geçen yeni önerileri kanala gönderir (her öneri bir kez). Gönderilen sayı döner. */
-export async function shareLivePicks(list: LiveShare[], budgetMs = 7000): Promise<number> {
+const COOLDOWN_KEY = "tg:cooldown";
+const LAST_KEY = "tg:last";
+const recKey = (s: LiveShare) => `tg:${s.fotmobId}|${s.rec.label}`;
+
+/**
+ * Eşiği geçen önerilerden en iyisini kanala gönderir.
+ * - Güven ≥ eşik, gerçek iddaa canlı oranı ≥ 1.45
+ * - Her öneri bir kez
+ * - İki paylaşım arasında en az TELEGRAM_COOLDOWN_MIN dakika (varsayılan 30); bekleme süresinde hiçbir şey gönderilmez
+ * Gönderilen sayı (0 ya da 1) döner.
+ */
+export async function shareLivePicks(list: LiveShare[], budgetMs = 7000, now = Date.now()): Promise<number> {
   const cfg = telegramConfig();
   const store = getStore();
   if (!cfg || !store) return 0;
-  // Yalnız gerçek iddaa canlı oranı olan ve oranı ≥ 1.45 olan öneriler paylaşılır (oransız tahmin kanala gitmez)
-  const todo = list.filter((s) => s.rec.confidence >= cfg.minConf && !!s.rec.odd && s.rec.odd >= LIVE_MIN_ODD);
+  const todo = list
+    .filter((s) => s.rec.confidence >= cfg.minConf && !!s.rec.odd && s.rec.odd >= LIVE_MIN_ODD)
+    .sort((a, b) => b.rec.prob * b.rec.confidence - a.rec.prob * a.rec.confidence);
   if (!todo.length) return 0;
-  let sent = 0;
-  const job = (async () => {
+
+  const job = async (): Promise<number> => {
+    // Bekleme süresi: son paylaşımdan bu yana yeterli zaman geçmediyse gönderme
+    const last = Number(await store.get(LAST_KEY).catch(() => null)) || 0;
+    if (now - last < cfg.cooldownMin * 60_000) return 0;
+    // Daha önce gönderilmemiş en iyi öneri
+    let pick: LiveShare | null = null;
     for (const s of todo) {
-      // aynı öneri ikinci kez gönderilmez (birden fazla sunucu aynı anda çalışsa bile)
-      const fresh = await store.setNX(`tg:${s.fotmobId}|${s.rec.label}`, new Date().toISOString()).catch(() => false);
-      if (!fresh) continue;
-      try {
-        const png = await renderShareImage(s);
-        const r = await sendPhoto(cfg.token, cfg.chat, png, shareCaption(s));
-        if (r.ok) sent++;
-        else {
-          console.error("Telegram gönderilemedi:", r.error);
-          await store.reset(`tg:${s.fotmobId}|${s.rec.label}`).catch(() => {}); // sonraki yenilemede tekrar denensin
-        }
-      } catch (e) {
-        console.error("Telegram görseli hazırlanamadı:", (e as Error).message);
-        await store.reset(`tg:${s.fotmobId}|${s.rec.label}`).catch(() => {});
+      if (!(await store.get(recKey(s)).catch(() => "x"))) {
+        pick = s;
+        break;
       }
     }
-  })();
-  await Promise.race([job, new Promise((res) => setTimeout(res, budgetMs).unref?.())]);
-  return sent;
+    if (!pick) return 0;
+    // Aynı anda çalışan iki sunucudan yalnız biri gönderir
+    if ((await store.incr(COOLDOWN_KEY, cfg.cooldownMin * 60).catch(() => 2)) !== 1) {
+      // sayaç takılı kaldıysa (süresi dolmadan silinmediyse) temizle; bir sonraki yenilemede gönderilir
+      if (now - last >= cfg.cooldownMin * 60_000 * 2) await store.reset(COOLDOWN_KEY).catch(() => {});
+      return 0;
+    }
+    if (!(await store.setNX(recKey(pick), new Date(now).toISOString()).catch(() => false))) return 0;
+    const undo = async () => {
+      await store.reset(recKey(pick!)).catch(() => {});
+      await store.reset(COOLDOWN_KEY).catch(() => {});
+    };
+    try {
+      const r = await sendPhoto(cfg.token, cfg.chat, await renderShareImage(pick), shareCaption(pick));
+      if (!r.ok) {
+        console.error("Telegram gönderilemedi:", r.error);
+        await undo(); // sonraki yenilemede tekrar denensin
+        return 0;
+      }
+      await store.set(LAST_KEY, String(now));
+      return 1;
+    } catch (e) {
+      console.error("Telegram görseli hazırlanamadı:", (e as Error).message);
+      await undo();
+      return 0;
+    }
+  };
+  return Promise.race([job(), new Promise<number>((res) => setTimeout(() => res(0), budgetMs).unref?.())]);
 }
