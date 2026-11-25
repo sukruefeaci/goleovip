@@ -2,7 +2,11 @@ export type FormResult = "G" | "B" | "M";
 
 export interface MissingPlayer {
   name: string;
-  role: "hücum" | "orta saha" | "defans" | "kaleci";
+  role: "hücum" | "orta saha" | "defans" | "kaleci" | "belirsiz";
+  /** Eksiklik nedeni: sakat, cezalı, milli takım … */
+  reason?: string;
+  /** Tahmini dönüş, ör. "Early December 2026" */
+  returnText?: string;
 }
 
 export interface TeamInput {
@@ -51,6 +55,8 @@ export interface MatchInput {
   iddaa: OddsLine[];
   updatedAt: string;
   warnings: string[];
+  /** FotMob eşleşmesi (sakat/cezalı listesi buradan) */
+  fotmob?: { matchId: number; predicted: boolean };
   /** Olasılık kaynağı: "market" = Avrupa bahis piyasası (varsayılan), "elo" = ClubElo güç puanı */
   source?: "market" | "elo";
   /** ClubElo maçlarında: ClubElo ile iddaa'nın marjsız 1/X/2 olasılıkları arasındaki en büyük fark (0–1); iddaa 1X2 yoksa null */

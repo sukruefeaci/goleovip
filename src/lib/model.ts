@@ -14,6 +14,8 @@ export const CONFIG = {
   dependencyThreshold: 0.85, // seçeneğin %85+ ihtimalle bir tarafın galibiyetiyle gelmesi
   halfShrinkGoals: 15, // ilk yarı payını lig ortalamasına çeken "sanal gol" sayısı
   eloExtraSigma: 0.04, // ClubElo kaynaklı maçlarda ek belirsizlik
+  unknownAttackPerPlayer: 0.015, // mevkii bilinmeyen her eksik: kendi gol beklentisi −%1.5
+  unknownDefencePerPlayer: 0.01, // ve rakibin gol beklentisi +%1
   // Korner: 9 lig × 2 sezon geçmiş maçla ayarlandı (2025/26 ayar, 2026/27 test)
   cornerTeamWeight: 0.3, // takımın son 6 maç ortalamasının ağırlığı; kalanı lig ortalaması
   cornerHomeFactor: 1.12, // ev sahipleri formülün tahmininden ~%12 fazla korner kullanıyor
@@ -61,7 +63,10 @@ export function fitLambdas(p: [number, number, number], pOver25: number) {
 
 function penalty(team: TeamInput, role: "hücum" | "defans", per: number, max: number) {
   const n = team.missing.filter((m) => m.role === role).length;
-  return Math.min(max, n * per);
+  // Mevkii bilinmeyen eksikler (FotMob): genel ve küçük etki
+  const generic = team.missing.filter((m) => m.role === "belirsiz").length;
+  const genericPer = role === "hücum" ? CONFIG.unknownAttackPerPlayer : CONFIG.unknownDefencePerPlayer;
+  return Math.min(max, n * per + generic * genericPer);
 }
 
 /** Son 10 maç + eksik oyunculardan λ tahmini */
@@ -244,6 +249,7 @@ export function analyze(match: MatchInput): Analysis {
   const formStr = (t: TeamInput) => `${t.form.filter((f) => f === "G").length}/${t.form.length}`;
   const gStr = (t: TeamInput) => `${avg(t.goalsFor10).toFixed(1)}/${avg(t.goalsAgainst10).toFixed(1)}`;
   const missingAtk = [...home.missing, ...away.missing].filter((m) => m.role === "hücum").map((m) => m.name);
+  const missingCount = home.missing.length + away.missing.length;
   const ref = elo ? "ClubElo" : "Avrupa";
   const goalBasis =
     `${elo ? "iddaa Ü2.5 (marjsız)" : "Avrupa Ü2.5"} ${pct(euroOver25)} · λ ${f2(lambda.home)}–${f2(lambda.away)}` +
@@ -251,7 +257,11 @@ export function analyze(match: MatchInput): Analysis {
   const resultBasis =
     `${ref} ${pct(euroFair[0])}/${pct(euroFair[1])}/${pct(euroFair[2])}` +
     (hasHistory ? ` · Form ${home.short} ${formStr(home)}, ${away.short} ${formStr(away)}` : " · takım istatistiği yok") +
-    (missingAtk.length ? ` · Eksik: ${missingAtk.join(", ")}` : "");
+    (missingAtk.length
+      ? ` · Eksik: ${missingAtk.join(", ")}`
+      : missingCount
+        ? ` · Eksik: ${home.short} ${home.missing.length}, ${away.short} ${away.missing.length} oyuncu`
+        : "");
   const cornerBasis =
     `Beklenen korner: ${home.short} ${cornerStats.home.toFixed(1)} – ${away.short} ${cornerStats.away.toFixed(1)} ` +
     `(toplam ≈${(cornerStats.home + cornerStats.away).toFixed(1)}) · son 6 maç + lig ortalaması` +

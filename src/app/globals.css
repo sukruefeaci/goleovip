@@ -275,6 +275,11 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .margins b { font-size: 16px; }
 .teaminfo { display: grid; gap: 3px; padding: 10px 0; border-top: 1px solid var(--line); }
 .teaminfo:first-of-type { border-top: 0; padding-top: 0; }
+.missing { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; }
+.missing li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 13px; }
+.mtag { font-size: 10.5px; font-weight: 800; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.mtag.inj { background: var(--bad-soft); color: #fda4af; }
+.mtag.susp { background: var(--warn-soft); color: #fcd34d; }
 
 /* ---------- İY/MS ---------- */
 .htft { margin: 0 0 16px; }

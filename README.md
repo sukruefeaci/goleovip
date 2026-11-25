@@ -12,6 +12,9 @@ iddaa oranlarını **Avrupa bahis piyasası** (Pinnacle vb.) ve **istatistik mod
 | Avrupa oranları (Betfair Borsası, ~%1.4 marj; yoksa piyasa ortalaması) | Football-Data.co.uk `fixtures.csv` — fikir [iddaa-scanner](https://github.com/alibingul-dev/iddaa-scanner) |
 | Form, son 10 maç, korner, kart, puan durumu | Football-Data.co.uk sezon CSV'leri |
 | Avrupa kupaları ve diğer ligler için maç olasılıkları | **ClubElo** (`clubelo.com/Fixtures`, ücretsiz, anahtarsız) |
+| Sakat / cezalı / milli takımdaki oyuncular | **FotMob** (resmi olmayan açık JSON; yalnız kişisel kullanım) |
+
+**FotMob:** önümüzdeki 3 gündeki maçlar için `api/data/matches` + `api/data/matchDetails` (eksik oyuncu listesi). En fazla 6 eşzamanlı istek, 2 saat önbellek, 12 sn süre sınırı; hata olursa site FotMob'suz çalışır. Mevki bilinmediği için her eksik oyuncu istatistik modelinde kendi gol beklentisini %1.5 düşürür, rakibinkini %1 artırır (sınırlı). FotMob resmi olmayan kullanıma karşı çıkıyor; yalnız kişisel kullanım için eklendi.
 
 **ClubElo maçları:** Football-Data'da Avrupa oranı olmayan iddaa maçları (Şampiyonlar Ligi, Avrupa Ligi, diğer ligler) ClubElo'nun Elo tabanlı 1/X/2 olasılığı ile iddaa'nın marjsız olasılığının ortalamasıyla analiz edilir; gol beklentisi iddaa'nın Alt/Üst 2.5 oranından (marjsız). Takım istatistiği olmadığından korner/kart gösterilmez, belirsizlik payı ClubElo–iddaa farkıyla büyür, güven puanı düşüktür, banko seçimine girmez; iddaa 1X2 oranı yoksa hiçbir seçenek "Değerli" olmaz. ClubElo'nun CSV API'si yalnız HTTP verdiği için HTTPS sayfası ayrıştırılır; sayfa değişirse site ClubElo'suz çalışmaya devam eder.
 

@@ -28,3 +28,13 @@ test("değer kesinliği güveni artırır", () => {
   const hi = confidenceFor({ ...base, kind: "ft", edgeChance: 0.9 });
   assert.equal(hi.score - lo.score, 20);
 });
+
+test("eksik oyuncular istatistik gol beklentisini düşürür", async () => {
+  const { statLambdas } = await import("../src/lib/model.ts");
+  const team = (missing: any[] = []) => ({ name: "T", short: "T", rank: 1, points: 1, form: [], goalsFor10: [1, 2, 1, 2], goalsAgainst10: [1, 1, 1, 1], cornersFor: 5, cornersAgainst: 5, cards: 2, missing });
+  const base = statLambdas(team(), team());
+  const hurt = statLambdas(team(Array.from({ length: 4 }, (_, i) => ({ name: `p${i}`, role: "belirsiz", reason: "sakat" }))), team());
+  assert.ok(hurt.home < base.home, "kendi gol beklentisi düşer");
+  assert.ok(hurt.away > base.away, "rakibin gol beklentisi artar");
+  assert.ok(base.home - hurt.home < base.home * 0.07, "etki sınırlı");
+});

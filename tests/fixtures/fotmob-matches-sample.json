@@ -1,0 +1,67 @@
+{
+ "leagues": [
+  {
+   "name": "Champions League",
+   "matches": [
+    {
+     "id": 6106421,
+     "leagueId": 943230,
+     "time": "25.11.2026 18:45",
+     "home": {
+      "id": 951893,
+      "score": 0,
+      "name": "Sabah FK"
+     },
+     "away": {
+      "id": 8634,
+      "score": 0,
+      "name": "Barcelona"
+     },
+     "eliminatedTeamId": null,
+     "statusId": 1,
+     "tournamentStage": "5",
+     "status": {
+      "utcTime": "2026-11-25T17:45:00.000Z",
+      "halfs": {
+       "firstHalfStarted": "25.11.2026 18:45:00"
+      },
+      "periodLength": 45,
+      "started": false,
+      "cancelled": false,
+      "finished": false
+     },
+     "timeTS": 1795628700000
+    },
+    {
+     "id": 6106391,
+     "leagueId": 943230,
+     "time": "25.11.2026 18:45",
+     "home": {
+      "id": 7787,
+      "score": 0,
+      "name": "Slavia Prague"
+     },
+     "away": {
+      "id": 10205,
+      "score": 0,
+      "name": "Villarreal"
+     },
+     "eliminatedTeamId": null,
+     "statusId": 1,
+     "tournamentStage": "5",
+     "status": {
+      "utcTime": "2026-11-25T17:45:00.000Z",
+      "halfs": {
+       "firstHalfStarted": "25.11.2026 18:45:00"
+      },
+      "periodLength": 45,
+      "started": false,
+      "cancelled": false,
+      "finished": false
+     },
+     "timeTS": 1795628700000
+    }
+   ]
+  }
+ ]
+}

@@ -18,6 +18,7 @@ import {
 } from "./footballData";
 import { nameSimilarity, normName, shortName } from "./teamNames";
 import { CLUBELO_FIXTURES_URL, parseClubEloFixtures, type EloFixture } from "./clubelo";
+import { enrichWithFotmob } from "./fotmob";
 import type { TeamInput } from "../types";
 
 const MIN = 60_000;
@@ -179,7 +180,14 @@ async function buildAll(): Promise<MatchInput[]> {
     } satisfies MatchInput;
   });
 
-  return [...marketMatches, ...eloMatches];
+  const all = [...marketMatches, ...eloMatches];
+  // Sakat/cezalı: FotMob (hata olursa sessizce atlanır)
+  try {
+    await enrichWithFotmob(all, now);
+  } catch {
+    /* FotMob olmadan devam */
+  }
+  return all;
 }
 
 const COMPETITION_TR: [RegExp, string][] = [
@@ -257,7 +265,7 @@ function leagueCorners(results: PlayedMatch[]) {
 let inflight: Promise<MatchInput[]> | null = null;
 
 export const liveProvider: MatchProvider = {
-  name: "canlı (iddaa.com / Nesine + Football-Data.co.uk + ClubElo)",
+  name: "canlı (iddaa.com / Nesine + Football-Data.co.uk + ClubElo + FotMob)",
   async listMatches() {
     inflight ??= buildAll().finally(() => setTimeout(() => (inflight = null), 30_000).unref?.());
     return inflight;

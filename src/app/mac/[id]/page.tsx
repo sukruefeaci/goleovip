@@ -151,6 +151,37 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           </section>
 
           <section className="card pad">
+            <h3 className="card-title">Eksik oyuncular</h3>
+            {match.fotmob ? (
+              [home, away].map((t) => (
+                <div key={t.short} className="teaminfo">
+                  <b>
+                    {t.name} <span className="muted small">({t.missing.length})</span>
+                  </b>
+                  {t.missing.length ? (
+                    <ul className="missing">
+                      {t.missing.map((m) => (
+                        <li key={m.name}>
+                          <span>{m.name}</span>
+                          <span className={`mtag ${m.reason === "cezalı" ? "susp" : m.reason === "sakat" ? "inj" : ""}`}>{m.reason ?? m.role}</span>
+                          {m.returnText && <span className="muted small">dönüş: {m.returnText}</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <span className="muted small">FotMob'da eksik oyuncu bildirilmemiş</span>
+                  )}
+                </div>
+              ))
+            ) : (
+              <p className="muted small" style={{ margin: 0 }}>
+                Bu maç için sakat/cezalı bilgisi bulunamadı.
+              </p>
+            )}
+            {match.fotmob && <p className="muted small" style={{ marginBottom: 0 }}>Kaynak: FotMob{match.fotmob.predicted ? " (tahmini kadro)" : ""}</p>}
+          </section>
+
+          <section className="card pad">
             <h3 className="card-title">Takım bilgisi</h3>
             {match.source === "elo" && (
               <p className="muted small" style={{ marginTop: 0 }}>
@@ -163,10 +194,6 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
                 <span className="muted small">
                   Son {t.goalsFor10.length} maç: {t.goalsFor10.reduce((x, y) => x + y, 0)} attı, {t.goalsAgainst10.reduce((x, y) => x + y, 0)} yedi ·
                   korner ort. {t.cornersFor.toFixed(1)}
-                </span>
-                <span className="small">
-                  Eksikler:{" "}
-                  <span className="muted">{t.missing.length ? t.missing.map((m) => `${m.name} (${m.role})`).join(", ") : "bilgi yok"}</span>
                 </span>
               </div>
             ))}
