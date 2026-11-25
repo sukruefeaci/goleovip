@@ -7,6 +7,7 @@ const ITEMS = [
   { href: "/", label: "Maçlar", icon: "⚽", match: (p: string) => p === "/" || p.startsWith("/mac/") },
   { href: "/kupon", label: "Kupon", icon: "🎟️", match: (p: string) => p.startsWith("/kupon") },
   { href: "/banko", label: "Banko", icon: "🎯", match: (p: string) => p.startsWith("/banko") },
+  { href: "/oran-analizi", label: "Oranlar", icon: "📊", match: (p: string) => p.startsWith("/oran-analizi") },
   { href: "/nasil-calisir", label: "Bilgi", icon: "📘", match: (p: string) => p.startsWith("/nasil-calisir") },
 ];
 

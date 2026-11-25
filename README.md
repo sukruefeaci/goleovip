@@ -71,6 +71,15 @@ Her maç sayfasında 9 İY/MS sonucunun (1/1, X/1, 2/2 …) olasılığı 3×3 t
 - Takımların son 10 maçının İY/MS sonuçları (G/G, B/G, M/M …) da gösterilir.
 - iddaa (pazar 90) ve Nesine (pazar 5) İY/MS oranları eşlenir; iddaa'nın bu pazardaki marjı genelde %25–30'dur.
 
+## Oran analizi (/oran-analizi)
+
+Yaklaşan her maçın iddaa maç sonucu oranları, Football-Data arşivindeki (20 lig × son 3 sezon, ~17.000 maç) aynı oranlarla oynanmış maçlarla karşılaştırılır (`src/lib/history.ts`).
+- Karşılaştırma marjı atılmış (adil) olasılıklarla yapılır; hassasiyet ±2 / ±3.5 / ±5 puan.
+- Her tercih için geçmişte kazanma oranı (isabet/örnek), bugünkü iddaa oranı ve "geçmişe göre getiri" (oran × kazanma oranı − 1).
+- Gol pazarlarında (alt/üst, KG) 2.5 alt/üst olasılığı da benzer maçlar kullanılır.
+- Eşleşen geçmiş maçlar tarih, lig, skor, oranlar ve kazanan tercihle listelenir.
+- Geçmiş oranlar piyasa ortalamasıdır; iddaa'nın geçmiş oranları arşivde yok.
+
 ## Korner ve kart modeli
 
 Korner ve kart sayıları Poisson'dan daha oynak olduğu için **negatif binom** dağılımı kullanılır.
