@@ -23,9 +23,30 @@ interface KV {
   reset(key: string): Promise<void>;
 }
 
+/**
+ * Upstash bağlantı bilgileri. Vercel entegrasyonu isimlere bir ön ek koyar (varsayılan KV_, ya da
+ * kurulumda yazılan ön ek: STORAGE_KV_REST_API_URL, GOLEO_REST_API_URL …); hepsi kabul edilir.
+ */
+function upstashCredentials(): { url: string; token: string } | null {
+  const env = process.env;
+  const direct = [
+    ["KV_REST_API_URL", "KV_REST_API_TOKEN"],
+    ["UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"],
+  ];
+  for (const [u, t] of direct) if (env[u] && env[t]) return { url: env[u]!, token: env[t]! };
+  for (const name of Object.keys(env)) {
+    const m = name.match(/^(.*)_REST_API_URL$/) ?? name.match(/^(.*)_REDIS_REST_URL$/);
+    if (!m) continue;
+    const token = env[`${m[1]}_REST_API_TOKEN`] ?? env[`${m[1]}_REDIS_REST_TOKEN`];
+    if (env[name] && token) return { url: env[name]!, token };
+  }
+  return null;
+}
+
 function upstash(): KV | null {
-  const url = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
+  const creds = upstashCredentials();
+  if (!creds) return null;
+  const { url, token } = creds;
   if (!url || !token) return null;
   const cmd = async (...args: (string | number)[]) => {
     const res = await fetch(url, {
