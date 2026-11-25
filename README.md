@@ -179,3 +179,7 @@ Canlı tercih yalnız maç öncesi analizi olan maçlara verilir (`liveData.ts`:
 - Oranlar güveni (`oddsConfidence`): geçmişte aynı oranlı maçlardaki tutma oranının bugünkü adil olasılığı ne kadar kesin aştığı, 50 + 10·z (1–95).
 - **Seçki** sekmesi (`/secki`): üç sistemin şartı geçen tercihleri ayrı bölümlerde (Güçlü / Orta), Bugün ve Dün, sonuçlarla.
 
+## Üçlü onay (`/uclu`)
+
+Aynı seçenek için üç sistemin de kendi güveniyle **≥ %65** verdiği tercihler (`src/lib/consensus.ts`). Canlı tercih maç öncesi pazar anahtarına çevrilir (`specKey`: MS Üst/Alt → `ou:`, İY Üst/Alt → `htou:`, KG → `btts:`, MS 1/X/2 → `1x2:`, çifte şans → `dc:`); Maçlar güveni o seçeneğin `BetRow.confidence` değeri, Oranlar güveni aynı seçeneğin geçmiş eşleştirmesinden `oddsConfidence` (en az 150 maç). Canlı sistemi yalnız maç oynanırken güven verdiği için üçlü onay maç sırasında oluşur; `loadLive` her çalışmada hesaplar ve ilk onay anını `uclu:YYYY-MM-DD` anahtarına kaydeder, kesinleşince ✓/✗ işaretlenir. Bugün başlayacak maçlarda Maçlar + Oranlar ≥ %65 olanlar "canlı onayını bekleyenler" bölümünde durur.
+

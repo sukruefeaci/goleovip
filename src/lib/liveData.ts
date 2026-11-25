@@ -5,6 +5,7 @@ import { getStore } from "./auth/store";
 import { calibrateLive, liveModel, liveRecommendations, type LiveBet, type LiveOutput, type LiveState, type LiveStats } from "./liveModel";
 import { getLiveLearning, getLiveSituations, liveFactorFn, recordLive, type LiveCtx } from "./liveTracking";
 import { shareLivePicks } from "./telegram";
+import { liveConsensus, recordConsensus, type ConsMatch } from "./consensus";
 import { fetchLiveOdds, fetchLiveProgram, matchIddaaLive } from "./providers/iddaaLive";
 import { loadDay, parseHalfTime, priorOf, trDate, type LivePrior, type SnapEntry } from "./tracking";
 
@@ -142,9 +143,9 @@ function findPre(r: RawLive, src: Awaited<ReturnType<typeof priorsSources>>): { 
   return { prior: null, pre: null };
 }
 
-let memo: { at: number; items: LiveItem[]; total: number } | null = null;
+let memo: { at: number; items: LiveItem[]; total: number; consensus: ConsMatch[] } | null = null;
 
-export async function loadLive(): Promise<{ items: LiveItem[]; total: number; at: number }> {
+export async function loadLive(): Promise<{ items: LiveItem[]; total: number; at: number; consensus: ConsMatch[] }> {
   if (memo && Date.now() - memo.at < 30_000) return memo;
   const now = new Date();
   const days = [ymd(now), ymd(new Date(now.getTime() - 86400_000))];
@@ -293,6 +294,17 @@ export async function loadLive(): Promise<{ items: LiveItem[]; total: number; at
       })),
     ),
   ).catch(() => 0);
-  memo = { at: Date.now(), items, total: raw.length };
+  // Üçlü onay: aynı seçenek için Maçlar + Oranlar + Canlı güveni ≥ %65 (süre sınırlı; ilk çalışmada arşiv yüklenirken atlanabilir)
+  let consensus: ConsMatch[] = memo?.consensus ?? [];
+  await Promise.race([
+    liveConsensus(items.filter((it) => it.pre))
+      .then(async (c) => {
+        consensus = c;
+        await recordConsensus(c);
+      })
+      .catch(() => {}),
+    new Promise((res) => setTimeout(res, 3500).unref?.()),
+  ]);
+  memo = { at: Date.now(), items, total: raw.length, consensus };
   return memo;
 }

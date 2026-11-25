@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const ITEMS = [
   { href: "/", label: "Maçlar", icon: "⚽", match: (p: string) => p === "/" || p.startsWith("/mac/") },
   { href: "/secki", label: "Seçki", icon: "⭐", match: (p: string) => p.startsWith("/secki") },
+  { href: "/uclu", label: "Üçlü", icon: "🤝", match: (p: string) => p.startsWith("/uclu") },
   { href: "/canli", label: "Canlı", icon: "🔴", match: (p: string) => p.startsWith("/canli") },
   { href: "/kupon", label: "Kupon", icon: "🎟️", match: (p: string) => p.startsWith("/kupon") },
   { href: "/banko", label: "Banko", icon: "🎯", match: (p: string) => p.startsWith("/banko") },
