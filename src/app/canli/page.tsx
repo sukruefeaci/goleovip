@@ -2,6 +2,10 @@ import Link from "next/link";
 import { loadLive, type LiveItem } from "@/lib/liveData";
 import AutoRefresh from "@/components/AutoRefresh";
 import ProfitBoard from "@/components/ProfitBoard";
+import { SHOW_MIN_CONF, SHOW_MIN_ODD, STRONG_CONF, tierOf, TIER_LABEL } from "@/lib/showRule";
+
+/** Gösterim kuralı: gerçek iddaa canlı oranı ≥ 1.50 ve güven ≥ %60 (sistemin önerisi ve takibi değişmez) */
+const shownRecs = (it: LiveItem) => it.recs.filter((r) => tierOf(r.odd, r.confidence));
 import { analyzedRec, canliItems, dayPnl, totalPnl } from "@/lib/pnl";
 import { confLevel, winLevel } from "@/components/WinConfidence";
 import { getLiveLearning, getLiveSituations, liveFactors, loadLiveDay, settleLive, situationRows, type LiveLearning, type LiveRecord, type LiveSituations } from "@/lib/liveTracking";
@@ -96,9 +100,10 @@ function LiveCard({ it }: { it: LiveItem }) {
           <span className="ai">AI</span> Canlı öneri
           {it.hasOdds && <span className="muted small">· iddaa canlı oranlarıyla</span>}
         </span>
-        {it.recs.length ? (
-          it.recs.map((r) => (
+        {shownRecs(it).length ? (
+          shownRecs(it).map((r) => (
             <div key={r.label} className={`lc-rec ${r.ev !== undefined && r.ev > 0 ? "value" : ""}`}>
+              <span className={`tier tier-${tierOf(r.odd, r.confidence)}`}>{TIER_LABEL[tierOf(r.odd, r.confidence)!]}</span>
               <b>{r.label}</b>
               {r.odd ? <span className="oddpill">{r.odd.toFixed(2)}</span> : <span className="muted small">oran yok</span>}
               <span className={winLevel(r.prob).cls}>{pc(r.prob)}</span>
@@ -111,7 +116,9 @@ function LiveCard({ it }: { it: LiveItem }) {
             </div>
           ))
         ) : (
-          <span className="muted small">Şu an oranı 1.45 ve üstü, olasılığı %55 üstü bir öneri yok.</span>
+          <span className="muted small">
+            Şu an oranı {SHOW_MIN_ODD.toFixed(2)} ve üstü, güveni %{SHOW_MIN_CONF} ve üstü bir öneri yok.
+          </span>
         )}
       </div>
     </section>
@@ -247,11 +254,13 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
     tracking ? getLiveLearning() : Promise.resolve({} as LiveLearning),
     tracking ? getLiveSituations() : Promise.resolve({ v: 1, b: {} } as LiveSituations),
   ]);
-  const hist = (histDay === "dun" ? ydayRecs : todayRecs).filter(analyzedRec);
+  const hist = (histDay === "dun" ? ydayRecs : todayRecs).filter((r) => analyzedRec(r) && tierOf(r.odd, r.confidence));
   const pT = dayPnl(canliItems(todayRecs)),
     pY = dayPnl(canliItems(ydayRecs));
   const totalC = tracking ? await totalPnl("canli", { [today]: pT, [yesterday]: pY }).catch(() => null) : null;
   const analyzed = items.filter((i) => i.pre);
+  const withPicks = analyzed.filter((i) => shownRecs(i).length);
+  const noPicks = analyzed.filter((i) => !shownRecs(i).length);
   const others = items.filter((i) => !i.pre);
   return (
     <div className="page-narrow">
@@ -267,15 +276,31 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
         {new Date(at).toLocaleTimeString("tr-TR", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit" })}. Öneriler kalan süre, tempo,
         skor durumu ve maç öncesi analize göre olasılık tahminidir. Yalnız oranı 1.45 ve üstü olan tercihler önerilir (iddaa canlı oranı; yoksa olasılıktan
         hesaplanan adil oran). Oranı olan önerilerde getiri (olasılık × oran − 1) de gösterilir; yeşil kenarlı öneriler artı getirili. Canlı tercih
-        yalnız maç öncesi analiz ettiğimiz maçlara verilir; takip ve öğrenme de yalnız bunlardan yapılır.
+        yalnız maç öncesi analiz ettiğimiz maçlara verilir; takip ve öğrenme de yalnız bunlardan yapılır. Gösterilen: iddaa canlı oranı{" "}
+        {SHOW_MIN_ODD.toFixed(2)}+ ve güveni %{SHOW_MIN_CONF}+ tercihler (%{STRONG_CONF}+ Güçlü).
       </p>
 
-      {analyzed.length > 0 && <h2 className="lc-h">Analiz ettiğimiz maçlar</h2>}
+      {analyzed.length > 0 && <h2 className="lc-h">Tercih olan maçlar</h2>}
       <div className="lc-list">
-        {analyzed.map((it) => (
+        {withPicks.map((it) => (
           <LiveCard key={it.id} it={it} />
         ))}
+        {analyzed.length > 0 && !withPicks.length && (
+          <div className="card pad empty">
+            Şu an oranı {SHOW_MIN_ODD.toFixed(2)}+ ve güveni %{SHOW_MIN_CONF}+ tercih yok.
+          </div>
+        )}
       </div>
+      {noPicks.length > 0 && (
+        <details className="rest">
+          <summary>Şartı geçen tercihi olmayan analizli maçlar ({noPicks.length})</summary>
+          <div className="lc-list">
+            {noPicks.map((it) => (
+              <LiveCard key={it.id} it={it} />
+            ))}
+          </div>
+        </details>
+      )}
 
       {others.length > 0 && (
         <p className="muted small" style={{ marginTop: 12 }}>

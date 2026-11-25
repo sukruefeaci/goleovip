@@ -83,6 +83,7 @@ export interface OddsSnapPick {
   odd: number;
   rate: number; // geçmişte tutma oranı
   n: number;
+  confidence?: number; // Oran analizi sisteminin güveni
 }
 
 type Snap = Record<string, SnapEntry>;
@@ -173,7 +174,7 @@ export async function recordOddsPicks(rows: { id: string; kickoff: string; pick:
     byDate.set(d, [...(byDate.get(d) ?? []), r]);
   }
   for (const [date, list] of byDate) {
-    const sig = JSON.stringify(list.map((r) => [r.id, r.pick?.key, r.pick?.odd]));
+    const sig = JSON.stringify(list.map((r) => [r.id, r.pick?.key, r.pick?.odd, r.pick?.confidence]));
     if (oddsWritten.get(date) === sig) continue;
     const snap = await getJSON<Snap>(snapKey(date));
     if (!snap) continue;
@@ -181,7 +182,7 @@ export async function recordOddsPicks(rows: { id: string; kickoff: string; pick:
     for (const r of list) {
       const e = snap[r.id];
       if (!e || e.result || new Date(e.kickoff).getTime() <= now) continue;
-      if (e.oddsPick?.key === r.pick!.key && e.oddsPick?.odd === r.pick!.odd) continue;
+      if (e.oddsPick?.key === r.pick!.key && e.oddsPick?.odd === r.pick!.odd && e.oddsPick?.confidence === r.pick!.confidence) continue;
       e.oddsPick = r.pick;
       changed = true;
     }

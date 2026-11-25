@@ -8,6 +8,7 @@ import { calibrationFactors, getLearning, loadDay, mainPick, settleDay, trDate, 
 import { getStore } from "@/lib/auth/store";
 import { confLevel, winLevel } from "@/components/WinConfidence";
 import ProfitBoard from "@/components/ProfitBoard";
+import { SHOW_MIN_CONF, SHOW_MIN_ODD, STRONG_CONF, tierOf, TIER_LABEL } from "@/lib/showRule";
 import { dayPnl, macItems, totalPnl } from "@/lib/pnl";
 
 export const dynamic = "force-dynamic";
@@ -56,6 +57,35 @@ function PickLine({ p, result }: { p: SnapPick; result?: SnapEntry["result"] }) 
   );
 }
 
+function MatchRow({ it, now }: { it: Item; now: number }) {
+          const k = kickoffParts(it.kickoff);
+          const started = new Date(it.kickoff).getTime() <= now;
+          return (
+            <Link href={`/mac/${it.id}`} className="card mrow">
+              <div className="mrow-top">
+                <span className="mrow-time">{k.time}</span>
+                <span className="chip">{it.league}</span>
+                {it.pick && tierOf(it.pick.odd, it.pick.confidence) && (
+                  <span className={`tier tier-${tierOf(it.pick.odd, it.pick.confidence)}`}>{TIER_LABEL[tierOf(it.pick.odd, it.pick.confidence)!]}</span>
+                )}
+                <span className="mrow-status">
+                  {it.result ? (
+                    <b className="mrow-score">
+                      {it.result.hg} - {it.result.ag}
+                    </b>
+                  ) : started ? (
+                    <span className="muted small">başladı / sonuç bekleniyor</span>
+                  ) : null}
+                </span>
+              </div>
+              <div className="mrow-teams">
+                {it.home} <span className="vs">vs</span> {it.away}
+              </div>
+              {it.pick ? <PickLine p={it.pick} result={it.result} /> : <div className="muted small">Uygun tercih yok</div>}
+            </Link>
+          );
+        }
+
 export default async function MatchesPage({ searchParams }: { searchParams: Promise<{ gun?: string }> }) {
   const { gun } = await searchParams;
   const day: DayKey = gun && gun in DAYS ? (gun as DayKey) : "bugun";
@@ -87,7 +117,10 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
     ...snaps.filter((s) => !liveIds.has(s.id)).map((s) => ({ ...s, pick: s.pick, result: s.result, live: false })),
   ].sort((x, y) => x.kickoff.localeCompare(y.kickoff));
 
-  const decided = items.filter((i) => i.result && i.result.pickWon !== null && i.result.pickWon !== undefined);
+  // Gösterim kuralı: oran ≥ 1.50 ve güven ≥ %60 (sistem hesabı ve takibi değişmez)
+  const shown = items.filter((i) => i.pick && tierOf(i.pick.odd, i.pick.confidence));
+  const rest = items.filter((i) => !shown.includes(i));
+  const decided = shown.filter((i) => i.result && i.result.pickWon !== null && i.result.pickWon !== undefined);
   const hits = decided.filter((i) => i.result!.pickWon).length;
   const factors = calibrationFactors(learning);
 
@@ -121,40 +154,22 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
       <div className="page-head">
         <h1>{{ dun: "Dünün", bugun: "Bugünün", yarin: "Yarının" }[day]} maçları</h1>
         <span className="muted small">
-          {items.length} maç{day !== "dun" ? ` · kaynak: ${source}` : ""}
+          {shown.length}/{items.length} maç{day !== "dun" ? ` · kaynak: ${source}` : ""}
         </span>
       </div>
+      <p className="muted small" style={{ marginTop: 0 }}>
+        Gösterilen: oran {SHOW_MIN_ODD.toFixed(2)} ve üstü, güven %{SHOW_MIN_CONF} ve üstü tercihler (%{STRONG_CONF}+ Güçlü).
+      </p>
 
       {!tracking && day === "dun" && (
         <div className="notice subtle">Geçmiş maçların kaydı için veritabanı (Upstash) bağlı olmalı; /kurulum sayfasından kontrol edebilirsin.</div>
       )}
 
       <div className="match-list">
-        {items.map((it) => {
-          const k = kickoffParts(it.kickoff);
-          const started = new Date(it.kickoff).getTime() <= now;
-          return (
-            <Link key={it.id} href={`/mac/${it.id}`} className="card mrow">
-              <div className="mrow-top">
-                <span className="mrow-time">{k.time}</span>
-                <span className="chip">{it.league}</span>
-                <span className="mrow-status">
-                  {it.result ? (
-                    <b className="mrow-score">
-                      {it.result.hg} - {it.result.ag}
-                    </b>
-                  ) : started ? (
-                    <span className="muted small">başladı / sonuç bekleniyor</span>
-                  ) : null}
-                </span>
-              </div>
-              <div className="mrow-teams">
-                {it.home} <span className="vs">vs</span> {it.away}
-              </div>
-              {it.pick ? <PickLine p={it.pick} result={it.result} /> : <div className="muted small">Uygun tercih yok</div>}
-            </Link>
-          );
-        })}
+        {shown.map((it) => (
+          <MatchRow key={it.id} it={it} now={now} />
+        ))}
+        {items.length > 0 && !shown.length && <div className="card pad empty">Bu gün için şartı geçen tercih yok.</div>}
         {!items.length && (
           <div className="card pad empty">
             {day === "dun"
@@ -165,6 +180,19 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
           </div>
         )}
       </div>
+
+      {rest.length > 0 && (
+        <details className="rest">
+          <summary>
+            Şartı geçmeyen maçlar ({rest.length}) — oran {SHOW_MIN_ODD.toFixed(2)} altı ya da güven %{SHOW_MIN_CONF} altı
+          </summary>
+          <div className="match-list">
+            {rest.map((it) => (
+              <MatchRow key={it.id} it={it} now={now} />
+            ))}
+          </div>
+        </details>
+      )}
 
       {day === "dun" && Object.keys(learning).length > 0 && (
         <section className="card pad learn">

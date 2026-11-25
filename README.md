@@ -171,3 +171,11 @@ Vercel'de `ADMIN_EMAILS` (virgülle ayrılmış e-postalar) tanımlı kullanıc�
 
 Canlı tercih yalnız maç öncesi analizi olan maçlara verilir (`liveData.ts`: `it.pre` yoksa öneri yok). Kayıt, Telegram, kâr/zarar ve öğrenme de yalnız bunlardan yapılır (`analyzedRec`). Geçişte bir kez (`learnLive:analyzedOnly:v1`) eski kayıtlar o günün maç öncesi kayıtlarıyla eşleştirilip işaretlenir; tür ve durum öğrenmesi yalnız analizli kayıtlardan yeniden kurulur.
 
+## Gösterim kuralı ve Seçki
+
+Üç sistemin (Maçlar, Canlı, Oranlar) hesabı ve takibi değişmeden, ekranda yalnız **oran ≥ 1.50 ve sistemin kendi güveni ≥ %60** olan tercihler öne çıkarılır; güveni **%70+** olanlar "Güçlü", %60–69 "Orta" (`src/lib/showRule.ts`). Şartı geçmeyenler her sekmede altta katlanmış bölümde durur. Canlıda gerçek iddaa canlı oranı gerekir.
+- Maçlar güveni: maç öncesi modelin güven puanı.
+- Canlı güveni: canlı modelin güven puanı.
+- Oranlar güveni (`oddsConfidence`): geçmişte aynı oranlı maçlardaki tutma oranının bugünkü adil olasılığı ne kadar kesin aştığı, 50 + 10·z (1–95).
+- **Seçki** sekmesi (`/secki`): üç sistemin şartı geçen tercihleri ayrı bölümlerde (Güçlü / Orta), Bugün ve Dün, sonuçlarla.
+
