@@ -235,6 +235,35 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .teaminfo { display: grid; gap: 3px; padding: 10px 0; border-top: 1px solid var(--line); }
 .teaminfo:first-of-type { border-top: 0; padding-top: 0; }
 
+/* ---------- İY/MS ---------- */
+.htft { margin: 0 0 16px; }
+.htft-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.htft-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.htft-best { font-size: 30px; font-weight: 900; color: var(--brand-2); line-height: 1.1; }
+.htft-best small { font-size: 15px; color: var(--text); font-weight: 700; margin-left: 6px; }
+.htft-runner { display: grid; gap: 2px; text-align: right; font-size: 13px; }
+.htft-grid { display: grid; grid-template-columns: 54px repeat(3, 1fr); gap: 6px; }
+.htft-rowwrap { display: contents; }
+.htft-colh, .htft-rowh { font-size: 11px; font-weight: 800; color: var(--muted); display: grid; place-items: center; }
+.htft-cell { --a: 0; position: relative; display: grid; justify-items: center; gap: 1px; padding: 8px 4px; border-radius: 12px; border: 1px solid var(--line);
+  background: linear-gradient(0deg, rgba(139, 92, 246, calc(var(--a) * 0.45)), rgba(139, 92, 246, calc(var(--a) * 0.45))), var(--bg-2); }
+.htft-cell .o { font-size: 11px; color: var(--muted); font-weight: 700; }
+.htft-cell b { font-size: 16px; }
+.htft-cell span:last-child { font-size: 11.5px; }
+.htft-cell.is-best { border-color: var(--brand-2); box-shadow: 0 0 0 1px var(--brand-2) inset; }
+.htft-cell.is-value::after { content: "değer"; position: absolute; top: -7px; right: 6px; font-size: 9px; font-weight: 800; padding: 1px 5px; border-radius: 6px; background: var(--good); color: #022c22; }
+.htft-note { margin: 12px 0 0; font-size: 13px; }
+.htft-hists { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.htft-hist { font-size: 13px; }
+.htft-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+.hchip { font-size: 11.5px; font-weight: 800; padding: 2px 7px; border-radius: 8px; background: var(--surface-2); }
+.hchip i { font-style: normal; color: var(--muted); font-weight: 600; }
+.hchip.h-GG { background: var(--good-soft); color: #6ee7b7; }
+.hchip.h-MM { background: var(--bad-soft); color: #fda4af; }
+.hchip.h-BG, .hchip.h-MG { background: rgba(34, 211, 238, 0.12); color: #a5f3fc; }
+.mr-htft { font-size: 12.5px; }
+.mr-htft b { color: var(--brand-2); }
+
 /* ---------- Bahis tablosu ---------- */
 .table-panel { overflow: hidden; }
 .filters { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 16px; border-bottom: 1px solid var(--line); }
@@ -323,6 +352,11 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   .xg-bar { width: 40%; }
 
   .pick { padding: 14px; }
+  .htft-best { font-size: 24px; }
+  .htft-grid { grid-template-columns: 40px repeat(3, 1fr); gap: 4px; }
+  .htft-cell { padding: 6px 2px; }
+  .htft-cell b { font-size: 14px; }
+  .htft-hists { grid-template-columns: 1fr; }
   .pick-selection { font-size: 20px; }
   .pick-odd.oddpill { font-size: 21px; }
   .pick-stats { gap: 5px; }

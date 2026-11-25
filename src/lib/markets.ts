@@ -16,9 +16,10 @@ import { poissonOver, probWhere, scoreMatrix } from "./poisson";
  *  cor:L:o|u            Toplam korner
  *  hcor / acor:L:o|u    Ev sahibi / deplasman korner
  *  card:L:o|u           Toplam kart
+ *  htft:R1/R2           İlk yarı / maç sonucu (R = 1|X|2)
  */
 
-export type MarketKind = "ft" | "ht" | "corners_total" | "corners_home" | "corners_away" | "cards";
+export type MarketKind = "ft" | "ht" | "htft" | "corners_total" | "corners_home" | "corners_away" | "cards";
 
 export interface MarketDef {
   key: string;
@@ -34,6 +35,7 @@ export interface MarketDef {
 export interface ModelContext {
   ft: number[][];
   ht: number[][];
+  htft: Record<string, number>; // "1/X" → olasılık
   cornersHome: number;
   cornersAway: number;
   cards: number;
@@ -41,16 +43,44 @@ export interface ModelContext {
 
 export const HALF_TIME_SHARE = 0.45;
 
+export const HTFT_OUTCOMES = ["1/1", "1/X", "1/2", "X/1", "X/X", "X/2", "2/1", "2/X", "2/2"];
+
+const res = (d: number) => (d > 0 ? "1" : d === 0 ? "X" : "2");
+
+/**
+ * İY/MS dağılımı: ilk yarı ve ikinci yarı skorları bağımsız Poisson.
+ * İlk yarı λ = λ × pay, ikinci yarı λ = λ × (1 − pay).
+ */
+export function htftDistribution(lh: number, la: number, shareH: number, shareA: number): Record<string, number> {
+  const N = 7;
+  const h1 = scoreMatrix(lh * shareH, la * shareA, N);
+  const h2 = scoreMatrix(lh * (1 - shareH), la * (1 - shareA), N);
+  const out: Record<string, number> = Object.fromEntries(HTFT_OUTCOMES.map((k) => [k, 0]));
+  for (let a = 0; a <= N; a++)
+    for (let b = 0; b <= N; b++) {
+      const p1 = h1[a][b];
+      if (p1 < 1e-9) continue;
+      const r1 = res(a - b);
+      for (let c = 0; c <= N; c++)
+        for (let d = 0; d <= N; d++) out[`${r1}/${res(a + c - b - d)}`] += p1 * h2[c][d];
+    }
+  const total = Object.values(out).reduce((x, y) => x + y, 0);
+  for (const k of HTFT_OUTCOMES) out[k] /= total;
+  return out;
+}
+
 export function buildContext(
   lh: number,
   la: number,
   cornersHome: number,
   cornersAway: number,
   cards: number,
+  halfShare: { home: number; away: number } = { home: HALF_TIME_SHARE, away: HALF_TIME_SHARE },
 ): ModelContext {
   return {
     ft: scoreMatrix(lh, la),
-    ht: scoreMatrix(lh * HALF_TIME_SHARE, la * HALF_TIME_SHARE),
+    ht: scoreMatrix(lh * halfShare.home, la * halfShare.away),
+    htft: htftDistribution(lh, la, halfShare.home, halfShare.away),
     cornersHome,
     cornersAway,
     cards,
@@ -161,6 +191,18 @@ export function describe(key: string, homeName = "Ev Sahibi", awayName = "Deplas
         kind: "ht",
         pred: (h, a) => (p[2] === "o" ? h + a > L : h + a < L),
       };
+    case "htft": {
+      if (!HTFT_OUTCOMES.includes(p[1])) break;
+      const r2 = p[1].split("/")[1];
+      return {
+        key,
+        category: "İY/MS",
+        market: "İlk Yarı / Maç Sonucu",
+        selection: p[1],
+        kind: "htft",
+        pred: RES[r2], // maç sonucu kısmı
+      };
+    }
     case "cor":
       return {
         key,
@@ -211,6 +253,8 @@ export function probability(def: MarketDef, ctx: ModelContext): number {
       return probWhere(ctx.ft, def.pred!);
     case "ht":
       return probWhere(ctx.ht, def.pred!);
+    case "htft":
+      return ctx.htft[def.selection] ?? 0;
     default: {
       const lambda =
         def.kind === "corners_total"
@@ -239,6 +283,7 @@ export const DEFAULT_KEYS: string[] = (() => {
   for (const r of ["0-1", "2-3", "4-5", "6+"]) k.push(`tg:${r}`);
   for (const r of ["1", "X", "2"]) k.push(`ht1x2:${r}`);
   for (const l of ["0.5", "1.5", "2.5"]) for (const s of ["o", "u"]) k.push(`htou:${l}:${s}`);
+  for (const o of ["1/1", "1/X", "1/2", "X/1", "X/X", "X/2", "2/1", "2/X", "2/2"]) k.push(`htft:${o}`);
   for (const l of ["8.5", "9.5", "10.5", "11.5"]) for (const s of ["o", "u"]) k.push(`cor:${l}:${s}`);
   for (const l of ["3.5", "4.5", "5.5", "6.5"]) for (const s of ["o", "u"]) k.push(`hcor:${l}:${s}`);
   for (const l of ["2.5", "3.5", "4.5", "5.5"]) for (const s of ["o", "u"]) k.push(`acor:${l}:${s}`);

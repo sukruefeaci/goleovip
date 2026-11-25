@@ -149,6 +149,8 @@ export interface PlayedMatch {
   ac: number | null;
   hCards: number | null;
   aCards: number | null;
+  hht: number | null; // ilk yarı ev golü
+  aht: number | null; // ilk yarı deplasman golü
 }
 
 export function parseResults(text: string): PlayedMatch[] {
@@ -168,6 +170,8 @@ export function parseResults(text: string): PlayedMatch[] {
       ac: n(r.AC),
       hCards: cards(r.HY, r.HR),
       aCards: cards(r.AY, r.AR),
+      hht: n(r.HTHG),
+      aht: n(r.HTAG),
     });
   }
   return out.sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -209,8 +213,21 @@ export function teamFromResults(name: string, short: string, results: PlayedMatc
       cf: home ? m.hc : m.ac,
       ca: home ? m.ac : m.hc,
       cards: home ? m.hCards : m.aCards,
+      htf: home ? m.hht : m.aht,
+      hta: home ? m.aht : m.hht,
     };
   };
+  // İlk yarı gol payı: son 20 maç (iki sezona yayılabilir)
+  const half = games.slice(-20).map(view).filter((v) => v.htf !== null && v.hta !== null);
+  const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+  const gf = sum(half.map((v) => v.gf));
+  const ga = sum(half.map((v) => v.ga));
+  const sign = (x: number) => (x > 0 ? "G" : x === 0 ? "B" : "M");
+  const htftHistory = games
+    .slice(-10)
+    .map(view)
+    .filter((v) => v.htf !== null && v.hta !== null)
+    .map((v) => `${sign(v.htf! - v.hta!)}/${sign(v.gf - v.ga)}`);
   const form: FormResult[] = games.slice(-5).map((m) => {
     const v = view(m);
     return v.gf > v.ga ? "G" : v.gf === v.ga ? "B" : "M";
@@ -230,6 +247,9 @@ export function teamFromResults(name: string, short: string, results: PlayedMatc
     cornersAgainst: avg(nums(v6.map((x) => x.ca))) || 5,
     cards: avg(nums(v6.map((x) => x.cards))) || 2,
     missing: [],
+    halfShareFor: gf ? { share: sum(half.map((v) => v.htf!)) / gf, goals: gf } : undefined,
+    halfShareAgainst: ga ? { share: sum(half.map((v) => v.hta!)) / ga, goals: ga } : undefined,
+    htftHistory,
   };
 }
 

@@ -87,6 +87,7 @@ export default async function Home() {
                   const k = kickoffParts(a.match.kickoff);
                   const pick = choosePick(a);
                   const [p1, px, p2] = a.model1x2;
+                  const htftBest = [...a.htft].sort((x, y) => y.prob - x.prob)[0];
                   return (
                     <Link key={a.match.id} href={`/mac/${a.match.id}`} className="match-row">
                       <div className="mr-time">{k.time}</div>
@@ -107,6 +108,9 @@ export default async function Home() {
                           <i className="t2" style={{ flex: p2 }}>
                             {pct(p2, 0)}
                           </i>
+                        </div>
+                        <div className="mr-htft">
+                          İY/MS en olası: <b>{htftBest.outcome}</b> <span className="muted">{pct(htftBest.prob, 0)}</span>
                         </div>
                         {pick && (
                           <div className={`mr-pick lvl-${pick.level === "güçlü" ? "strong" : pick.level === "zayıf" ? "weak" : "none"}`}>

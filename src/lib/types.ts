@@ -17,6 +17,12 @@ export interface TeamInput {
   cornersAgainst: number; // maç başı rakibe verdiği korner (son 6)
   cards: number; // maç başı gördüğü kart (son 6)
   missing: MissingPlayer[];
+  /** Geçmiş maçlardan: attığı gollerin ilk yarıda atılan payı ve kaç golden hesaplandığı */
+  halfShareFor?: { share: number; goals: number };
+  /** Geçmiş maçlardan: yediği gollerin ilk yarıda yenen payı */
+  halfShareAgainst?: { share: number; goals: number };
+  /** Son maçların İY/MS sonuçları takımın gözünden, ör. "G/G" (İY önde, maçı kazandı), "B/M" */
+  htftHistory?: string[];
 }
 
 /** Tek bir iddaa seçeneği. key formatı: src/lib/markets.ts */
@@ -47,8 +53,8 @@ export interface MatchInput {
   warnings: string[];
 }
 
-export type Category = "Sonuç" | "Gol" | "İlk Yarı" | "Korner" | "Kart";
-export const CATEGORIES: Category[] = ["Sonuç", "Gol", "İlk Yarı", "Korner", "Kart"];
+export type Category = "Sonuç" | "Gol" | "İlk Yarı" | "İY/MS" | "Korner" | "Kart";
+export const CATEGORIES: Category[] = ["Sonuç", "Gol", "İlk Yarı", "İY/MS", "Korner", "Kart"];
 
 export type Rating = "Avantajlı" | "Sınırda" | "Dezavantajlı";
 
@@ -85,5 +91,9 @@ export interface Analysis {
   cornerLambdaMarket: { home: number; away: number } | null;
   euroOver25: number;
   attackPenalty: { home: number; away: number };
+  /** İlk yarıya düşen gol payı (ev, deplasman) */
+  halfShare: { home: number; away: number };
+  /** 9 İY/MS sonucunun model olasılığı (iddaa oranı olsun olmasın) */
+  htft: { outcome: string; prob: number }[];
   rows: BetRow[];
 }

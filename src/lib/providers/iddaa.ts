@@ -10,7 +10,7 @@ import type { NesineEvent as OddsEvent } from "./nesine";
  * ev/deplasman) oranlara Poisson modeli oturtularak ayırt edildi:
  *   1 MS · 4 Toplam gol aralığı · 7 MS + Alt/Üst · 48 Korner Alt/Üst · 60 İlk yarı Alt/Üst
  *   88 İlk yarı sonucu · 89 Karşılıklı gol · 92 Çifte şans · 101 Alt/Üst
- *   603 Ev sahibi Alt/Üst · 604 Deplasman Alt/Üst · 700 Alt/Üst + KG
+ *   603 Ev sahibi Alt/Üst · 604 Deplasman Alt/Üst · 700 Alt/Üst + KG · 90 İlk yarı / maç sonucu
  *   (atlananlar: 36 2. yarı sonucu, 49 ilk yarı korner, 720 ilk yarı KG, 722/723 ilk yarı takım A/Ü …)
  * Resmi, belgelenmiş bir API değildir; kodlar habersiz değişebilir.
  */
@@ -61,6 +61,11 @@ export function outcomeKey(st: number, sov: number | null, name: string): string
       return yn(name) ? `btts:${yn(name)}` : null;
     case 4:
       return TG[name] ? `tg:${TG[name]}` : null;
+    case 90: {
+      // "1/0" → "1/X"
+      const m = name.match(/^([102])\/([102])$/);
+      return m ? `htft:${R(m[1])}/${R(m[2])}` : null;
+    }
     case 101:
     case 60:
     case 603:

@@ -1,5 +1,5 @@
 import type { Analysis, BetRow, MatchInput, Rating, TeamInput } from "./types";
-import { buildContext, describe, probability, type MarketDef } from "./markets";
+import { buildContext, describe, HALF_TIME_SHARE, HTFT_OUTCOMES, probability, type MarketDef } from "./markets";
 import { lambdaForOver, normCdf, pmfVector, probWhere, scoreMatrix } from "./poisson";
 
 /** Model ayarları — Ayarlar sayfasına taşınabilir */
@@ -12,6 +12,7 @@ export const CONFIG = {
   defencePenaltyPerPlayer: 0.03,
   defencePenaltyMax: 0.1,
   dependencyThreshold: 0.85, // seçeneğin %85+ ihtimalle bir tarafın galibiyetiyle gelmesi
+  halfShrinkGoals: 15, // ilk yarı payını lig ortalamasına çeken "sanal gol" sayısı
 };
 
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
@@ -75,6 +76,9 @@ function sigmaFor(def: MarketDef, pM: number, pS: number, hasCornerMarket: boole
       return 0.025 + 0.5 * disagreement;
     case "ht":
       return 0.035 + 0.5 * disagreement;
+    case "htft":
+      // 9 seçenekli pazar: olasılıklar küçük, yarı dağılımı varsayımı ek belirsizlik getirir
+      return 0.02 + 0.5 * disagreement + 0.08 * Math.sqrt(Math.max(pM, pS));
     case "cards":
       return 0.07 + 0.3 * disagreement;
     default:
@@ -131,8 +135,22 @@ export function analyze(match: MatchInput): Analysis {
   };
   const cards = home.cards + away.cards;
 
-  const ctxMarket = buildContext(lambdaMarket.home, lambdaMarket.away, cornerLambda.home, cornerLambda.away, cards);
-  const ctxStats = buildContext(lambdaStats.home, lambdaStats.away, cornerStats.home, cornerStats.away, cards);
+  // İlk yarı gol payı: takımın ilk yarıda attığı ve rakibin ilk yarıda yediği gol payı,
+  // az veriyle aşırı uç değerler çıkmasın diye lig ortalamasına (≈%45) doğru büzülür
+  const shrink = (x: { share: number; goals: number } | undefined) =>
+    x ? (x.share * x.goals + HALF_TIME_SHARE * CONFIG.halfShrinkGoals) / (x.goals + CONFIG.halfShrinkGoals) : HALF_TIME_SHARE;
+  const clamp = (x: number) => Math.min(0.6, Math.max(0.3, x));
+  const halfShare = {
+    home: clamp((shrink(home.halfShareFor) + shrink(away.halfShareAgainst)) / 2),
+    away: clamp((shrink(away.halfShareFor) + shrink(home.halfShareAgainst)) / 2),
+  };
+
+  const ctxMarket = buildContext(lambdaMarket.home, lambdaMarket.away, cornerLambda.home, cornerLambda.away, cards, halfShare);
+  const ctxStats = buildContext(lambdaStats.home, lambdaStats.away, cornerStats.home, cornerStats.away, cards, halfShare);
+  const htft = HTFT_OUTCOMES.map((outcome) => ({
+    outcome,
+    prob: w * ctxMarket.htft[outcome] + (1 - w) * ctxStats.htft[outcome],
+  }));
   const ftBlend = scoreMatrix(lambda.home, lambda.away);
 
   const model1x2 = [
@@ -154,6 +172,19 @@ export function analyze(match: MatchInput): Analysis {
   const cornerBasis =
     `Korner λ ${f2(cornerStats.home)}–${f2(cornerStats.away)}` +
     (cornerLambdaMarket ? ` · piyasa ${f2(cornerLambdaMarket.home)}–${f2(cornerLambdaMarket.away)}` : " · yalnız istatistik (piyasa oranı yok)");
+  const histStr = (t: TeamInput) => {
+    const h = t.htftHistory ?? [];
+    const lead = h.filter((x) => x.startsWith("G/")).length;
+    return h.length ? `${t.short} son ${h.length}: İY önde ${lead}, İY önde→kazandı ${h.filter((x) => x === "G/G").length}` : "";
+  };
+  const htftBasis = [
+    `İlk yarı gol payı ${home.short} %${Math.round(halfShare.home * 100)} · ${away.short} %${Math.round(halfShare.away * 100)}`,
+    `λ ${f2(lambda.home)}–${f2(lambda.away)}`,
+    histStr(home),
+    histStr(away),
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const cardBasis = `Kart ort. ${home.short} ${home.cards.toFixed(1)} · ${away.short} ${away.cards.toFixed(1)} · λ ${f2(cards)}`;
 
   // 6) Her iddaa seçeneği
@@ -167,7 +198,7 @@ export function analyze(match: MatchInput): Analysis {
     }
     const pM = probability(def, ctxMarket);
     const pS = probability(def, ctxStats);
-    const usesMarket = def.kind === "ft" || def.kind === "ht";
+    const usesMarket = def.kind === "ft" || def.kind === "ht" || def.kind === "htft";
     const p = usesMarket ? w * pM + (1 - w) * pS : pM; // korner/kart: ctxMarket zaten harman λ kullanıyor
     const sigma = sigmaFor(def, pM, pS, cornerLambdaMarket !== null);
     const required = 1 / line.odd;
@@ -204,9 +235,11 @@ export function analyze(match: MatchInput): Analysis {
           ? cardBasis
           : def.kind.startsWith("corners")
             ? cornerBasis
-            : def.category === "Sonuç"
-              ? resultBasis
-              : goalBasis,
+            : def.kind === "htft"
+              ? htftBasis
+              : def.category === "Sonuç"
+                ? resultBasis
+                : goalBasis,
       rating,
       dependsOn,
       mbc: line.mbc ?? 1,
@@ -228,6 +261,8 @@ export function analyze(match: MatchInput): Analysis {
     cornerLambdaMarket,
     euroOver25,
     attackPenalty: st.attackPenalty,
+    halfShare,
+    htft,
     rows,
   };
 }

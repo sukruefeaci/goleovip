@@ -58,6 +58,13 @@ Her maç sayfasının üstünde modelin tercihi gösterilir (`src/lib/pick.ts`):
 
 `ANTHROPIC_API_KEY` ortam değişkeni tanımlıysa Claude (`claude-opus-5-5`, düşük effort) tercihin kısa Türkçe gerekçesini yazar (`src/lib/aiComment.ts`); seçimi değiştirmez, yalnız verilen rakamları yorumlar. Yorumlar maç başına 30 dk önbelleğe alınır. Anahtar yoksa şablon gerekçe gösterilir.
 
+## İlk yarı / maç sonucu (İY/MS)
+
+Her maç sayfasında 9 İY/MS sonucunun (1/1, X/1, 2/2 …) olasılığı 3×3 tabloda gösterilir; en olası sonuç ve iddaa oranı varsa getirisi işaretlenir.
+- İki yarı ayrı Poisson: ilk yarı λ = λ × ilk yarı payı. Pay, takımın son 20 maçında ilk yarıda attığı / rakibin ilk yarıda yediği gollerden hesaplanır ve lig ortalamasına (%45) doğru büzülür (Football-Data `HTHG`/`HTAG`).
+- Takımların son 10 maçının İY/MS sonuçları (G/G, B/G, M/M …) da gösterilir.
+- iddaa (pazar 90) ve Nesine (pazar 5) İY/MS oranları eşlenir; iddaa'nın bu pazardaki marjı genelde %25–30'dur.
+
 ## Nasıl hesaplar?
 
 1. Avrupa 1X2 ve Alt/Üst 2.5 oranlarından marj atılır → adil olasılık.

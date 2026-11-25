@@ -6,6 +6,7 @@ import { kickoffParts, pct } from "@/lib/format";
 import type { TeamInput } from "@/lib/types";
 import BetTable from "@/components/BetTable";
 import PickCard from "@/components/PickCard";
+import HtftCard from "@/components/HtftCard";
 import { choosePick } from "@/lib/pick";
 
 export const dynamic = "force-dynamic";
@@ -91,6 +92,8 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
       </section>
 
       {pick && <PickCard analysis={a} pick={pick} />}
+
+      <HtftCard analysis={a} />
 
       {match.warnings.length > 0 && (
         <div className="notice subtle">

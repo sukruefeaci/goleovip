@@ -85,6 +85,9 @@ export function mapMarket(m: RawMarket): OddsLine[] | null {
     case 3: // Çifte Şans
       ["1X", "12", "X2"].forEach((r, i) => push(`dc:${r}`, byN(i + 1)));
       return lines;
+    case 5: // İlk Yarı / Maç Sonucu: N 1..9 = 1/1, 1/X, 1/2, X/1, X/X, X/2, 2/1, 2/X, 2/2
+      ["1/1", "1/X", "1/2", "X/1", "X/X", "X/2", "2/1", "2/X", "2/2"].forEach((r, i) => push(`htft:${r}`, byN(i + 1)));
+      return lines;
     case 7: // İlk Yarı Sonucu
       RES.forEach((r, i) => push(`ht1x2:${r}`, byN(i + 1)));
       return lines;
