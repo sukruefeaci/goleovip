@@ -92,13 +92,20 @@ function LiveCard({ it }: { it: LiveItem }) {
       <div className="lc-recs">
         <span className="lc-recs-title">
           <span className="ai">AI</span> Canlı öneri
+          {it.hasOdds && <span className="muted small">· iddaa canlı oranlarıyla</span>}
         </span>
         {it.recs.length ? (
           it.recs.map((r) => (
-            <div key={r.label} className="lc-rec">
+            <div key={r.label} className={`lc-rec ${r.ev !== undefined && r.ev > 0 ? "value" : ""}`}>
               <b>{r.label}</b>
+              {r.odd ? <span className="oddpill">{r.odd.toFixed(2)}</span> : <span className="muted small">oran yok</span>}
               <span className={winLevel(r.prob).cls}>{pc(r.prob)}</span>
               <span className={`small ${confLevel(r.confidence).cls}`}>güven %{r.confidence}</span>
+              {r.ev !== undefined && (
+                <span className={`small lc-ev ${r.ev >= 0 ? "pos" : "neg"}`}>
+                  getiri {r.ev >= 0 ? "+" : "−"}%{Math.abs(Math.round(r.ev * 100))}
+                </span>
+              )}
             </div>
           ))
         ) : (
@@ -221,7 +228,8 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
       <p className="muted small" style={{ marginTop: 4 }}>
         {total} maç oynanıyor · {analyzed.length} tanesi maç öncesi analiz edildi · son güncelleme{" "}
         {new Date(at).toLocaleTimeString("tr-TR", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit" })}. Öneriler kalan süre, tempo,
-        skor durumu ve maç öncesi analize göre olasılık tahminidir; canlı iddaa oranı olmadığı için değerli olup olmadıkları hesaplanamaz.
+        skor durumu ve maç öncesi analize göre olasılık tahminidir. iddaa'da canlı oranı olan maçlarda oran ve getiri (olasılık × oran − 1)
+        de gösterilir; yeşil kenarlı öneriler artı getirili.
       </p>
 
       {analyzed.length > 0 && <h2 className="lc-h">Analiz ettiğimiz maçlar</h2>}

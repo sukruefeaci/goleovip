@@ -4,6 +4,7 @@ import { loadAnalyses } from "./data";
 import { getStore } from "./auth/store";
 import { calibrateLive, liveModel, liveRecommendations, type LiveBet, type LiveOutput, type LiveState, type LiveStats } from "./liveModel";
 import { getLiveLearning, liveFactors, recordLive } from "./liveTracking";
+import { fetchLiveOdds, fetchLiveProgram, matchIddaaLive } from "./providers/iddaaLive";
 import { loadDay, parseHalfTime, priorOf, trDate, type LivePrior, type SnapEntry } from "./tracking";
 
 /**
@@ -45,6 +46,7 @@ export interface LiveItem {
   stats: LiveStats;
   hasStats: boolean;
   pre: { matchId?: string; summary?: SnapEntry["summary"]; pick?: SnapEntry["pick"] } | null;
+  hasOdds: boolean;
   model: LiveOutput;
   recs: LiveBet[];
 }
@@ -203,9 +205,43 @@ export async function loadLive(): Promise<{ items: LiveItem[]; total: number; at
       hasStats,
       pre,
       model,
+      hasOdds: false,
       recs: liveRecommendations(model),
     };
   });
+
+  // iddaa canlı oranları: eşleşen maçların önerilerine oran ve getiri ekle (süre sınırlı)
+  try {
+    const program = await Promise.race([fetchLiveProgram(), new Promise<never>((_, rej) => setTimeout(() => rej(new Error("süre")), 4000).unref?.())]);
+    const pairs = items
+      .map((it) => ({ it, ev: matchIddaaLive({ home: it.home, away: it.away, kickoff: new Date(it.kickoff), hg: it.hg, ag: it.ag }, program) }))
+      .filter((p) => p.ev);
+    let k = 0;
+    const job = Promise.all(
+      Array.from({ length: 6 }, async () => {
+        while (k < pairs.length) {
+          const { it, ev } = pairs[k++];
+          try {
+            const odds = await fetchLiveOdds(ev!.id, it.hg + it.ag);
+            if (!Object.keys(odds).length) continue;
+            it.hasOdds = true;
+            for (const b of it.model.probs) {
+              const o = odds[b.label];
+              if (o) {
+                b.odd = o;
+                b.ev = b.prob * o - 1;
+              }
+            }
+          } catch {
+            /* bu maç için canlı oran yok */
+          }
+        }
+      }),
+    );
+    await Promise.race([job, new Promise((res) => setTimeout(res, 4000).unref?.())]);
+  } catch {
+    /* canlı oran kaynağına ulaşılamadı */
+  }
   // Yeni önerileri takip için kaydet (ilk öneri anı esas alınır)
   await recordLive(
     items

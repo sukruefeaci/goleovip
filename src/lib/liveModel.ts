@@ -53,6 +53,8 @@ export interface LiveBet {
   confidence: number;
   kind: LiveKind;
   spec: LiveSpec;
+  odd?: number; // iddaa canlı oranı (varsa)
+  ev?: number; // olasılık × oran − 1
 }
 
 const DEFAULT_PRIOR: LivePrior = { lh: 1.45, la: 1.15, shareH: 0.45, shareA: 0.45, source: "market" };

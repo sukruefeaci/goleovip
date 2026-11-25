@@ -131,8 +131,10 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .lc-info { display: grid; gap: 3px; }
 .lc-recs { display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
 .lc-recs-title { display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 13px; }
-.lc-rec { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: baseline; padding: 8px 12px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line); }
-.lc-rec > span:nth-child(2) { font-size: 18px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.lc-rec { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 8px 12px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line); }
+.lc-rec > b { flex: 1 1 140px; }
+.lc-rec > span:nth-child(3) { font-size: 18px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.lc-rec.value { border-color: rgba(16, 185, 129, 0.6); background: linear-gradient(90deg, var(--good-soft), var(--bg-2) 60%); }
 
 .lh { margin-top: 18px; }
 .lh-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
