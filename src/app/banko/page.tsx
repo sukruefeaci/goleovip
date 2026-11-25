@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { loadAnalyses, toCouponMatches } from "@/lib/data";
 import { bankoPicks, BANKO_MIN_ODD } from "@/lib/coupon";
-import { kickoffParts, pct, signedPct } from "@/lib/format";
+import { kickoffParts, signedPct } from "@/lib/format";
+import WinConfidence from "@/components/WinConfidence";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,6 @@ export default async function BankoPage() {
           <div className="banko-list">
             {c.legs.map((l, i) => {
               const k = kickoffParts(l.match.kickoff);
-              const safe = Math.max(0, l.pick.prob - l.pick.sigma);
               return (
                 <Link key={l.match.id} href={`/mac/${l.match.id}`} className="card banko">
                   <div className="banko-rank">{i + 1}</div>
@@ -46,27 +46,23 @@ export default async function BankoPage() {
                       <span className="muted">{l.pick.market}</span>
                       <b>{l.pick.selection}</b>
                     </div>
-                    <div className="banko-stats">
+                    <div className="banko-stats two">
                       <div>
                         <span>Oran</span>
                         <b className="oddpill">{l.pick.odd.toFixed(2)}</b>
-                      </div>
-                      <div>
-                        <span>Tutma olasılığı</span>
-                        <b className="prob-good">{pct(l.pick.prob)}</b>
-                      </div>
-                      <div>
-                        <span>En kötü senaryo</span>
-                        <b>{pct(safe)}</b>
                       </div>
                       <div>
                         <span>Getiri</span>
                         <b className={l.pick.ev >= 0 ? "pos" : "neg"}>{signedPct(l.pick.ev)}</b>
                       </div>
                     </div>
-                    <div className="confbar" aria-hidden>
-                      <i style={{ width: `${l.pick.prob * 100}%` }} />
-                    </div>
+                    <WinConfidence
+                      prob={l.pick.prob}
+                      sigma={l.pick.sigma}
+                      required={l.pick.required}
+                      confidence={l.pick.confidence ?? 0}
+                      parts={l.pick.confidenceParts ?? []}
+                    />
                     {l.pick.mbc > 1 && <p className="muted small banko-mbs">MBS {l.pick.mbc}: tek başına oynanamaz, en az {l.pick.mbc} maçlık kuponda.</p>}
                   </div>
                 </Link>
@@ -82,8 +78,8 @@ export default async function BankoPage() {
                 <b>{c.totalOdd.toFixed(2)}</b>
               </div>
               <div>
-                <span>Tutma olasılığı</span>
-                <b className={c.winProb >= 0.5 ? "prob-good" : "prob-mid"}>{pct(c.winProb)}</b>
+                <span>Kazanma olasılığı</span>
+                <b className={c.winProb >= 0.5 ? "prob-good" : "prob-mid"}>%{(c.winProb * 100).toFixed(1)}</b>
               </div>
               <div>
                 <span>100 TL → kazanç</span>
@@ -91,7 +87,7 @@ export default async function BankoPage() {
               </div>
             </div>
             <p className="coupon-note">
-              Banko "kesin" demek değildir: model en güvendiği bu iki tercihten birinin yaklaşık <b>{pct(1 - c.winProb, 0)}</b> ihtimalle
+              Banko "kesin" demek değildir: model en güvendiği bu iki tercihten birinin yaklaşık <b>%{Math.round((1 - c.winProb) * 100)}</b> ihtimalle
               tutmayacağını hesaplıyor. Seçim yalnız Avrupa piyasasıyla doğrulanabilen pazarlardan (maç sonucu, gol, ilk yarı) ve en az{" "}
               {BANKO_MIN_ODD.toFixed(2)} oranlı seçeneklerden yapılır; korner ve kart dahil edilmez.
             </p>

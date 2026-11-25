@@ -3,11 +3,12 @@
 import { useMemo, useState } from "react";
 import { CATEGORIES, type BetRow, type Category } from "@/lib/types";
 import { pct, signedPct } from "@/lib/format";
+import WinConfidence, { confLevel } from "./WinConfidence";
 
 const LABEL = { Avantajlı: "Değerli", Sınırda: "Sınırda", Dezavantajlı: "Değersiz" } as const;
 const ICON = { Avantajlı: "▲", Sınırda: "◆", Dezavantajlı: "▼" } as const;
 
-type SortKey = "market" | "odd" | "required" | "prob" | "ev" | "evConservative";
+type SortKey = "market" | "odd" | "required" | "prob" | "ev" | "evConservative" | "confidence";
 
 const MIN_ODDS: (number | null)[] = [null, 1.4, 1.5, 1.8, 2.0, 3.0];
 
@@ -136,8 +137,9 @@ export default function BetTable({ rows, homeName, awayName, homeShort, awayShor
 
       {help && (
         <div className="help">
-          <b>Oran:</b> iddaa oranı. <b>Başa baş:</b> bu oranın zarar etmemesi için gereken olasılık (1/oran). <b>Model:</b> Avrupa
-          piyasası ile son maç istatistiklerinden hesaplanan olasılık; ± belirsizlik payıdır. <b>Getiri:</b> model × oran − 1.{" "}
+          <b>Oran:</b> iddaa oranı. <b>Başa baş:</b> bu oranın zarar etmemesi için gereken olasılık (1/oran). <b>Kazanma olasılığı:</b> bu
+          tercihin bu maçta tutma ihtimali (Avrupa piyasası + son maç istatistikleri); aralık belirsizlik payıdır. <b>Güven:</b> tahminin ne
+          kadar sağlam olduğu (veri kaynağı, kaynak uyumu, kesinlik, veri miktarı, değer kesinliği). <b>Getiri:</b> model × oran − 1.{" "}
           <b>Güvenli getiri:</b> belirsizliğin kötü ucuyla hesaplanan getiri. <b>Sonuç:</b> güvenli getiri artıysa Değerli, yalnız
           getiri artıysa Sınırda, ikisi de eksiyse Değersiz. Kazanç garantisi yoktur.
         </div>
@@ -182,7 +184,8 @@ export default function BetTable({ rows, homeName, awayName, homeShort, awayShor
               {th("market", "Bahis")}
               {th("odd", "Oran")}
               {th("required", "Başa baş")}
-              {th("prob", "Model")}
+              {th("prob", "Kazanma olasılığı")}
+              {th("confidence", "Güven")}
               {th("ev", "Getiri")}
               {th("evConservative", "Güvenli getiri")}
               <th>Neden</th>
@@ -203,8 +206,11 @@ export default function BetTable({ rows, homeName, awayName, homeShort, awayShor
                 </td>
                 <td className="muted">{pct(r.required)}</td>
                 <td>
-                  <b>{pct(r.prob)}</b>
-                  <span className="sub">±{(r.sigma * 100).toFixed(1)}</span>
+                  <WinConfidence compact prob={r.prob} sigma={r.sigma} required={r.required} confidence={r.confidence} parts={r.confidenceParts} />
+                </td>
+                <td title={r.confidenceParts.map((p) => `${p.label}: %${Math.round(p.score * 100)} — ${p.note}`).join("\n")}>
+                  <span className={`confchip ${confLevel(r.confidence).cls}`}>%{r.confidence}</span>
+                  <span className="sub">{confLevel(r.confidence).label}</span>
                 </td>
                 <td>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -242,7 +248,8 @@ export default function BetTable({ rows, homeName, awayName, homeShort, awayShor
           >
             <option value="evConservative:-1">Güvenli getiri (yüksek → düşük)</option>
             <option value="ev:-1">Getiri (yüksek → düşük)</option>
-            <option value="prob:-1">Model olasılığı (yüksek → düşük)</option>
+            <option value="prob:-1">Kazanma olasılığı (yüksek → düşük)</option>
+            <option value="confidence:-1">Güven puanı (yüksek → düşük)</option>
             <option value="odd:1">Oran (düşük → yüksek)</option>
             <option value="odd:-1">Oran (yüksek → düşük)</option>
             <option value="market:1">Bahis adı (A → Z)</option>
@@ -271,16 +278,12 @@ export default function BetTable({ rows, homeName, awayName, homeShort, awayShor
                 <b className="muted">{pct(r.required)}</b>
               </div>
               <div>
-                <span>Model</span>
-                <b>{pct(r.prob)}</b>
-                <small className="muted">±{(r.sigma * 100).toFixed(1)}</small>
-              </div>
-              <div>
                 <span>Getiri</span>
                 <b className={r.ev >= 0 ? "pos" : "neg"}>{signedPct(r.ev)}</b>
                 <small className={r.evConservative >= 0 ? "pos" : "neg"}>güvenli {signedPct(r.evConservative)}</small>
               </div>
             </div>
+            <WinConfidence prob={r.prob} sigma={r.sigma} required={r.required} confidence={r.confidence} parts={r.confidenceParts} />
             <p className="basis">{r.basis}</p>
           </article>
         ))}

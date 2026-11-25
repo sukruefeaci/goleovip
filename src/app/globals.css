@@ -121,6 +121,7 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .banko-pick .muted { font-size: 13px; }
 .banko-pick b { font-size: 24px; line-height: 1.15; }
 .banko-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.banko-stats.two { grid-template-columns: repeat(2, 1fr); }
 .banko-stats > div { background: rgba(11, 11, 26, 0.5); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; display: grid; gap: 2px; }
 .banko-stats span { font-size: 10.5px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
 .banko-stats b { font-size: 17px; justify-self: start; }
@@ -178,7 +179,8 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .leg-pick { font-size: 13px; }
 .leg-side { display: grid; justify-items: end; align-content: start; gap: 3px; }
 .leg-odd { font-weight: 800; font-size: 16px; color: #ddd6fe; }
-.leg-prob { font-size: 11.5px; color: var(--brand-2); font-weight: 700; }
+.leg-prob { font-size: 11.5px; color: var(--brand-2); font-weight: 700; white-space: nowrap; }
+.leg-conf { font-size: 11px; color: var(--muted); font-weight: 700; white-space: nowrap; }
 .leg-swap { border: 0; background: transparent; color: var(--muted); font-size: 11.5px; text-decoration: underline; padding: 0; }
 .leg-swap:hover { color: var(--text); }
 .coupon-totals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
@@ -224,7 +226,7 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .pick-market { color: var(--muted); font-size: 13px; }
 .pick-selection { font-size: 26px; font-weight: 800; line-height: 1.15; }
 .pick-odd.oddpill { font-size: 26px; padding: 6px 14px; border-radius: 14px; }
-.pick-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
+.pick-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
 .pick-stats > div { background: rgba(11, 11, 26, 0.5); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
 .pick-stats span { display: block; font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
 .pick-stats b { font-size: 17px; }
@@ -282,6 +284,34 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .hchip.h-BG, .hchip.h-MG { background: rgba(34, 211, 238, 0.12); color: #a5f3fc; }
 .mr-htft { font-size: 12.5px; }
 .mr-htft b { color: var(--brand-2); }
+
+/* ---------- Kazanma olasılığı + güven ---------- */
+.lv-high { color: var(--good); } .lv-mid { color: var(--warn); } .lv-low { color: #fb923c; } .lv-vlow { color: var(--bad); }
+.wc { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.wc-block { background: rgba(11, 11, 26, 0.55); border: 1px solid var(--line); border-radius: 12px; padding: 9px 11px; display: grid; gap: 4px; align-content: start; }
+.wc-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.wc-head span { font-size: 10.5px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.wc-head em { font-style: normal; font-size: 11px; font-weight: 800; }
+.wc-big { font-size: 22px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.wc-bar, .wc-mini { position: relative; height: 7px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.wc-mini { display: block; width: 90px; height: 5px; margin: 4px 0 2px; }
+.wc-band { position: absolute; top: 0; bottom: 0; background: rgba(34, 211, 238, 0.25); }
+.wc-fill { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, var(--brand), var(--brand-2)); opacity: 0.9; }
+.wc-fill.conf { background: currentColor; opacity: 0.85; }
+.wc-fill.conf.lv-high { color: var(--good); } .wc-fill.conf.lv-mid { color: var(--warn); } .wc-fill.conf.lv-low { color: #fb923c; }
+.wc-tick { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #fff; border-radius: 1px; }
+.wc-sub { font-size: 11px; color: var(--muted); }
+.wc-conf summary { list-style: none; cursor: pointer; display: grid; gap: 4px; }
+.wc-conf summary::-webkit-details-marker { display: none; }
+.wc-why { text-decoration: underline dotted; }
+.wc-conf[open] { grid-column: 1 / -1; }
+.wc-conf[open] .wc-why { display: none; }
+.wc-parts { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+.wc-parts li { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; font-size: 12.5px; padding-top: 6px; border-top: 1px solid var(--line); }
+.wc-part-score { font-weight: 800; font-variant-numeric: tabular-nums; }
+.wc-compact { display: grid; }
+.wc-num { font-weight: 800; font-size: 14px; }
+.confchip { display: inline-block; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); }
 
 /* ---------- Bahis tablosu ---------- */
 .table-panel { overflow: hidden; }
@@ -350,6 +380,8 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   .banko-rank { width: 34px; height: 34px; font-size: 17px; border-radius: 11px; }
   .banko-pick b { font-size: 20px; }
   .banko-stats { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .wc { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .wc-big { font-size: 19px; }
   .banko-stats b { font-size: 15px; }
 
 
@@ -398,7 +430,7 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   .betcard header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
   .betcard header b { font-size: 14px; line-height: 1.3; }
   .betcard .rating { font-size: 11px; padding: 3px 8px; }
-  .betstats { display: grid; grid-template-columns: 0.9fr 1fr 1fr 1.35fr; gap: 6px; margin-top: 10px; }
+  .betstats { display: grid; grid-template-columns: 1fr 1fr 1.3fr; gap: 6px; margin-top: 10px; }
   .betstats > div { display: flex; flex-direction: column; gap: 1px; }
   .betstats span { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; font-weight: 700; }
   .betstats b { font-size: 15px; }

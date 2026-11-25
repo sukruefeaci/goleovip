@@ -3,6 +3,7 @@ import type { Analysis } from "@/lib/types";
 import type { Pick } from "@/lib/pick";
 import { aiComment, aiEnabled } from "@/lib/aiComment";
 import { pct, signedPct } from "@/lib/format";
+import WinConfidence from "./WinConfidence";
 
 const LEVEL_TEXT: Record<Pick["level"], string> = {
   güçlü: "Güçlü tercih",
@@ -44,10 +45,6 @@ export default function PickCard({ analysis, pick }: { analysis: Analysis; pick:
       </div>
       <div className="pick-stats">
         <div>
-          <span>Model</span>
-          <b>{pct(r.prob)}</b>
-        </div>
-        <div>
           <span>Başa baş</span>
           <b>{pct(r.required)}</b>
         </div>
@@ -60,6 +57,7 @@ export default function PickCard({ analysis, pick }: { analysis: Analysis; pick:
           <b className={r.evConservative >= 0 ? "pos" : "neg"}>{signedPct(r.evConservative)}</b>
         </div>
       </div>
+      <WinConfidence prob={r.prob} sigma={r.sigma} required={r.required} confidence={r.confidence} parts={r.confidenceParts} />
       {aiEnabled() ? (
         <Suspense fallback={<p className="pick-ai muted">Yapay zeka yorum yazıyor…</p>}>
           <AiText analysis={analysis} pick={pick} />

@@ -16,6 +16,9 @@ export interface CouponCandidate {
   sigma: number;
   ev: number;
   mbc: number;
+  confidence?: number;
+  confidenceParts?: import("./types").ConfidencePart[];
+  required?: number;
 }
 
 export interface CouponMatch {

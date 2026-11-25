@@ -76,6 +76,16 @@ export interface BetRow {
   rating: Rating;
   dependsOn: "home" | "away" | null; // seçenek büyük ölçüde bir tarafın galibiyetine bağlı mı
   mbc: number; // iddaa minimum bahis sayısı
+  /** Güven puanı 0–100: tahminin ne kadar sağlam olduğu (bkz. model.ts confidenceFor) */
+  confidence: number;
+  confidenceParts: ConfidencePart[];
+}
+
+export interface ConfidencePart {
+  label: string; // ör. "Veri kaynağı"
+  score: number; // 0–1
+  weight: number; // 0–1, toplamı 1
+  note: string; // kullanıcıya açıklama
 }
 
 export interface Analysis {

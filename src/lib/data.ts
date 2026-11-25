@@ -29,6 +29,9 @@ export function toCouponMatches(analyses: Analysis[]): CouponMatch[] {
       sigma: r.sigma,
       ev: r.ev,
       mbc: r.mbc,
+      confidence: r.confidence,
+      confidenceParts: r.confidenceParts,
+      required: r.required,
     })),
   }));
 }

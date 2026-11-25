@@ -1,4 +1,4 @@
-import type { Analysis, BetRow, MatchInput, Rating, TeamInput } from "./types";
+import type { Analysis, BetRow, ConfidencePart, MatchInput, Rating, TeamInput } from "./types";
 import { buildContext, describe, HALF_TIME_SHARE, HTFT_OUTCOMES, probability, type MarketDef } from "./markets";
 import { lambdaForOver, normCdf, pmfVector, probWhere, scoreMatrix } from "./poisson";
 
@@ -91,6 +91,63 @@ function sigmaFor(def: MarketDef, pM: number, pS: number, hasCornerMarket: boole
       // korner: piyasa oranı yoksa yalnız istatistik → biraz daha geniş belirsizlik
       return (hasCornerMarket ? 0.04 : 0.06) + 0.4 * disagreement;
   }
+}
+
+/**
+ * Güven puanı (0–100): kazanma olasılığından ayrı olarak, bu tahminin ne kadar sağlam olduğunu ölçer.
+ * Beş bileşenin ağırlıklı ortalaması.
+ */
+export function confidenceFor(input: {
+  kind: MarketDef["kind"];
+  hasOu25: boolean;
+  hasCornerMarket: boolean;
+  pMarket: number;
+  pStats: number;
+  sigma: number;
+  edgeChance: number;
+  games: number; // iki takımın hesaba giren toplam geçmiş maç sayısı
+}): { score: number; parts: ConfidencePart[] } {
+  const { kind } = input;
+  const source =
+    kind === "ft"
+      ? input.hasOu25
+        ? { s: 0.95, n: "Avrupa piyasasıyla doğrudan doğrulanıyor" }
+        : { s: 0.7, n: "Avrupa maç sonucu oranı var, alt/üst oranı yok" }
+      : kind === "ht"
+        ? { s: 0.75, n: "Piyasadan türetiliyor, ilk yarı için dolaylı" }
+        : kind === "htft"
+          ? { s: 0.6, n: "Piyasadan türetiliyor, 9 seçenekli pazar daha belirsiz" }
+          : kind === "cards"
+            ? { s: 0.35, n: "Yalnız istatistik, piyasa oranı yok" }
+            : input.hasCornerMarket
+              ? { s: 0.7, n: "İstatistik + piyasa oranı" }
+              : { s: 0.45, n: "Yalnız istatistik, piyasa oranı yok" };
+  const diff = Math.abs(input.pMarket - input.pStats);
+  const agreement = kind === "ft" || kind === "ht" || kind === "htft" ? Math.max(0, 1 - diff / 0.15) : 0.6;
+  const precision = Math.max(0, 1 - input.sigma / 0.12);
+  const sample = Math.min(1, input.games / 20);
+  const parts: ConfidencePart[] = [
+    { label: "Veri kaynağı", score: source.s, weight: 0.3, note: source.n },
+    {
+      label: "Kaynak uyumu",
+      score: agreement,
+      weight: 0.2,
+      note:
+        kind === "ft" || kind === "ht" || kind === "htft"
+          ? `Piyasa %${(input.pMarket * 100).toFixed(0)}, istatistik %${(input.pStats * 100).toFixed(0)} diyor`
+          : "Karşılaştırılacak ikinci kaynak yok",
+    },
+    { label: "Kesinlik", score: precision, weight: 0.15, note: `Belirsizlik payı ±${(input.sigma * 100).toFixed(1)} puan` },
+    { label: "Veri miktarı", score: sample, weight: 0.1, note: `${input.games} geçmiş maç kullanıldı` },
+    {
+      label: "Değer kesinliği",
+      score: input.edgeChance,
+      weight: 0.25,
+      note: `Oranın gerçekten değerli olma ihtimali %${(input.edgeChance * 100).toFixed(0)}`,
+    },
+  ];
+  const score = Math.round(100 * parts.reduce((a, p) => a + p.score * p.weight, 0));
+  return { score, parts };
 }
 
 const pct = (x: number, d = 1) => `%${(x * 100).toFixed(d)}`;
@@ -253,6 +310,19 @@ export function analyze(match: MatchInput): Analysis {
       rating,
       dependsOn,
       mbc: line.mbc ?? 1,
+      ...(() => {
+        const c = confidenceFor({
+          kind: def.kind,
+          hasOu25: !match.warnings.some((w) => w.includes("Alt/Üst 2.5 oranı yok")),
+          hasCornerMarket: cornerLambdaMarket !== null,
+          pMarket: pM,
+          pStats: pS,
+          sigma,
+          edgeChance,
+          games: home.goalsFor10.length + away.goalsFor10.length,
+        });
+        return { confidence: c.score, confidenceParts: c.parts };
+      })(),
     });
   }
 

@@ -107,7 +107,8 @@ export default function CouponBuilder({ matches }: { matches: CouponMatch[] }) {
                 </div>
                 <div className="leg-side">
                   <span className="leg-odd">{l.pick.odd.toFixed(2)}</span>
-                  <span className="leg-prob">{pct(l.pick.prob)}</span>
+                  <span className="leg-prob">kazanma {pct(l.pick.prob)}</span>
+                  {l.pick.confidence !== undefined && <span className="leg-conf">güven %{l.pick.confidence}</span>}
                   <button
                     type="button"
                     className="leg-swap"
