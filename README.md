@@ -64,6 +64,7 @@ FotMob'dan o an oynanan maçlar taranır (45 sn önbellek, sayfa 60 sn'de bir ye
 - **İkinci yarı:** skor durumuna göre genel etki (geride ×1.15–1.25, önde ×0.8–0.9) ve takımın geçmişte ilk yarıyı önde/berabere/geride bitirdiği maçlardaki ikinci yarı golleri (az veriyle genel değere çekilir).
 - **Kırmızı kart:** eksik takım ×0.75, rakip ×1.2.
 - Kalan goller Poisson; İY/MS alt-üst çizgileri, KG, maç sonucu, çifte şans, sıradaki gol. %60–%96 arası olasılıklardan olasılık × güven sırasıyla en iyi 3 öneri. Canlı iddaa oranı olmadığından değer hesaplanmaz.
+- **Takip ve öğrenme** (`src/lib/liveTracking.ts`): her öneri ilk yapıldığı an (dakika, skor, olasılık, güven) `live:YYYY-MM-DD` anahtarına kaydedilir; maç bitince FotMob'dan maç sonu ve ilk yarı skoru ile gol sırası alınıp ✓/✗ işaretlenir. Öneri türü başına (İY A/Ü, MS A/Ü, KG, Sonuç, Sıradaki gol) gerçek / beklenen isabetten çarpan öğrenilir (`learnLive:v1`, önsel 40, 0.85–1.15) ve sonraki canlı olasılıklara uygulanır.
 
 ## Maçlar sayfası, geçmiş ve kendini geliştirme
 

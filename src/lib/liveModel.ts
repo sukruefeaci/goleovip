@@ -37,10 +37,22 @@ export interface LiveOutput {
   notes: string[];
 }
 
+export type LiveKind = "İY A/Ü" | "MS A/Ü" | "KG" | "Sonuç" | "Sıradaki gol";
+
+/** Sonradan değerlendirilebilmesi için önerinin yapısal tanımı */
+export type LiveSpec =
+  | { t: "ou1H"; line: number; over: boolean }
+  | { t: "ouFT"; line: number; over: boolean }
+  | { t: "btts"; yes: boolean }
+  | { t: "res"; out: ("1" | "X" | "2")[] }
+  | { t: "next"; home: boolean };
+
 export interface LiveBet {
   label: string; // ör. "İY 0.5 Üst"
   prob: number;
   confidence: number;
+  kind: LiveKind;
+  spec: LiveSpec;
 }
 
 const DEFAULT_PRIOR: LivePrior = { lh: 1.45, la: 1.15, shareH: 0.45, shareA: 0.45, source: "market" };
@@ -163,7 +175,8 @@ export function liveModel(state: LiveState, priorIn: LivePrior | null, statsAvai
 
   // Olasılıklar
   const probs: LiveBet[] = [];
-  const add = (label: string, prob: number, confAdj = 0) => probs.push({ label, prob, confidence: clamp(confidence + confAdj, 15, 92) });
+  const add = (label: string, prob: number, kind: LiveKind, spec: LiveSpec, confAdj = 0) =>
+    probs.push({ label, prob, confidence: clamp(confidence + confAdj, 15, 92), kind, spec });
   const H = remaining.h1 + remaining.h2,
     A = remaining.a1 + remaining.a2,
     T = H + A;
@@ -173,19 +186,19 @@ export function liveModel(state: LiveState, priorIn: LivePrior | null, statsAvai
     const T1 = remaining.h1 + remaining.a1;
     for (const k of [0, 1]) {
       const line = goals + k + 0.5;
-      add(`İY ${line} Üst`, atLeast(k + 1, T1));
-      add(`İY ${line} Alt`, 1 - atLeast(k + 1, T1));
+      add(`İY ${line} Üst`, atLeast(k + 1, T1), "İY A/Ü", { t: "ou1H", line, over: true });
+      add(`İY ${line} Alt`, 1 - atLeast(k + 1, T1), "İY A/Ü", { t: "ou1H", line, over: false });
     }
   }
   for (const k of [0, 1, 2]) {
     const line = goals + k + 0.5;
-    add(`MS ${line} Üst`, atLeast(k + 1, T), k > 0 ? -4 : 0);
-    add(`MS ${line} Alt`, 1 - atLeast(k + 1, T), k > 0 ? -4 : 0);
+    add(`MS ${line} Üst`, atLeast(k + 1, T), "MS A/Ü", { t: "ouFT", line, over: true }, k > 0 ? -4 : 0);
+    add(`MS ${line} Alt`, 1 - atLeast(k + 1, T), "MS A/Ü", { t: "ouFT", line, over: false }, k > 0 ? -4 : 0);
   }
   if (state.hg === 0 || state.ag === 0) {
     const kg = atLeast(state.hg === 0 ? 1 : 0, H) * atLeast(state.ag === 0 ? 1 : 0, A);
-    add("KG Var", kg, -3);
-    add("KG Yok", 1 - kg, -3);
+    add("KG Var", kg, "KG", { t: "btts", yes: true }, -3);
+    add("KG Yok", 1 - kg, "KG", { t: "btts", yes: false }, -3);
   }
   // Maç sonucu: kalan goller bağımsız Poisson
   let p1 = 0,
@@ -199,16 +212,16 @@ export function liveModel(state: LiveState, priorIn: LivePrior | null, statsAvai
       else if (d === 0) pX += p;
       else p2 += p;
     }
-  add("MS 1", p1, -6);
-  add("MS X", pX, -6);
-  add("MS 2", p2, -6);
-  add("Çifte şans 1X", p1 + pX, -4);
-  add("Çifte şans X2", pX + p2, -4);
+  add("MS 1", p1, "Sonuç", { t: "res", out: ["1"] }, -6);
+  add("MS X", pX, "Sonuç", { t: "res", out: ["X"] }, -6);
+  add("MS 2", p2, "Sonuç", { t: "res", out: ["2"] }, -6);
+  add("Çifte şans 1X", p1 + pX, "Sonuç", { t: "res", out: ["1", "X"] }, -4);
+  add("Çifte şans X2", pX + p2, "Sonuç", { t: "res", out: ["X", "2"] }, -4);
   // Sıradaki gol
   const anyGoal = 1 - Math.exp(-T);
   if (T > 0.05) {
-    add("Sıradaki golü ev sahibi atar", (H / T) * anyGoal, -8);
-    add("Sıradaki golü deplasman atar", (A / T) * anyGoal, -8);
+    add("Sıradaki golü ev sahibi atar", (H / T) * anyGoal, "Sıradaki gol", { t: "next", home: true }, -8);
+    add("Sıradaki golü deplasman atar", (A / T) * anyGoal, "Sıradaki gol", { t: "next", home: false }, -8);
   }
 
   if (!priorIn) notes.push("Maç öncesi analiz yok; lig ortalaması kullanıldı");
@@ -230,4 +243,13 @@ export function liveRecommendations(out: LiveOutput, count = 3): LiveBet[] {
     .filter((p) => p.prob >= 0.6 && p.prob <= 0.96)
     .sort((a, b) => b.prob * b.confidence - a.prob * a.confidence)
     .slice(0, count);
+}
+
+/** Öğrenilmiş düzeltmeyi canlı olasılıklara uygular (tür başına çarpan) */
+export function calibrateLive(out: LiveOutput, factors: Partial<Record<LiveKind, number>>): LiveOutput {
+  for (const p of out.probs) {
+    const f = factors[p.kind];
+    if (f) p.prob = clamp(p.prob * f, 0.01, 0.99);
+  }
+  return out;
 }

@@ -2,6 +2,9 @@ import Link from "next/link";
 import { loadLive, type LiveItem } from "@/lib/liveData";
 import AutoRefresh from "@/components/AutoRefresh";
 import { confLevel, winLevel } from "@/components/WinConfidence";
+import { getLiveLearning, liveFactors, loadLiveDay, settleLive, type LiveLearning, type LiveRecord } from "@/lib/liveTracking";
+import { trDate } from "@/lib/tracking";
+import { getStore } from "@/lib/auth/store";
 
 export const dynamic = "force-dynamic";
 
@@ -106,8 +109,105 @@ function LiveCard({ it }: { it: LiveItem }) {
   );
 }
 
-export default async function LivePage() {
+function History({ recs, day }: { recs: LiveRecord[]; day: "bugun" | "dun" }) {
+  const decided = recs.filter((r) => r.result && r.result.won !== null);
+  const hits = decided.filter((r) => r.result!.won).length;
+  const exp = decided.reduce((s, r) => s + r.prob, 0);
+  return (
+    <section className="card pad lh">
+      <div className="lh-head">
+        <h3 className="card-title" style={{ margin: 0 }}>
+          Canlı öneri takibi
+        </h3>
+        <div className="seg">
+          <Link href="/canli" className={day === "bugun" ? "on" : ""}>
+            Bugün
+          </Link>
+          <Link href="/canli?gun=dun" className={day === "dun" ? "on" : ""}>
+            Dün
+          </Link>
+        </div>
+      </div>
+      {decided.length > 0 && (
+        <p className="small" style={{ margin: "8px 0" }}>
+          <b>
+            {hits}/{decided.length}
+          </b>{" "}
+          tuttu{" "}
+          <b className={hits / decided.length >= exp / decided.length ? "pos" : "neg"}>(%{Math.round((hits / decided.length) * 100)})</b>
+          <span className="muted"> · beklenen %{Math.round((exp / decided.length) * 100)}</span>
+        </p>
+      )}
+      {recs.length === 0 ? (
+        <p className="muted small" style={{ marginBottom: 0 }}>
+          Henüz kayıtlı canlı öneri yok.
+        </p>
+      ) : (
+        <div className="lh-list">
+          {recs.map((r) => {
+            const st = r.result ? (r.result.won === true ? "won" : r.result.won === false ? "lost" : "void") : "open";
+            return (
+              <div key={`${r.fotmobId}|${r.label}`} className={`lh-row mp-${st}`}>
+                <div className="lh-main">
+                  <b>{r.label}</b>
+                  <span className="muted small">
+                    {r.home} – {r.away} · {r.minute}, {r.hg}-{r.ag} iken
+                  </span>
+                </div>
+                {r.odd && <span className="oddpill">{r.odd.toFixed(2)}</span>}
+                <span className="small">
+                  %{Math.round(r.prob * 100)} · güven %{r.confidence}
+                </span>
+                <span className={`mp-badge ${st}`}>
+                  {st === "won" ? `✓ ${r.result!.hg}-${r.result!.ag}` : st === "lost" ? `✗ ${r.result!.hg}-${r.result!.ag}` : st === "void" ? "—" : "bekliyor"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function Learn({ l }: { l: LiveLearning }) {
+  const f = liveFactors(l);
+  const rows = Object.entries(l) as [keyof LiveLearning, { n: number; hits: number; pred: number }][];
+  if (!rows.length) return null;
+  return (
+    <section className="card pad learn">
+      <h3 className="card-title">Canlı model ne öğrendi?</h3>
+      <p className="muted small" style={{ marginTop: 0 }}>
+        Her canlı öneri maç bitince değerlendirilir. Bir öneri türü beklenenden sık tutuyorsa olasılıkları biraz yükseltilir, seyrek tutuyorsa
+        düşürülür (az veriyle küçük, en fazla ±%15).
+      </p>
+      {rows.map(([k, v]) => (
+        <div key={k} className="learn-row">
+          <b>{k}</b>
+          <span className="small">
+            {v.hits}/{v.n} tuttu (%{Math.round((v.hits / Math.max(1, v.n)) * 100)}) · beklenen %{Math.round((v.pred / Math.max(1, v.n)) * 100)}
+          </span>
+          <span className="small">
+            düzeltme <b>×{(f[k] ?? 1).toFixed(2)}</b>
+          </span>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+export default async function LivePage({ searchParams }: { searchParams: Promise<{ gun?: string }> }) {
+  const { gun } = await searchParams;
+  const histDay: "bugun" | "dun" = gun === "dun" ? "dun" : "bugun";
+  const tracking = !!getStore();
+  const histDate = trDate(Date.now() - (histDay === "dun" ? 86400_000 : 0));
+  if (tracking) await settleLive(histDate).catch(() => 0);
+  // Önce canlı öneriler hesaplanıp kaydedilir, sonra geçmiş okunur
   const { items, total, at } = await loadLive();
+  const [hist, learning] = await Promise.all([
+    tracking ? loadLiveDay(histDate).catch(() => []) : Promise.resolve([] as LiveRecord[]),
+    tracking ? getLiveLearning() : Promise.resolve({} as LiveLearning),
+  ]);
   const analyzed = items.filter((i) => i.pre);
   const others = items.filter((i) => !i.pre);
   return (
@@ -143,6 +243,17 @@ export default async function LivePage() {
         </>
       )}
       {!items.length && <div className="card pad empty">Şu an oynanan maç yok.</div>}
+
+      {tracking ? (
+        <>
+          <History recs={hist} day={histDay} />
+          <Learn l={learning} />
+        </>
+      ) : (
+        <div className="notice subtle" style={{ marginTop: 16 }}>
+          Canlı önerilerin takibi için veritabanı (Upstash) bağlı olmalı; /kurulum sayfasından kontrol edebilirsin.
+        </div>
+      )}
     </div>
   );
 }

@@ -2,7 +2,8 @@ import { cachedFetch } from "./providers/cache";
 import { nameSimilarity } from "./providers/teamNames";
 import { loadAnalyses } from "./data";
 import { getStore } from "./auth/store";
-import { liveModel, liveRecommendations, type LiveBet, type LiveOutput, type LiveState, type LiveStats } from "./liveModel";
+import { calibrateLive, liveModel, liveRecommendations, type LiveBet, type LiveOutput, type LiveState, type LiveStats } from "./liveModel";
+import { getLiveLearning, liveFactors, recordLive } from "./liveTracking";
 import { loadDay, parseHalfTime, priorOf, trDate, type LivePrior, type SnapEntry } from "./tracking";
 
 /**
@@ -31,6 +32,7 @@ interface RawLive {
 
 export interface LiveItem {
   id: number;
+  kickoff: string;
   league: string;
   home: string;
   away: string;
@@ -178,14 +180,16 @@ export async function loadLive(): Promise<{ items: LiveItem[]; total: number; at
   );
   await Promise.race([work, new Promise((res) => setTimeout(res, 6000).unref?.())]);
 
+  const factors = liveFactors(await getLiveLearning().catch(() => ({})));
   const items: LiveItem[] = withPre.map(({ r, prior, pre }) => {
     const d = details.get(r.id);
     const stats = d?.stats ?? {};
     const hasStats = !!(stats.xg || stats.shots);
     const state: LiveState = { minute: r.minute, phase: r.phase, hg: r.hg, ag: r.ag, hht: d?.ht?.hht, aht: d?.ht?.aht, stats };
-    const model = liveModel(state, prior, hasStats);
+    const model = calibrateLive(liveModel(state, prior, hasStats), factors);
     return {
       id: r.id,
+      kickoff: r.kickoff.toISOString(),
       league: r.league,
       home: r.home,
       away: r.away,
@@ -202,6 +206,22 @@ export async function loadLive(): Promise<{ items: LiveItem[]; total: number; at
       recs: liveRecommendations(model),
     };
   });
+  // Yeni önerileri takip için kaydet (ilk öneri anı esas alınır)
+  await recordLive(
+    items
+      .filter((it) => it.recs.length)
+      .map((it) => ({
+        fotmobId: it.id,
+        home: it.home,
+        away: it.away,
+        league: it.league,
+        kickoff: new Date(it.kickoff),
+        minute: it.minuteLabel,
+        hg: it.hg,
+        ag: it.ag,
+        recs: it.recs,
+      })),
+  ).catch(() => 0);
   memo = { at: Date.now(), items, total: raw.length };
   return memo;
 }

@@ -134,6 +134,14 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .lc-rec { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: baseline; padding: 8px 12px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line); }
 .lc-rec > span:nth-child(2) { font-size: 18px; font-weight: 900; font-variant-numeric: tabular-nums; }
 
+.lh { margin-top: 18px; }
+.lh-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lh-head .seg a { padding: 5px 12px; border-radius: 9px; color: var(--muted); font-weight: 700; font-size: 13px; }
+.lh-head .seg a.on { background: var(--surface-2); color: var(--text); }
+.lh-list { display: grid; gap: 6px; margin-top: 8px; }
+.lh-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line); }
+.lh-main { display: grid; min-width: 0; }
+
 /* ---------- Gün sekmeleri ve maç satırları ---------- */
 .daytabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 4px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); margin-bottom: 14px; }
 .daytabs a { display: grid; justify-items: center; padding: 8px 4px; border-radius: 10px; font-weight: 800; color: var(--muted); }
@@ -548,6 +556,8 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   .mp-main { grid-column: 1 / -1; }
   .mp .oddpill { justify-self: start; }
   .mp-badge { grid-column: 1 / -1; justify-self: start; }
+  .lh-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .lh-main { grid-column: 1 / -1; }
   .slot { grid-template-columns: 1fr; gap: 6px; }
   .slot-hour { padding-top: 0; }
   .slot-picks { grid-template-columns: 1fr; }
