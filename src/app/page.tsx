@@ -3,6 +3,8 @@ import { kickoffParts, pct, signedPct } from "@/lib/format";
 import { choosePick } from "@/lib/pick";
 import { loadAnalyses } from "@/lib/data";
 import type { Analysis } from "@/lib/types";
+import DailyPicks from "@/components/DailyPicks";
+import { selectDaily } from "@/lib/daily";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +20,8 @@ export default async function MatchesPage() {
   return (
     <div className="page-narrow">
       {banner && <div className="notice">⚠ {banner}</div>}
+
+      <DailyPicks daily={selectDaily(analyses)} />
 
       <div className="page-head">
         <h1>Maçlar</h1>

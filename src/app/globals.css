@@ -107,6 +107,26 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .page-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
 .page-head h1 { margin: 0; font-size: 26px; }
 
+/* ---------- Günün seçkisi ---------- */
+.daily { margin-bottom: 20px; border-color: rgba(34, 211, 238, 0.4); background: linear-gradient(135deg, rgba(34, 211, 238, 0.1), transparent 55%), var(--surface); }
+.daily-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+.daily-head h2 { margin: 0; font-size: 20px; }
+.daily-slots { display: grid; gap: 10px; }
+.slot { display: grid; grid-template-columns: 62px 1fr; gap: 10px; align-items: start; }
+.slot-hour { font-weight: 900; font-size: 16px; color: var(--brand-2); padding-top: 10px; font-variant-numeric: tabular-nums; }
+.slot-picks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.slot-empty { grid-column: 1 / -1; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 12px; }
+.dp { display: grid; gap: 5px; padding: 10px 12px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line); transition: border-color 0.15s; }
+.dp:hover { border-color: rgba(34, 211, 238, 0.6); }
+.dp-top { display: flex; align-items: center; gap: 8px; }
+.dp-time { font-weight: 800; font-size: 13px; }
+.dp-match { font-weight: 700; }
+.dp-match .vs { font-size: 11px; color: var(--muted); font-weight: 600; margin: 0 3px; }
+.dp-pick { font-size: 13px; }
+.dp-stats { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); }
+.dp-stats b { font-variant-numeric: tabular-nums; }
+.daily-note { margin: 12px 0 0; }
+
 /* ---------- Banko ---------- */
 .banko-list { display: grid; gap: 14px; margin-top: 14px; }
 .banko { display: grid; grid-template-columns: 48px 1fr; gap: 14px; padding: 18px; border-color: rgba(16, 185, 129, 0.45);
@@ -376,6 +396,9 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   .bottomnav a:active { background: var(--surface-2); }
   .bottomnav a.active { color: #fff; background: var(--brand-soft); }
   .page-head h1 { font-size: 22px; }
+  .slot { grid-template-columns: 1fr; gap: 6px; }
+  .slot-hour { padding-top: 0; }
+  .slot-picks { grid-template-columns: 1fr; }
   .banko { grid-template-columns: 1fr; padding: 14px; gap: 10px; }
   .banko-rank { width: 34px; height: 34px; font-size: 17px; border-radius: 11px; }
   .banko-pick b { font-size: 20px; }
