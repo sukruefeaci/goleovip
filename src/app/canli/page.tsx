@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { loadLive, type LiveItem } from "@/lib/liveData";
 import AutoRefresh from "@/components/AutoRefresh";
+import ProfitBoard from "@/components/ProfitBoard";
+import { canliItems, dayPnl, totalPnl } from "@/lib/pnl";
 import { confLevel, winLevel } from "@/components/WinConfidence";
 import { getLiveLearning, getLiveSituations, liveFactors, loadLiveDay, settleLive, situationRows, type LiveLearning, type LiveRecord, type LiveSituations } from "@/lib/liveTracking";
 import { trDate } from "@/lib/tracking";
@@ -231,19 +233,29 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
   const { gun } = await searchParams;
   const histDay: "bugun" | "dun" = gun === "dun" ? "dun" : "bugun";
   const tracking = !!getStore();
-  const histDate = trDate(Date.now() - (histDay === "dun" ? 86400_000 : 0));
-  if (tracking) await settleLive(histDate).catch(() => 0);
+  const now = Date.now();
+  const today = trDate(now),
+    yesterday = trDate(now - 86400_000);
+  const histDate = histDay === "dun" ? yesterday : today;
+  if (tracking) await Promise.all([settleLive(today, now, 3000).catch(() => 0), settleLive(yesterday, now, 3000).catch(() => 0)]);
   // Önce canlı öneriler hesaplanıp kaydedilir, sonra geçmiş okunur
   const { items, total, at } = await loadLive();
-  const [hist, learning, situations] = await Promise.all([
-    tracking ? loadLiveDay(histDate).catch(() => []) : Promise.resolve([] as LiveRecord[]),
+  const loadRecs = (d: string) => (tracking ? loadLiveDay(d).catch(() => [] as LiveRecord[]) : Promise.resolve([] as LiveRecord[]));
+  const [todayRecs, ydayRecs, learning, situations] = await Promise.all([
+    loadRecs(today),
+    loadRecs(yesterday),
     tracking ? getLiveLearning() : Promise.resolve({} as LiveLearning),
     tracking ? getLiveSituations() : Promise.resolve({ v: 1, b: {} } as LiveSituations),
   ]);
+  const hist = histDay === "dun" ? ydayRecs : todayRecs;
+  const pT = dayPnl(canliItems(todayRecs)),
+    pY = dayPnl(canliItems(ydayRecs));
+  const totalC = tracking ? await totalPnl("canli", { [today]: pT, [yesterday]: pY }).catch(() => null) : null;
   const analyzed = items.filter((i) => i.pre);
   const others = items.filter((i) => !i.pre);
   return (
     <div className="page-narrow">
+      {tracking && <ProfitBoard title="Canlı tahminler · 100 TL ile kâr/zarar" today={pT} yesterday={pY} total={totalC} />}
       <div className="page-head">
         <h1>
           <span className="live-dot big" aria-hidden /> Canlı maçlar

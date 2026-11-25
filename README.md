@@ -138,3 +138,12 @@ Değerler 9 lig × 2 sezon Football-Data verisiyle ölçüldü (2025/26 ayar, 20
 ## Gerçek veri bağlamak
 
 `src/lib/providers/` altına `MatchProvider` arayüzünü uygulayan bir dosya ekleyip `index.ts`'e kaydedin, `DATA_PROVIDER=<isim>` ile seçin.
+
+## 100 TL ile kâr/zarar panosu
+
+Maçlar, Oranlar ve Canlı sayfalarının en üstünde: her tahmine 100 TL yatırılsaydı **Bugün**, **Dün** ve **Başından beri** paylaşılan tahmin, sonuçlanan, tutan, yatırılan, dönen ve kâr/zarar (`src/lib/pnl.ts`, `src/components/ProfitBoard.tsx`).
+- Maçlar: her maçın tek tercihi (`snap:` kaydındaki `pick`).
+- Oranlar: Oran analizi sayfasının tercihi; sayfa açıldığında başlamamış maçlar için `snap:` kaydına `oddsPick` olarak eklenir, maç bitince `result.oddsWon` işaretlenir.
+- Canlı: kaydedilen canlı öneriler; iddaa canlı oranı olmayanlar kâr hesabına katılmaz (sayısı ayrıca yazılır).
+- Başından beri toplam `pnl:v1` anahtarında gün gün tutulur; her sonuçlandırmada güncellenir, ilk çalışmada son 60 günün kayıtlarından kurulur.
+

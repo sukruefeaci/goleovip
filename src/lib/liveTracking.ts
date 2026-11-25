@@ -2,6 +2,7 @@ import { getJSON, getStore, setJSON } from "./auth/store";
 import { cachedFetch } from "./providers/cache";
 import { parseFotmobResults, parseHalfTime, trDate } from "./tracking";
 import type { LiveBet, LiveKind, LiveSpec } from "./liveModel";
+import { canliItems, dayPnl, savePnl } from "./pnl";
 
 /**
  * Canlı önerilerin kaydı ve kendini geliştirme.
@@ -230,6 +231,7 @@ export async function settleLive(date: string, now = Date.now(), budgetMs = 4000
     await setJSON(SIT_KEY, sit);
     learnMemo = null;
     sitMemo = null;
+    await savePnl(date, { canli: dayPnl(canliItems(Object.values(day))) }).catch(() => {});
   }
   return settled;
 }

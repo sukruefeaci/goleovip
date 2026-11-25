@@ -4,6 +4,10 @@ import { loadHistory, TOLERANCE } from "@/lib/history";
 import { bestOddsPick, matchAllSelections, ODDS_PICK_MIN } from "@/lib/oddsMatch";
 import { kickoffParts, signedPct } from "@/lib/format";
 import type { Analysis } from "@/lib/types";
+import { getStore } from "@/lib/auth/store";
+import { loadDay, recordOddsPicks, settleDay, trDate, type SnapEntry } from "@/lib/tracking";
+import { dayPnl, oranItems, totalPnl } from "@/lib/pnl";
+import ProfitBoard from "@/components/ProfitBoard";
 
 export const dynamic = "force-dynamic";
 
@@ -24,9 +28,32 @@ export default async function OddsAnalysisPage() {
   }
   const rows = cache.rows.filter(({ a }) => new Date(a.match.kickoff).getTime() > Date.now());
 
+  // Takip: tercihleri günlük kayda ekle, bitmiş maçları sonuçlandır, 100 TL kâr/zarar
+  const tracking = !!getStore();
+  const now = Date.now();
+  const today = trDate(now),
+    yesterday = trDate(now - 86400_000);
+  let board: { t: ReturnType<typeof dayPnl>; y: ReturnType<typeof dayPnl>; total: Awaited<ReturnType<typeof totalPnl>> } | null = null;
+  if (tracking) {
+    await recordOddsPicks(
+      cache.rows.map(({ a, pick }) => ({
+        id: a.match.id,
+        kickoff: a.match.kickoff,
+        pick: pick && { key: pick.key, market: pick.market, selection: pick.selection, odd: pick.odd, rate: pick.rate, n: pick.n },
+      })),
+      now,
+    ).catch(() => {});
+    await Promise.all([settleDay(today, now, 3000).catch(() => 0), settleDay(yesterday, now, 3000).catch(() => 0)]);
+    const [ts, ys] = await Promise.all([loadDay(today).catch(() => [] as SnapEntry[]), loadDay(yesterday).catch(() => [] as SnapEntry[])]);
+    const t = dayPnl(oranItems(ts)),
+      y = dayPnl(oranItems(ys));
+    board = { t, y, total: await totalPnl("oran", { [today]: t, [yesterday]: y }).catch(() => null) };
+  }
+
   return (
     <div className="page-narrow">
       {banner && <div className="notice">⚠ {banner}</div>}
+      {board && <ProfitBoard title="Oran tahminleri · 100 TL ile kâr/zarar" today={board.t} yesterday={board.y} total={board.total} />}
       <div className="page-head">
         <h1>Oran analizi</h1>
         <span className="muted small">{ODDS_PICK_MIN.toFixed(2)} ve üstü · {hist.matches.length.toLocaleString("tr-TR")} geçmiş maç</span>

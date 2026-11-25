@@ -629,3 +629,11 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   .betstats small { font-size: 10px; white-space: nowrap; }
   .betcard .basis { margin: 8px 0 0; max-width: none; font-size: 11px; line-height: 1.45; }
 }
+
+/* Kâr / zarar panosu (100 TL) */
+.pboard { margin: 12px 0 16px; }
+.pb-row { padding: 10px 0; border-top: 1px solid var(--line); display: grid; gap: 4px; }
+.pb-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.pb-counts, .pb-money { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; }
+.pb-profit { font-weight: 800; font-size: 1.05rem; margin-left: auto; white-space: nowrap; }
+.pb-profit small { font-weight: 600; font-size: 0.78rem; }

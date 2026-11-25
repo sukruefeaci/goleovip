@@ -7,6 +7,8 @@ import { selectDaily } from "@/lib/daily";
 import { calibrationFactors, getLearning, loadDay, mainPick, settleDay, trDate, type Learning, type SnapEntry, type SnapPick } from "@/lib/tracking";
 import { getStore } from "@/lib/auth/store";
 import { confLevel, winLevel } from "@/components/WinConfidence";
+import ProfitBoard from "@/components/ProfitBoard";
+import { dayPnl, macItems, totalPnl } from "@/lib/pnl";
 
 export const dynamic = "force-dynamic";
 
@@ -61,12 +63,21 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
   const date = trDate(now + DAYS[day] * 86400_000);
   const tracking = !!getStore();
 
-  if (tracking && day !== "yarin") await settleDay(date, now).catch(() => 0);
-  const [{ analyses, source, banner }, snaps, learning] = await Promise.all([
+  const today = trDate(now),
+    yesterday = trDate(now - 86400_000);
+  if (tracking) await Promise.all([settleDay(today, now, 3000).catch(() => 0), settleDay(yesterday, now, 3000).catch(() => 0)]);
+  const loadSnaps = (d: string) => (tracking ? loadDay(d).catch(() => [] as SnapEntry[]) : Promise.resolve([] as SnapEntry[]));
+  const [{ analyses, source, banner }, todaySnaps, ydaySnaps, otherSnaps, learning] = await Promise.all([
     loadAnalyses(),
-    tracking ? loadDay(date).catch(() => []) : Promise.resolve([] as SnapEntry[]),
+    loadSnaps(today),
+    loadSnaps(yesterday),
+    date !== today && date !== yesterday ? loadSnaps(date) : Promise.resolve([] as SnapEntry[]),
     day === "dun" && tracking ? getLearning() : Promise.resolve({} as Learning),
   ]);
+  const snaps = date === today ? todaySnaps : date === yesterday ? ydaySnaps : otherSnaps;
+  const pTodayM = dayPnl(macItems(todaySnaps)),
+    pYdayM = dayPnl(macItems(ydaySnaps));
+  const totalM = tracking ? await totalPnl("mac", { [today]: pTodayM, [yesterday]: pYdayM }).catch(() => null) : null;
 
   const snapById = new Map(snaps.map((s) => [s.id, s]));
   const live = analyses.filter((a) => trDate(new Date(a.match.kickoff).getTime()) === date);
@@ -83,6 +94,8 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
   return (
     <div className="page-narrow">
       {banner && <div className="notice">⚠ {banner}</div>}
+
+      {tracking && <ProfitBoard title="Maç tahminleri · 100 TL ile kâr/zarar" today={pTodayM} yesterday={pYdayM} total={totalM} />}
 
       <div className="daytabs" role="tablist">
         {(Object.keys(DAYS) as DayKey[]).map((k) => (

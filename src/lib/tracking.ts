@@ -3,6 +3,7 @@ import { describe } from "./markets";
 import { getJSON, getStore, setJSON } from "./auth/store";
 import { cachedFetch } from "./providers/cache";
 import { nameSimilarity } from "./providers/teamNames";
+import { dayPnl, macItems, oranItems, savePnl } from "./pnl";
 
 /**
  * Tahmin kaydı ve kendini geliştirme.
@@ -35,6 +36,7 @@ export interface SnapResult {
   hht?: number;
   aht?: number;
   pickWon: boolean | null;
+  oddsWon?: boolean | null; // Oran analizi tercihi tuttu mu
   settledAt: string;
 }
 
@@ -67,9 +69,20 @@ export interface SnapEntry {
   away: string;
   fotmobId?: number;
   pick: SnapPick | null;
+  /** Oran analizi sayfasının tercihi (geçmişte aynı oranlı maçlar) */
+  oddsPick?: OddsSnapPick | null;
   summary: { over25: number; btts: number; topScore: string; p1x2: [number, number, number] };
   prior?: LivePrior;
   result?: SnapResult;
+}
+
+export interface OddsSnapPick {
+  key: string;
+  market: string;
+  selection: string;
+  odd: number;
+  rate: number; // geçmişte tutma oranı
+  n: number;
 }
 
 type Snap = Record<string, SnapEntry>;
@@ -140,10 +153,40 @@ export async function recordSnapshots(analyses: Analysis[], now = Date.now()): P
       const old = snap[e.id];
       if (old?.result) continue; // sonuçlanmışsa dokunma
       if (old && new Date(old.kickoff).getTime() <= now) continue; // başlamışsa dondur
-      snap[e.id] = { ...e, fotmobId: e.fotmobId ?? old?.fotmobId };
+      snap[e.id] = { ...e, fotmobId: e.fotmobId ?? old?.fotmobId, oddsPick: old?.oddsPick };
     }
     await setJSON(snapKey(date), snap);
     lastWritten.set(date, sig);
+  }
+}
+
+const oddsWritten = new Map<string, string>();
+
+/** Oran analizi sayfasının tercihlerini (başlamamış maçlar) günlük kayda ekler */
+export async function recordOddsPicks(rows: { id: string; kickoff: string; pick: OddsSnapPick | null }[], now = Date.now()): Promise<void> {
+  if (!getStore()) return;
+  const byDate = new Map<string, typeof rows>();
+  for (const r of rows) {
+    const t = new Date(r.kickoff).getTime();
+    if (t <= now || !r.pick) continue;
+    const d = trDate(t);
+    byDate.set(d, [...(byDate.get(d) ?? []), r]);
+  }
+  for (const [date, list] of byDate) {
+    const sig = JSON.stringify(list.map((r) => [r.id, r.pick?.key, r.pick?.odd]));
+    if (oddsWritten.get(date) === sig) continue;
+    const snap = await getJSON<Snap>(snapKey(date));
+    if (!snap) continue;
+    let changed = false;
+    for (const r of list) {
+      const e = snap[r.id];
+      if (!e || e.result || new Date(e.kickoff).getTime() <= now) continue;
+      if (e.oddsPick?.key === r.pick!.key && e.oddsPick?.odd === r.pick!.odd) continue;
+      e.oddsPick = r.pick;
+      changed = true;
+    }
+    if (changed) await setJSON(snapKey(date), snap);
+    oddsWritten.set(date, sig);
   }
 }
 
@@ -270,7 +313,8 @@ export async function settleDay(date: string, now = Date.now(), budgetMs = 4000)
     }
     const r = { hg: fm.hg, ag: fm.ag, ...(ht ?? {}) };
     const won = e.pick ? pickWon(e.pick.key, r) : null;
-    e.result = { ...r, pickWon: won, settledAt: new Date(now).toISOString() };
+    const oddsWon = e.oddsPick ? pickWon(e.oddsPick.key, r) : undefined;
+    e.result = { ...r, pickWon: won, ...(oddsWon !== undefined ? { oddsWon } : {}), settledAt: new Date(now).toISOString() };
     if (e.pick && won !== null) {
       const c = (learn[e.pick.category] ??= { n: 0, hits: 0, pred: 0 });
       c.n++;
@@ -283,6 +327,8 @@ export async function settleDay(date: string, now = Date.now(), budgetMs = 4000)
     await setJSON(snapKey(date), snap);
     await setJSON(LEARN_KEY, learn);
     learnMemo = null;
+    const list = Object.values(snap);
+    await savePnl(date, { mac: dayPnl(macItems(list)), oran: dayPnl(oranItems(list)) }).catch(() => {});
   }
   return settled;
 }
