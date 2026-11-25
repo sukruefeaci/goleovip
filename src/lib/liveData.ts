@@ -206,7 +206,7 @@ export async function loadLive(): Promise<{ items: LiveItem[]; total: number; at
       pre,
       model,
       hasOdds: false,
-      recs: liveRecommendations(model),
+      recs: [] as LiveBet[],
     };
   });
 
@@ -242,6 +242,8 @@ export async function loadLive(): Promise<{ items: LiveItem[]; total: number; at
   } catch {
     /* canlı oran kaynağına ulaşılamadı */
   }
+  // Öneriler canlı oranlar eklendikten sonra seçilir (oran ≥ 1.45 şartı)
+  for (const it of items) it.recs = liveRecommendations(it.model);
   // Yeni önerileri takip için kaydet (ilk öneri anı esas alınır)
   await recordLive(
     items

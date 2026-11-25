@@ -240,9 +240,16 @@ export function liveModel(state: LiveState, priorIn: LivePrior | null, statsAvai
 }
 
 /** Önerilecek canlı bahisler: %60–%96 arası olasılık, olasılık × güven sırasıyla en iyi 3 */
-export function liveRecommendations(out: LiveOutput, count = 3): LiveBet[] {
+export const LIVE_MIN_ODD = 1.45;
+export const LIVE_MIN_PROB = 0.55;
+
+/**
+ * Önerilecek canlı bahisler: oran ≥ 1.45 (iddaa canlı oranı; yoksa olasılıktan adil oran) ve olasılık ≥ %55.
+ * Olasılık × güven sırasıyla en iyi 3.
+ */
+export function liveRecommendations(out: LiveOutput, count = 3, minOdd = LIVE_MIN_ODD): LiveBet[] {
   return out.probs
-    .filter((p) => p.prob >= 0.6 && p.prob <= 0.96)
+    .filter((p) => p.prob >= LIVE_MIN_PROB && (p.odd ?? 1 / p.prob) >= minOdd)
     .sort((a, b) => b.prob * b.confidence - a.prob * a.confidence)
     .slice(0, count);
 }

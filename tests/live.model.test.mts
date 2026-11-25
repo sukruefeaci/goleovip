@@ -30,11 +30,18 @@ test("geride olan takım ikinci yarıda daha çok atar; takıma özel tepki kull
   assert.ok(base.reaction!.home > 1, "geride: genel artış");
 });
 
-test("olasılıklar tutarlı ve öneriler %60–96 aralığında", () => {
+test("olasılıklar tutarlı; öneriler oran >= 1.45 ve olasılık >= %55", () => {
   const o = liveModel(st({ minute: 62, phase: "2H", hg: 1, ag: 0, stats: { shots: [9, 4], sot: [4, 1] } }), prior, true);
   const p = (l: string) => o.probs.find((x) => x.label === l)!.prob;
   assert.ok(Math.abs(p("MS 1") + p("MS X") + p("MS 2") - 1) < 1e-6);
   assert.ok(Math.abs(p("MS 1.5 Üst") + p("MS 1.5 Alt") - 1) < 1e-9);
-  for (const r of liveRecommendations(o)) assert.ok(r.prob >= 0.6 && r.prob <= 0.96);
+  for (const r of liveRecommendations(o)) assert.ok(r.prob >= 0.55 && (r.odd ?? 1 / r.prob) >= 1.45);
+  // iddaa oranı varsa o kullanılır: olasılığı yüksek ama oranı düşük tercih elenir
+  const hi = o.probs.find((x) => x.prob > 0.8)!;
+  hi.odd = 1.2;
+  assert.ok(!liveRecommendations(o).some((r) => r.label === hi.label));
+  const mid = o.probs.find((x) => x.prob >= 0.55 && x.prob < 0.68)!;
+  mid.odd = 1.9;
+  assert.ok(liveRecommendations(o, 50).some((r) => r.label === mid.label), "oran 1.45 üstüyse önerilebilir");
   assert.ok(o.confidence > liveModel(st({ minute: 62, phase: "2H", hg: 1, ag: 0 }), null, false).confidence, "veri arttıkça güven artar");
 });

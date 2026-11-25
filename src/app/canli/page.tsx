@@ -109,7 +109,7 @@ function LiveCard({ it }: { it: LiveItem }) {
             </div>
           ))
         ) : (
-          <span className="muted small">Şu an %60 üstü güçlü bir öneri yok.</span>
+          <span className="muted small">Şu an oranı 1.45 ve üstü, olasılığı %55 üstü bir öneri yok.</span>
         )}
       </div>
     </section>
@@ -228,8 +228,8 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
       <p className="muted small" style={{ marginTop: 4 }}>
         {total} maç oynanıyor · {analyzed.length} tanesi maç öncesi analiz edildi · son güncelleme{" "}
         {new Date(at).toLocaleTimeString("tr-TR", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit" })}. Öneriler kalan süre, tempo,
-        skor durumu ve maç öncesi analize göre olasılık tahminidir. iddaa'da canlı oranı olan maçlarda oran ve getiri (olasılık × oran − 1)
-        de gösterilir; yeşil kenarlı öneriler artı getirili.
+        skor durumu ve maç öncesi analize göre olasılık tahminidir. Yalnız oranı 1.45 ve üstü olan tercihler önerilir (iddaa canlı oranı; yoksa olasılıktan
+        hesaplanan adil oran). Oranı olan önerilerde getiri (olasılık × oran − 1) de gösterilir; yeşil kenarlı öneriler artı getirili.
       </p>
 
       {analyzed.length > 0 && <h2 className="lc-h">Analiz ettiğimiz maçlar</h2>}
