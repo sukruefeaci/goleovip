@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { authSecret, SESSION_COOKIE, verifySession } from "@/lib/auth/session";
 
 /** Giriş yapmamış kullanıcılar yalnız giriş, kayıt ve "Nasıl çalışır?" sayfalarını görebilir */
-const PUBLIC = ["/giris", "/kayit", "/nasil-calisir"];
+const PUBLIC = ["/giris", "/kayit", "/nasil-calisir", "/kurulum"];
 
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;

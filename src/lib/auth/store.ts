@@ -27,7 +27,7 @@ interface KV {
  * Upstash bağlantı bilgileri. Vercel entegrasyonu isimlere bir ön ek koyar (varsayılan KV_, ya da
  * kurulumda yazılan ön ek: STORAGE_KV_REST_API_URL, GOLEO_REST_API_URL …); hepsi kabul edilir.
  */
-function upstashCredentials(): { url: string; token: string } | null {
+export function upstashCredentials(): { url: string; token: string } | null {
   const env = process.env;
   const direct = [
     ["KV_REST_API_URL", "KV_REST_API_TOKEN"],
