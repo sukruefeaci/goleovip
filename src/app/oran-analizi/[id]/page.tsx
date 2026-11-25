@@ -4,6 +4,8 @@ import { loadAnalyses } from "@/lib/data";
 import { loadHistory, resultLabel, sampleLabel, TOLERANCE, TOLERANCE_LABEL, type ToleranceKey } from "@/lib/history";
 import { analyzeOdds } from "@/lib/oddsAnalysis";
 import { kickoffParts, signedPct } from "@/lib/format";
+import { matchAllSelections } from "@/lib/oddsMatch";
+import SelectionTable from "@/components/SelectionTable";
 
 export const dynamic = "force-dynamic";
 
@@ -17,11 +19,13 @@ export default async function OddsAnalysisDetail({ params, searchParams }: { par
   const [{ analyses }, hist] = await Promise.all([loadAnalyses(), loadHistory()]);
   const a = analyses.find((x) => x.match.id === id);
   if (!a) notFound();
-  const { iddaa1x2, target, targetSource, similar, goalSimilar, targetOver, stats } = analyzeOdds(a, hist.matches, tol);
+  const { iddaa1x2, target, targetSource, similar } = analyzeOdds(a, hist.matches, tol);
+  const sel = matchAllSelections(a.match.iddaa, hist.matches, TOLERANCE[tol], a.match.home.name, a.match.away.name);
   const k = kickoffParts(a.match.kickoff);
   const sl = sampleLabel(similar.length);
   const fair = target.map((p) => (1 / p).toFixed(2));
-  const bestRoi = stats.filter((s) => s.roi !== undefined && s.n >= 20).sort((x, y) => (y.roi ?? 0) - (x.roi ?? 0))[0];
+  const best = sel.filter((s) => s.roi !== null && s.n >= 60).sort((x, y) => (y.roi ?? 0) - (x.roi ?? 0))[0];
+  const supported = sel.filter((s) => s.supported).length;
 
   return (
     <div className="page-narrow">
@@ -51,66 +55,34 @@ export default async function OddsAnalysisDetail({ params, searchParams }: { par
           ))}
         </div>
         <p className="small" style={{ marginBottom: 0 }}>
-          Son 3 sezonda aynı oranlarla oynanmış <b>{similar.length}</b> maç bulundu · <span className={sl.cls}>{sl.text}</span>
+          iddaa'daki <b>{sel.length}</b> seçeneğin <b>{supported}</b> tanesi, son 3 sezonun{" "}
+          <b>{hist.matches.length.toLocaleString("tr-TR")}</b> maçında aynı orana sahip maçlarla karşılaştırıldı.
         </p>
-        {targetOver !== null && goalSimilar !== similar && (
-          <p className="muted small" style={{ margin: "4px 0 0" }}>
-            Gol pazarları (alt/üst, KG) için 2.5 Üst olasılığı da benzer olan (iddaa %{Math.round(targetOver * 100)}) {goalSimilar.length} maç kullanıldı.
-          </p>
-        )}
+      </section>
+
+      <section className="card pad" style={{ marginTop: 14 }}>
+        <h3 className="card-title">Tüm oranlar: geçmişte aynı oranlı maçlarda ne oldu?</h3>
+        <SelectionTable rows={sel} />
+        <p className="coupon-note">
+          <b>Adil</b>: bugünkü iddaa oranının kesintisi çıkarılmış olasılığı. <b>Geçmişte</b>: bu seçeneğin adil oranı aynı olan geçmiş
+          maçlarda gerçekte kazanma oranı (yeşil: adil olasılıktan yüksek). <b>Getiri</b>: geçmişteki kazanma oranı × bugünkü iddaa oranı − 1.
+          Maç sonucu ve 2.5 alt/üst için geçmişteki gerçek oranlar, diğer pazarlar için o maçların oranlarından hesaplanan adil oranlar
+          kullanılır. Satıra dokununca en yakın geçmiş maçlar açılır.
+          {best && (best.roi ?? 0) > 0 && (
+            <>
+              {" "}
+              Geçmişe göre en iyi görünen: <b>
+                {best.market}: {best.selection}
+              </b>{" "}
+              ({signedPct(best.roi!)}, {best.n} maç).
+            </>
+          )}
+        </p>
       </section>
 
       {similar.length > 0 && (
         <section className="card pad" style={{ marginTop: 14 }}>
-          <h3 className="card-title">Bu oranlarla oynanan maçlarda hangi tercih kazandı?</h3>
-          <div className="tablewrap oa-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>Tercih</th>
-                  <th>Geçmişte kazandı</th>
-                  <th>iddaa oranı</th>
-                  <th>Geçmişe göre getiri</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.map((s) => (
-                  <tr key={s.key} className={bestRoi && s.key === bestRoi.key ? "oa-best" : ""}>
-                    <td>
-                      <b>{s.label}</b>
-                    </td>
-                    <td>
-                      <b>{pc(s.rate)}</b>{" "}
-                      <span className="muted small">
-                        ({s.hits}/{s.n})
-                      </span>
-                      <span className="wc-mini">
-                        <i className="wc-fill" style={{ width: `${s.rate * 100}%` }} />
-                      </span>
-                    </td>
-                    <td>{s.odd ? <span className="oddpill">{s.odd.toFixed(2)}</span> : <span className="muted">—</span>}</td>
-                    <td>{s.roi !== undefined ? <span className={s.roi >= 0 ? "pos" : "neg"}>{signedPct(s.roi)}</span> : <span className="muted">—</span>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="coupon-note">
-            <b>Geçmişe göre getiri</b>: geçmişteki kazanma oranı × bugünkü iddaa oranı − 1. Örneğin %70 kazanan bir tercih 1.50 oranla
-            oynansaydı her 100 TL için +5 TL getirirdi. Örnek sayısı azsa (20'nin altı) sonuçlar şansa çok bağlıdır.
-            {bestRoi && (bestRoi.roi ?? 0) > 0 && (
-              <>
-                {" "}
-                Bu maçta geçmişe göre en iyi görünen: <b>{bestRoi.label}</b> ({signedPct(bestRoi.roi!)}).
-              </>
-            )}
-          </p>
-        </section>
-      )}
-
-      {similar.length > 0 && (
-        <section className="card pad" style={{ marginTop: 14 }}>
-          <h3 className="card-title">Eşleşen geçmiş maçlar (en yakın {Math.min(40, similar.length)})</h3>
+          <h3 className="card-title">Maç sonucu oranları en yakın geçmiş maçlar ({Math.min(40, similar.length)} / {similar.length})</h3>
           <div className="oa-hist">
             {similar.slice(0, 40).map((m, i) => {
               const r = resultLabel(m);

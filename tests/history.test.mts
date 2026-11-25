@@ -33,3 +33,21 @@ test("benzer oranlı maçlar ve kazanan tercih sayımı", () => {
   assert.equal(st["btts:y"].hits, 2);
   assert.equal(st["htft:X/X"].hits, 1);
 });
+
+test("tüm seçenekler: marjsız olasılık ve türetilmiş geçmiş eşleştirme", async () => {
+  const { fairProbs, matchAllSelections } = await import("../src/lib/oddsMatch.ts");
+  const lines = [
+    { key: "1x2:1", odd: 2.0 }, { key: "1x2:X", odd: 3.2 }, { key: "1x2:2", odd: 3.6 },
+    { key: "btts:y", odd: 1.6 }, { key: "btts:n", odd: 2.1 },
+    { key: "cor:9.5:o", odd: 1.8 },
+  ];
+  const f = fairProbs(lines);
+  assert.ok(Math.abs(f.get("btts:y")! + f.get("btts:n")! - 1) < 1e-9, "tam pazar kendi marjıyla");
+  const h = parseHistory(CSV, "Süper Lig");
+  const r = matchAllSelections(lines, h, 1, "A", "B"); // tolerans 1: hepsi eşleşir
+  const by = Object.fromEntries(r.map((x) => [x.key, x]));
+  assert.equal(by["1x2:1"].n, 3);
+  assert.equal(by["1x2:1"].hits, 1, "yalnız Galatasaray maçında ev kazandı");
+  assert.equal(by["btts:y"].hits, 3, "üç maçta da iki takım gol attı");
+  assert.equal(by["cor:9.5:o"].supported, false, "korner oranı geçmişte yok");
+});

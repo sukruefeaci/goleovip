@@ -75,8 +75,9 @@ Her maç sayfasında 9 İY/MS sonucunun (1/1, X/1, 2/2 …) olasılığı 3×3 t
 
 Yaklaşan her maçın iddaa maç sonucu oranları, Football-Data arşivindeki (20 lig × son 3 sezon, ~17.000 maç) aynı oranlarla oynanmış maçlarla karşılaştırılır (`src/lib/history.ts`).
 - Karşılaştırma marjı atılmış (adil) olasılıklarla yapılır; hassasiyet ±2 / ±3.5 / ±5 puan.
-- Her tercih için geçmişte kazanma oranı (isabet/örnek), bugünkü iddaa oranı ve "geçmişe göre getiri" (oran × kazanma oranı − 1).
-- Gol pazarlarında (alt/üst, KG) 2.5 alt/üst olasılığı da benzer maçlar kullanılır.
+- **Tüm oranlar** (`src/lib/oddsMatch.ts`): iddaa'daki her seçenek (MS, çifte şans, alt/üst çizgileri, ev/dep alt/üst, KG, sonuç+alt/üst, alt/üst+KG, gol aralığı, İY, İY alt/üst, İY/MS) ayrı ayrı eşleştirilir. Geçmişte yalnız 1X2 ve Alt/Üst 2.5 oranları kayıtlı olduğundan, diğer pazarların geçmişteki adil olasılığı o maçın oranlarına oturtulan Poisson gol beklentisinden türetilir. Bugünkü seçeneğin marjsız olasılığına yakın geçmiş maçlarda seçeneğin gerçekte kaç kez kazandığı sayılır. Korner/kart için geçmiş oran olmadığından desteklenmez.
+- Doğrulama: 40 maçın 1.791 seçeneğinde geçmiş kazanma oranı ile adil olasılık arasındaki ortalama fark 1.1 puan.
+- Her seçenek için geçmişte kazanma oranı, bugünkü iddaa oranı ve "geçmişe göre getiri" (oran × kazanma oranı − 1); satır açılınca en yakın 10 geçmiş maç.
 - Eşleşen geçmiş maçlar tarih, lig, skor, oranlar ve kazanan tercihle listelenir.
 - Geçmiş oranlar piyasa ortalamasıdır; iddaa'nın geçmiş oranları arşivde yok.
 

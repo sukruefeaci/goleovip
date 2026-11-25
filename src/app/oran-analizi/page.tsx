@@ -2,7 +2,8 @@ import Link from "next/link";
 import { loadAnalyses } from "@/lib/data";
 import { loadHistory, sampleLabel, TOLERANCE, TOLERANCE_LABEL, type ToleranceKey } from "@/lib/history";
 import { analyzeOdds } from "@/lib/oddsAnalysis";
-import { kickoffParts } from "@/lib/format";
+import { kickoffParts, signedPct } from "@/lib/format";
+import { matchAllSelections } from "@/lib/oddsMatch";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,13 @@ export default async function OddsAnalysisPage({ searchParams }: { searchParams:
   const { h } = await searchParams;
   const tol: ToleranceKey = h && h in TOLERANCE ? (h as ToleranceKey) : "normal";
   const [{ analyses, banner }, hist] = await Promise.all([loadAnalyses(), loadHistory()]);
-  const rows = analyses.filter((a) => new Date(a.match.kickoff).getTime() > Date.now()).map((a) => analyzeOdds(a, hist.matches, tol));
+  const rows = analyses
+    .filter((a) => new Date(a.match.kickoff).getTime() > Date.now())
+    .map((a) => {
+      const sel = matchAllSelections(a.match.iddaa, hist.matches, TOLERANCE[tol], a.match.home.name, a.match.away.name);
+      const top = sel.filter((x) => x.roi !== null && x.n >= 100).sort((x, y) => (y.roi ?? 0) - (x.roi ?? 0)).slice(0, 3);
+      return { ...analyzeOdds(a, hist.matches, tol), top, count: sel.filter((x) => x.supported).length };
+    });
 
   return (
     <div className="page-narrow">
@@ -34,7 +41,7 @@ export default async function OddsAnalysisPage({ searchParams }: { searchParams:
       </div>
 
       <div className="oa-list">
-        {rows.map(({ analysis: a, iddaa1x2, similar, stats }) => {
+        {rows.map(({ analysis: a, iddaa1x2, similar, stats, top: best3, count }) => {
           const k = kickoffParts(a.match.kickoff);
           const s = (key: string) => stats.find((x) => x.key === key)!;
           const sl = sampleLabel(similar.length);
@@ -86,6 +93,17 @@ export default async function OddsAnalysisPage({ searchParams }: { searchParams:
                       </span>
                     )}
                   </div>
+                  {best3.length > 0 && (
+                    <div className="oa-best3">
+                      <span className="muted small">Geçmişe göre en iyi ({count} seçenek tarandı):</span>
+                      {best3.map((b) => (
+                        <span key={b.key} className="oa-chip">
+                          {b.market.replace("Maç Sonucu ve ", "MS+").replace("İlk Yarı / Maç Sonucu", "İY/MS")}: <b>{b.selection}</b> @{b.odd.toFixed(2)}{" "}
+                          <span className={(b.roi ?? 0) >= 0 ? "pos" : "neg"}>{signedPct(b.roi!)}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="muted small">Bu oranlarla oynanmış geçmiş maç bulunamadı. Hassasiyeti "Geniş" yapmayı deneyin.</div>
