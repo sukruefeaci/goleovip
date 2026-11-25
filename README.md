@@ -150,7 +150,7 @@ Maçlar, Oranlar ve Canlı sayfalarının en üstünde: her tahmine 100 TL yatı
 
 ## Telegram kanalı (canlı tercihler)
 
-Canlı bölümünde güveni **%70 ve üstü** yeni bir öneri çıkınca görsel kart (`src/lib/telegram.ts`, `next/og` ile PNG) hazırlanıp Telegram kanalına gönderilir. Her maç + öneri bir kez gönderilir (`tg:` anahtarı); gönderim başarısız olursa sonraki yenilemede tekrar denenir.
+Canlı bölümünde güveni **%70 ve üstü** ve **iddaa canlı oranı 1.45 ve üstü** olan yeni bir öneri çıkınca (oranı bulunamayan öneriler paylaşılmaz) görsel kart (`src/lib/telegram.ts`, `next/og` ile PNG) hazırlanıp Telegram kanalına gönderilir. Her maç + öneri bir kez gönderilir (`tg:` anahtarı); gönderim başarısız olursa sonraki yenilemede tekrar denenir.
 
 Vercel → Settings → Environment Variables:
 - `TELEGRAM_BOT_TOKEN` — BotFather'dan alınan bot anahtarı (gizli)

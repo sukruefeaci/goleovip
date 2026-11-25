@@ -2,10 +2,10 @@ import { createElement as h, type CSSProperties, type ReactNode } from "react";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { getStore } from "./auth/store";
-import type { LiveBet, LiveStats } from "./liveModel";
+import { LIVE_MIN_ODD, type LiveBet, type LiveStats } from "./liveModel";
 
 /**
- * Canlı bölümünde güveni yüksek (varsayılan ≥ %70) bir öneri çıkınca görsel kart hazırlayıp Telegram kanalına gönderir.
+ * Canlı bölümünde güveni yüksek (varsayılan ≥ %70) ve iddaa canlı oranı ≥ 1.45 olan bir öneri çıkınca görsel kart hazırlayıp Telegram kanalına gönderir.
  * Ayarlar (Vercel → Environment Variables):
  *   TELEGRAM_BOT_TOKEN  BotFather'dan alınan bot anahtarı (gizli)
  *   TELEGRAM_CHAT_ID    kanal adı (@kanal) ya da sayısal kimlik
@@ -169,7 +169,8 @@ export async function shareLivePicks(list: LiveShare[], budgetMs = 7000): Promis
   const cfg = telegramConfig();
   const store = getStore();
   if (!cfg || !store) return 0;
-  const todo = list.filter((s) => s.rec.confidence >= cfg.minConf);
+  // Yalnız gerçek iddaa canlı oranı olan ve oranı ≥ 1.45 olan öneriler paylaşılır (oransız tahmin kanala gitmez)
+  const todo = list.filter((s) => s.rec.confidence >= cfg.minConf && !!s.rec.odd && s.rec.odd >= LIVE_MIN_ODD);
   if (!todo.length) return 0;
   let sent = 0;
   const job = (async () => {

@@ -50,3 +50,19 @@ test("düzeltme ham olasılığa uygulanır, tekrar uygulamak katlamaz", () => {
   assert.equal(o.probs[0].raw, before);
   assert.ok(Math.abs(o.probs[0].prob - Math.min(0.99, before * 1.1)) < 1e-9);
 });
+
+test("Telegram: oranı olmayan ya da 1.45 altı öneri paylaşılmaz", async () => {
+  process.env.TELEGRAM_BOT_TOKEN = "deneme";
+  process.env.TELEGRAM_CHAT_ID = "@deneme";
+  const { shareLivePicks } = await import("../src/lib/telegram.ts");
+  const calls: string[] = [];
+  const orig = globalThis.fetch;
+  globalThis.fetch = (async (u: string) => (calls.push(String(u)), new Response('{"ok":true}'))) as typeof fetch;
+  const base = { fotmobId: 9, league: "L", home: "A", away: "B", hg: 0, ag: 0, minute: "45'", tempo: "Düşük", stats: {} };
+  const rec = (label: string, odd?: number) => ({ label, prob: 0.68, confidence: 72, kind: "MS A/Ü" as const, spec: { t: "ouFT" as const, line: 0.5, over: true }, odd });
+  // veritabanı yoksa hiçbir şey gönderilmez; burada yalnız filtreyi doğrularız
+  const n = await shareLivePicks([{ ...base, rec: rec("oransız") }, { ...base, rec: rec("düşük", 1.3) }]);
+  globalThis.fetch = orig;
+  assert.equal(n, 0);
+  assert.equal(calls.length, 0);
+});
