@@ -1,5 +1,17 @@
 export type FormResult = "G" | "B" | "M";
 
+export interface StateGoals {
+  n: number;
+  gf: number;
+  ga: number;
+}
+export interface SecondHalfStats {
+  lead: StateGoals;
+  level: StateGoals;
+  trail: StateGoals;
+  all: StateGoals;
+}
+
 export interface MissingPlayer {
   name: string;
   role: "hücum" | "orta saha" | "defans" | "kaleci" | "belirsiz";
@@ -25,6 +37,8 @@ export interface TeamInput {
   halfShareFor?: { share: number; goals: number };
   /** Geçmiş maçlardan: yediği gollerin ilk yarıda yenen payı */
   halfShareAgainst?: { share: number; goals: number };
+  /** İkinci yarı tepkisi: ilk yarıyı önde / berabere / geride bitirdiği maçlarda ikinci yarıda attığı ve yediği goller */
+  secondHalf?: SecondHalfStats;
   /** Kazandığı korner ortalaması: evinde, deplasmanda ve genel (son 10'ar maç) */
   cornerSplit?: { home: number | null; away: number | null; overall: number | null; homeN: number; awayN: number };
   /** Son maçların İY/MS sonuçları takımın gözünden, ör. "G/G" (İY önde, maçı kazandı), "B/M" */

@@ -247,6 +247,23 @@ export function teamFromResults(name: string, short: string, results: PlayedMatc
     cornersAgainst: avg(nums(v6.map((x) => x.ca))) || 5,
     cards: avg(nums(v6.map((x) => x.cards))) || 2,
     missing: [],
+    secondHalf: (() => {
+      const z = () => ({ n: 0, gf: 0, ga: 0 });
+      const out = { lead: z(), level: z(), trail: z(), all: z() };
+      for (const m of games.slice(-40)) {
+        const v = view(m);
+        if (v.htf === null || v.hta === null) continue;
+        const sf = v.gf - v.htf!,
+          sa = v.ga - v.hta!;
+        const st = v.htf! > v.hta! ? out.lead : v.htf! < v.hta! ? out.trail : out.level;
+        for (const b of [st, out.all]) {
+          b.n++;
+          b.gf += sf;
+          b.ga += sa;
+        }
+      }
+      return out.all.n ? out : undefined;
+    })(),
     cornerSplit: (() => {
       const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
       const homeC = games.filter((m) => m.home === name && m.hc !== null).slice(-10).map((m) => m.hc!);

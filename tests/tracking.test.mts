@@ -21,6 +21,8 @@ const analysis = (id: string, kickoff: string, rows: any[]) =>
     rows,
     summary: { over25: 0.5, btts: 0.5, topScores: [{ score: "1-1", prob: 0.12 }] },
     model1x2: [0.5, 0.25, 0.25],
+    lambda: { home: 1.5, away: 1.1 },
+    halfShare: { home: 0.45, away: 0.45 },
   }) as any;
 
 test("ana tercih: oran >= 1.40, olasılık >= %55, korner hariç", () => {
@@ -70,6 +72,7 @@ test("uçtan uca: kayıt → maç biter → sonuçlandırma → öğrenme", asyn
   assert.deepEqual([settled.result!.hg, settled.result!.ag, settled.result!.pickWon], [2, 1, true]);
   const l = await T.getLearning();
   assert.deepEqual(l.Gol, { n: 1, hits: 1, pred: 0.6 });
+  assert.equal(day[0].prior!.lh, 1.5, "canlı model için maç öncesi bilgi kaydedildi");
   assert.equal(await T.settleDay("2026-11-28", after), 0, "iki kez sayılmaz");
   assert.ok((await T.findSnapshot("arsenal-chelsea-2026-11-28"))?.result);
 });

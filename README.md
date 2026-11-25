@@ -55,6 +55,16 @@ Her maçtan en fazla bir seçenek alınır; Güvenli strateji belirsizliği dü�
 iddaa'nın MBS kuralına uyar (MBS 3 olan seçenek ancak 3+ maçlık kupona girer). Başlamış maçlar alınmaz.
 Tutma olasılığı = seçenek olasılıklarının çarpımı (maçlar bağımsız varsayılır); beklenen dönüş de gösterilir.
 
+## Canlı maçlar (/canli)
+
+FotMob'dan o an oynanan maçlar taranır (45 sn önbellek, sayfa 60 sn'de bir yenilenir). Her maç için (`src/lib/liveModel.ts`):
+- **Maç öncesi bilgi:** sitenin kaydettiği gol beklentisi, takımların ilk yarı gol payı ve ikinci yarı tepkisi (`LivePrior`); yoksa lig ortalaması.
+- **Tempo:** canlı xG (yoksa şut / isabetli şuttan tahmini xG) ile maç öncesi beklentinin, oynanan süreye göre ağırlıklı karşılaştırması.
+- **İlk yarı:** kalan ilk yarı gol hızı takımın ilk yarı gol payından.
+- **İkinci yarı:** skor durumuna göre genel etki (geride ×1.15–1.25, önde ×0.8–0.9) ve takımın geçmişte ilk yarıyı önde/berabere/geride bitirdiği maçlardaki ikinci yarı golleri (az veriyle genel değere çekilir).
+- **Kırmızı kart:** eksik takım ×0.75, rakip ×1.2.
+- Kalan goller Poisson; İY/MS alt-üst çizgileri, KG, maç sonucu, çifte şans, sıradaki gol. %60–%96 arası olasılıklardan olasılık × güven sırasıyla en iyi 3 öneri. Canlı iddaa oranı olmadığından değer hesaplanmaz.
+
 ## Maçlar sayfası, geçmiş ve kendini geliştirme
 
 - **Dün / Bugün / Yarın** sekmeleri (Türkiye günü). Her maçın altında tek tercih (`mainPick`, `src/lib/tracking.ts`):

@@ -1,4 +1,4 @@
-import type { Analysis, BetRow, Category } from "./types";
+import type { Analysis, BetRow, Category, SecondHalfStats } from "./types";
 import { describe } from "./markets";
 import { getJSON, getStore, setJSON } from "./auth/store";
 import { cachedFetch } from "./providers/cache";
@@ -38,6 +38,27 @@ export interface SnapResult {
   settledAt: string;
 }
 
+/** Canlı model için maç öncesi bilgiler */
+export interface LivePrior {
+  lh: number; // maç öncesi gol beklentisi (ev)
+  la: number;
+  shareH: number; // ilk yarıya düşen gol payı
+  shareA: number;
+  homeSH?: SecondHalfStats; // ikinci yarı tepkisi
+  awaySH?: SecondHalfStats;
+  source: "market" | "elo";
+}
+
+export const priorOf = (a: Analysis): LivePrior => ({
+  lh: a.lambda.home,
+  la: a.lambda.away,
+  shareH: a.halfShare.home,
+  shareA: a.halfShare.away,
+  homeSH: a.match.home.secondHalf,
+  awaySH: a.match.away.secondHalf,
+  source: a.match.source ?? "market",
+});
+
 export interface SnapEntry {
   id: string;
   kickoff: string;
@@ -47,6 +68,7 @@ export interface SnapEntry {
   fotmobId?: number;
   pick: SnapPick | null;
   summary: { over25: number; btts: number; topScore: string; p1x2: [number, number, number] };
+  prior?: LivePrior;
   result?: SnapResult;
 }
 
@@ -85,6 +107,7 @@ function toEntry(a: Analysis): SnapEntry {
       prob: p.prob,
       confidence: p.confidence,
     },
+    prior: priorOf(a),
     summary: {
       over25: a.summary.over25,
       btts: a.summary.btts,

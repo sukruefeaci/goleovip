@@ -39,6 +39,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     {user.name.slice(0, 1).toUpperCase()}
                   </span>
                   <span className="hide-sm">{user.name}</span>
+                  <Link href="/nasil-calisir" className="show-sm muted small" aria-label="Bilgi">
+                    ⓘ
+                  </Link>
                   <form action={logout}>
                     <button className="btn ghost sm">Çıkış</button>
                   </form>
