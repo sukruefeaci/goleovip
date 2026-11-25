@@ -2,7 +2,7 @@ import Link from "next/link";
 import { loadLive, type LiveItem } from "@/lib/liveData";
 import AutoRefresh from "@/components/AutoRefresh";
 import { confLevel, winLevel } from "@/components/WinConfidence";
-import { getLiveLearning, liveFactors, loadLiveDay, settleLive, type LiveLearning, type LiveRecord } from "@/lib/liveTracking";
+import { getLiveLearning, getLiveSituations, liveFactors, loadLiveDay, settleLive, situationRows, type LiveLearning, type LiveRecord, type LiveSituations } from "@/lib/liveTracking";
 import { trDate } from "@/lib/tracking";
 import { getStore } from "@/lib/auth/store";
 
@@ -177,8 +177,9 @@ function History({ recs, day }: { recs: LiveRecord[]; day: "bugun" | "dun" }) {
   );
 }
 
-function Learn({ l }: { l: LiveLearning }) {
+function Learn({ l, s }: { l: LiveLearning; s: LiveSituations }) {
   const f = liveFactors(l);
+  const sit = situationRows(l, s);
   const rows = Object.entries(l) as [keyof LiveLearning, { n: number; hits: number; pred: number }][];
   if (!rows.length) return null;
   return (
@@ -199,6 +200,29 @@ function Learn({ l }: { l: LiveLearning }) {
           </span>
         </div>
       ))}
+      <h3 className="card-title" style={{ marginTop: 18 }}>
+        Duruma göre ne öğrendi?
+      </h3>
+      <p className="muted small" style={{ marginTop: 0 }}>
+        Her öneri yapıldığı andaki durumla kaydedilir: dakika, skor farkı, tempo, canlı veri ve maç öncesi analiz. Bir tercih türü belli bir durumda
+        türün genelinden daha iyi ya da kötü tutuyorsa o durumda olasılık ayrıca ayarlanır (her durum en fazla ±%10, toplam ±%15). En az 8 sonuçlanmış
+        öneri olan durumlar gösterilir.
+      </p>
+      {sit.length === 0 && <p className="small muted">Henüz yeterli örnek yok; öneriler sonuçlandıkça burada görünecek.</p>}
+      {sit.slice(0, 14).map((r) => (
+        <div key={`${r.kind}|${r.dim}|${r.val}`} className="learn-row">
+          <b>
+            {r.kind} · {r.dim}: {r.val}
+          </b>
+          <span className="small">
+            {r.hits}/{r.n} tuttu (%{Math.round((r.hits / r.n) * 100)}) · beklenen %{Math.round((r.pred / r.n) * 100)}
+          </span>
+          <span className="small">
+            ek düzeltme{" "}
+            <b className={r.adj > 1.005 ? "pos" : r.adj < 0.995 ? "neg" : undefined}>×{r.adj.toFixed(2)}</b>
+          </span>
+        </div>
+      ))}
     </section>
   );
 }
@@ -211,9 +235,10 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
   if (tracking) await settleLive(histDate).catch(() => 0);
   // Önce canlı öneriler hesaplanıp kaydedilir, sonra geçmiş okunur
   const { items, total, at } = await loadLive();
-  const [hist, learning] = await Promise.all([
+  const [hist, learning, situations] = await Promise.all([
     tracking ? loadLiveDay(histDate).catch(() => []) : Promise.resolve([] as LiveRecord[]),
     tracking ? getLiveLearning() : Promise.resolve({} as LiveLearning),
+    tracking ? getLiveSituations() : Promise.resolve({ v: 1, b: {} } as LiveSituations),
   ]);
   const analyzed = items.filter((i) => i.pre);
   const others = items.filter((i) => !i.pre);
@@ -255,7 +280,7 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
       {tracking ? (
         <>
           <History recs={hist} day={histDay} />
-          <Learn l={learning} />
+          <Learn l={learning} s={situations} />
         </>
       ) : (
         <div className="notice subtle" style={{ marginTop: 16 }}>

@@ -3,7 +3,7 @@ import { nameSimilarity } from "./providers/teamNames";
 import { loadAnalyses } from "./data";
 import { getStore } from "./auth/store";
 import { calibrateLive, liveModel, liveRecommendations, type LiveBet, type LiveOutput, type LiveState, type LiveStats } from "./liveModel";
-import { getLiveLearning, liveFactors, recordLive } from "./liveTracking";
+import { getLiveLearning, getLiveSituations, liveFactorFn, recordLive, type LiveCtx } from "./liveTracking";
 import { fetchLiveOdds, fetchLiveProgram, matchIddaaLive } from "./providers/iddaaLive";
 import { loadDay, parseHalfTime, priorOf, trDate, type LivePrior, type SnapEntry } from "./tracking";
 
@@ -48,6 +48,7 @@ export interface LiveItem {
   pre: { matchId?: string; summary?: SnapEntry["summary"]; pick?: SnapEntry["pick"] } | null;
   hasOdds: boolean;
   model: LiveOutput;
+  ctx: LiveCtx;
   recs: LiveBet[];
 }
 
@@ -182,13 +183,24 @@ export async function loadLive(): Promise<{ items: LiveItem[]; total: number; at
   );
   await Promise.race([work, new Promise((res) => setTimeout(res, 6000).unref?.())]);
 
-  const factors = liveFactors(await getLiveLearning().catch(() => ({})));
+  const [learning, situations] = await Promise.all([
+    getLiveLearning().catch(() => ({})),
+    getLiveSituations().catch(() => ({ v: 1 as const, b: {} })),
+  ]);
   const items: LiveItem[] = withPre.map(({ r, prior, pre }) => {
     const d = details.get(r.id);
     const stats = d?.stats ?? {};
     const hasStats = !!(stats.xg || stats.shots);
     const state: LiveState = { minute: r.minute, phase: r.phase, hg: r.hg, ag: r.ag, hht: d?.ht?.hht, aht: d?.ht?.aht, stats };
-    const model = calibrateLive(liveModel(state, prior, hasStats), factors);
+    const raw = liveModel(state, prior, hasStats);
+    const ctx: LiveCtx = {
+      phase: r.phase,
+      min: r.minute,
+      tempo: raw.tempo.label,
+      data: stats.xg ? "xG" : stats.shots ? "şut" : "yok",
+      prior: prior ? (prior.source === "elo" ? "elo" : "market") : "yok",
+    };
+    const model = calibrateLive(raw, liveFactorFn(learning, situations, ctx, r.hg, r.ag));
     return {
       id: r.id,
       kickoff: r.kickoff.toISOString(),
@@ -205,6 +217,7 @@ export async function loadLive(): Promise<{ items: LiveItem[]; total: number; at
       hasStats,
       pre,
       model,
+      ctx,
       hasOdds: false,
       recs: [] as LiveBet[],
     };
@@ -257,6 +270,7 @@ export async function loadLive(): Promise<{ items: LiveItem[]; total: number; at
         minute: it.minuteLabel,
         hg: it.hg,
         ag: it.ag,
+        ctx: it.ctx,
         recs: it.recs,
       })),
   ).catch(() => 0);

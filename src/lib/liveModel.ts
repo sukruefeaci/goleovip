@@ -55,6 +55,7 @@ export interface LiveBet {
   spec: LiveSpec;
   odd?: number; // iddaa canlı oranı (varsa)
   ev?: number; // olasılık × oran − 1
+  raw?: number; // öğrenme düzeltmesinden önceki model olasılığı
 }
 
 const DEFAULT_PRIOR: LivePrior = { lh: 1.45, la: 1.15, shareH: 0.45, shareA: 0.45, source: "market" };
@@ -254,11 +255,16 @@ export function liveRecommendations(out: LiveOutput, count = 3, minOdd = LIVE_MI
     .slice(0, count);
 }
 
-/** Öğrenilmiş düzeltmeyi canlı olasılıklara uygular (tür başına çarpan) */
-export function calibrateLive(out: LiveOutput, factors: Partial<Record<LiveKind, number>>): LiveOutput {
+/**
+ * Öğrenilmiş düzeltmeyi canlı olasılıklara uygular.
+ * factor: tür başına çarpan (sabit tablo) ya da türe göre çarpan veren fonksiyon (duruma göre öğrenme).
+ * Ham model olasılığı `raw` alanında saklanır; öğrenme ham olasılık üzerinden yapılır.
+ */
+export function calibrateLive(out: LiveOutput, factor: Partial<Record<LiveKind, number>> | ((kind: LiveKind) => number)): LiveOutput {
   for (const p of out.probs) {
-    const f = factors[p.kind];
-    if (f) p.prob = clamp(p.prob * f, 0.01, 0.99);
+    p.raw ??= p.prob;
+    const f = typeof factor === "function" ? factor(p.kind) : factor[p.kind];
+    if (f && f !== 1) p.prob = clamp(p.raw * f, 0.01, 0.99);
   }
   return out;
 }
