@@ -257,7 +257,8 @@ export async function loadLive(): Promise<{ items: LiveItem[]; total: number; at
     /* canlı oran kaynağına ulaşılamadı */
   }
   // Öneriler canlı oranlar eklendikten sonra seçilir (oran ≥ 1.45 şartı)
-  for (const it of items) it.recs = liveRecommendations(it.model);
+  // Canlı tercih yalnız maç öncesi analizi olan maçlara verilir (öğrenme de yalnız bunlardan yapılır)
+  for (const it of items) it.recs = it.pre ? liveRecommendations(it.model) : [];
   // Yeni önerileri takip için kaydet (ilk öneri anı esas alınır)
   await recordLive(
     items

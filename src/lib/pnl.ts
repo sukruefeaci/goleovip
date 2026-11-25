@@ -56,12 +56,15 @@ export function sumPnl(list: DayPnl[]): DayPnl {
 /* ---------------------------------------------------- kayıtlardan kalem çıkarma */
 
 type SnapLike = { pick?: { odd: number } | null; oddsPick?: { odd: number } | null; result?: { pickWon?: boolean | null; oddsWon?: boolean | null } };
-type LiveLike = { odd?: number; result?: { won: boolean | null } };
+type LiveLike = { odd?: number; result?: { won: boolean | null }; analyzed?: boolean; ctx?: { prior?: string } };
+
+/** Canlı öneri maç öncesi analizi olan bir maça mı ait? (bilinmeyen eski kayıtlar analizli sayılır) */
+export const analyzedRec = (r: { analyzed?: boolean; ctx?: { prior?: string } }) => r.analyzed !== false && r.ctx?.prior !== "yok";
 
 export const macItems = (snap: SnapLike[]): PnlItem[] => snap.filter((e) => e.pick).map((e) => ({ odd: e.pick!.odd, won: e.result?.pickWon }));
 export const oranItems = (snap: SnapLike[]): PnlItem[] =>
   snap.filter((e) => e.oddsPick).map((e) => ({ odd: e.oddsPick!.odd, won: e.result ? (e.result.oddsWon ?? null) : undefined }));
-export const canliItems = (recs: LiveLike[]): PnlItem[] => recs.map((r) => ({ odd: r.odd, won: r.result?.won }));
+export const canliItems = (recs: LiveLike[]): PnlItem[] => recs.filter(analyzedRec).map((r) => ({ odd: r.odd, won: r.result?.won }));
 
 /* ---------------------------------------------------- başından beri toplam */
 

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { loadLive, type LiveItem } from "@/lib/liveData";
 import AutoRefresh from "@/components/AutoRefresh";
 import ProfitBoard from "@/components/ProfitBoard";
-import { canliItems, dayPnl, totalPnl } from "@/lib/pnl";
+import { analyzedRec, canliItems, dayPnl, totalPnl } from "@/lib/pnl";
 import { confLevel, winLevel } from "@/components/WinConfidence";
 import { getLiveLearning, getLiveSituations, liveFactors, loadLiveDay, settleLive, situationRows, type LiveLearning, type LiveRecord, type LiveSituations } from "@/lib/liveTracking";
 import { trDate } from "@/lib/tracking";
@@ -247,7 +247,7 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
     tracking ? getLiveLearning() : Promise.resolve({} as LiveLearning),
     tracking ? getLiveSituations() : Promise.resolve({ v: 1, b: {} } as LiveSituations),
   ]);
-  const hist = histDay === "dun" ? ydayRecs : todayRecs;
+  const hist = (histDay === "dun" ? ydayRecs : todayRecs).filter(analyzedRec);
   const pT = dayPnl(canliItems(todayRecs)),
     pY = dayPnl(canliItems(ydayRecs));
   const totalC = tracking ? await totalPnl("canli", { [today]: pT, [yesterday]: pY }).catch(() => null) : null;
@@ -266,7 +266,8 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
         {total} maç oynanıyor · {analyzed.length} tanesi maç öncesi analiz edildi · son güncelleme{" "}
         {new Date(at).toLocaleTimeString("tr-TR", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit" })}. Öneriler kalan süre, tempo,
         skor durumu ve maç öncesi analize göre olasılık tahminidir. Yalnız oranı 1.45 ve üstü olan tercihler önerilir (iddaa canlı oranı; yoksa olasılıktan
-        hesaplanan adil oran). Oranı olan önerilerde getiri (olasılık × oran − 1) de gösterilir; yeşil kenarlı öneriler artı getirili.
+        hesaplanan adil oran). Oranı olan önerilerde getiri (olasılık × oran − 1) de gösterilir; yeşil kenarlı öneriler artı getirili. Canlı tercih
+        yalnız maç öncesi analiz ettiğimiz maçlara verilir; takip ve öğrenme de yalnız bunlardan yapılır.
       </p>
 
       {analyzed.length > 0 && <h2 className="lc-h">Analiz ettiğimiz maçlar</h2>}
@@ -277,16 +278,11 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
       </div>
 
       {others.length > 0 && (
-        <>
-          <h2 className="lc-h">Diğer canlı maçlar</h2>
-          <p className="muted small">Bu maçlar için maç öncesi analiz yok; lig ortalaması ve canlı istatistik (varsa) kullanılır, güven daha düşüktür.</p>
-          <div className="lc-list">
-            {others.map((it) => (
-              <LiveCard key={it.id} it={it} />
-            ))}
-          </div>
-        </>
+        <p className="muted small" style={{ marginTop: 12 }}>
+          {others.length} canlı maç için maç öncesi analizimiz yok; bu maçlara canlı tercih verilmez.
+        </p>
       )}
+      {items.length > 0 && !analyzed.length && <div className="card pad empty">Şu an analiz ettiğimiz maçlardan oynanan yok.</div>}
       {!items.length && <div className="card pad empty">Şu an oynanan maç yok.</div>}
 
       {tracking ? (

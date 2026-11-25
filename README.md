@@ -167,3 +167,7 @@ Vercel'de `ADMIN_EMAILS` (virgülle ayrılmış e-postalar) tanımlı kullanıc�
 - **Kanal istatistiği:** kanalda paylaşılan canlı tahminlerin (`tg:shared:v1`) Bugün / Dün / Son 7 gün / Tümü karnesi: tutan/sonuçlanan, isabet, tutanların ortalama oranı, 100 TL ile kâr/zarar ve son 10 sonuç. Görsel önizlenir (`/api/admin/stats-image`), düğmeyle kanala gönderilir.
 - `/api/telegram/test` admin tanımlıysa yalnız admin içindir.
 
+## Canlı: yalnız analiz edilen maçlar
+
+Canlı tercih yalnız maç öncesi analizi olan maçlara verilir (`liveData.ts`: `it.pre` yoksa öneri yok). Kayıt, Telegram, kâr/zarar ve öğrenme de yalnız bunlardan yapılır (`analyzedRec`). Geçişte bir kez (`learnLive:analyzedOnly:v1`) eski kayıtlar o günün maç öncesi kayıtlarıyla eşleştirilip işaretlenir; tür ve durum öğrenmesi yalnız analizli kayıtlardan yeniden kurulur.
+

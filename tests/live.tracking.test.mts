@@ -32,7 +32,7 @@ test("uçtan uca: kayıt (tek sefer) → maç biter → sonuç → öğrenme", a
   const ko = new Date("2026-11-28T15:00:00Z");
   const rec = (label: string, spec: any, prob: number) => ({ label, kind: spec.t === "next" ? "Sıradaki gol" : "MS A/Ü", spec, prob, confidence: 60 }) as any;
   const input = [
-    { fotmobId: 7, home: "Arsenal", away: "Chelsea", league: "PL", kickoff: ko, minute: "60'", hg: 1, ag: 0, recs: [rec("MS 1.5 Üst", { t: "ouFT", line: 1.5, over: true }, 0.7), rec("Sıradaki golü ev sahibi atar", { t: "next", home: true }, 0.62)] },
+    { fotmobId: 7, home: "Arsenal", away: "Chelsea", league: "PL", kickoff: ko, minute: "60'", hg: 1, ag: 0, ctx: { phase: "2H", min: 60, prior: "market" }, recs: [rec("MS 1.5 Üst", { t: "ouFT", line: 1.5, over: true }, 0.7), rec("Sıradaki golü ev sahibi atar", { t: "next", home: true }, 0.62)] },
   ];
   const t1 = Date.parse("2026-11-28T16:00:00Z");
   assert.equal(await L.recordLive(input as any, t1), 2);
@@ -57,4 +57,12 @@ test("uçtan uca: kayıt (tek sefer) → maç biter → sonuç → öğrenme", a
   assert.deepEqual(l["Sıradaki gol"], { n: 1, hits: 0, pred: 0.62 });
   const f = L.liveFactors(l);
   assert.ok(f["MS A/Ü"]! > 1 && f["Sıradaki gol"]! < 1);
+});
+
+test("analizsiz maçın canlı önerisi öğrenmeye ve kâr hesabına girmez", async () => {
+  const { analyzedRec, canliItems } = await import("../src/lib/pnl.ts");
+  assert.equal(analyzedRec({ ctx: { prior: "yok" } }), false);
+  assert.equal(analyzedRec({ analyzed: false }), false);
+  assert.equal(analyzedRec({ ctx: { prior: "market" } }), true);
+  assert.equal(canliItems([{ odd: 1.6, result: { won: true }, ctx: { prior: "yok" } }, { odd: 1.5, result: { won: false }, ctx: { prior: "elo" } }]).length, 1);
 });

@@ -1,8 +1,9 @@
 import { getJSON, getStore, setJSON } from "./auth/store";
 import { cachedFetch } from "./providers/cache";
-import { parseFotmobResults, parseHalfTime, trDate } from "./tracking";
+import { loadDay, parseFotmobResults, parseHalfTime, trDate } from "./tracking";
+import { nameSimilarity } from "./providers/teamNames";
 import type { LiveBet, LiveKind, LiveSpec } from "./liveModel";
-import { canliItems, dayPnl, savePnl } from "./pnl";
+import { analyzedRec, canliItems, dayPnl, savePnl } from "./pnl";
 
 /**
  * Canlı önerilerin kaydı ve kendini geliştirme.
@@ -47,6 +48,7 @@ export interface LiveRecord {
   odd?: number; // varsa öneri anındaki canlı oran
   raw?: number; // öğrenme düzeltmesinden önceki model olasılığı
   ctx?: LiveCtx;
+  analyzed?: boolean; // maç öncesi analizi olan maç mı (eski kayıtlar için sonradan belirlenir)
   at: string;
   result?: { hg: number; ag: number; hht?: number; aht?: number; won: boolean | null; early?: boolean }; // early: maç bitmeden kesinleşti (skor o anki)
 }
@@ -153,6 +155,7 @@ let learnMemo: { at: number; data: LiveLearning } | null = null;
 
 export async function getLiveLearning(): Promise<LiveLearning> {
   if (learnMemo && Date.now() - learnMemo.at < 10 * MIN) return learnMemo.data;
+  await ensureAnalyzedOnly().catch(() => {});
   const data = (getStore() && (await getJSON<LiveLearning>(LEARN_KEY).catch(() => null))) || {};
   learnMemo = { at: Date.now(), data };
   return data;
@@ -201,6 +204,7 @@ export function earlyWon(
  */
 export async function settleLive(date: string, now = Date.now(), budgetMs = 4000): Promise<number> {
   if (!getStore()) return 0;
+  await ensureAnalyzedOnly(now).catch(() => {});
   const day = await getJSON<Day>(liveKey(date));
   if (!day) return 0;
   // Sonucu kesinleşmemiş ya da erken sonuçlanıp son skoru henüz yazılmamış kayıtlar
@@ -241,6 +245,7 @@ export async function settleLive(date: string, now = Date.now(), budgetMs = 4000
     return detCache.get(k);
   };
   const learnFrom = (r: LiveRecord, won: boolean) => {
+    if (!analyzedRec(r)) return; // yalnız maç öncesi analizi olan maçlardan öğrenilir
     const c = (learn[r.kind] ??= { n: 0, hits: 0, pred: 0 });
     c.n++;
     c.hits += won ? 1 : 0;
@@ -335,7 +340,7 @@ export function situationOf(ctx: LiveCtx, hg: number, ag: number): [SitDim, stri
 const sitKey = (kind: LiveKind, dim: SitDim, val: string) => `${kind}|${dim}|${val}`;
 
 function addSituation(s: LiveSituations, r: LiveRecord) {
-  if (!r.result || r.result.won === null) return;
+  if (!r.result || r.result.won === null || !analyzedRec(r)) return;
   for (const [dim, val] of situationOf(ctxOf(r), r.hg, r.ag)) {
     const c = (s.b[sitKey(r.kind, dim, val)] ??= { n: 0, hits: 0, pred: 0 });
     c.n++;
@@ -394,4 +399,60 @@ export function situationRows(l: LiveLearning, s: LiveSituations, minN = 8) {
       return { kind, dim, val, ...v, adj: situationAdjust(kind, [[dim, val]], l, s) };
     })
     .sort((a, b) => Math.abs(b.adj - 1) - Math.abs(a.adj - 1) || b.n - a.n);
+}
+
+/* ------------------------------------------------------------------ */
+/* Yalnız analiz edilen maçlar: eski kayıtları işaretle, öğrenmeyi baştan kur */
+/* ------------------------------------------------------------------ */
+
+const ANALYZED_FLAG = "learnLive:analyzedOnly:v1";
+let analyzedChecked = false;
+
+/**
+ * Canlı öneriler artık yalnız maç öncesi analizi olan maçlar için yapılır. Bu geçişte bir kez:
+ * eski kayıtlar o günün maç öncesi kayıtlarıyla (snap) eşleştirilip analizli / analizsiz işaretlenir,
+ * tür ve durum öğrenmesi yalnız analizli kayıtlardan yeniden kurulur, kâr/zarar özetleri yenilenir.
+ */
+export async function ensureAnalyzedOnly(now = Date.now()): Promise<void> {
+  if (analyzedChecked) return;
+  const store = getStore();
+  if (!store) return;
+  if (await store.get(ANALYZED_FLAG)) {
+    analyzedChecked = true;
+    return;
+  }
+  const learn: LiveLearning = {};
+  const sit: LiveSituations = { v: 1, b: {} };
+  for (let i = 0; i < REBUILD_DAYS; i++) {
+    const date = trDate(now - i * 86400_000);
+    const day = await getJSON<Day>(liveKey(date)).catch(() => null);
+    if (!day) continue;
+    const snaps = (await Promise.all([date, trDate(now - (i + 1) * 86400_000)].map((d) => loadDay(d).catch(() => [])))).flat();
+    let changed = false;
+    for (const r of Object.values(day)) {
+      if (r.analyzed === undefined && !r.ctx) {
+        const ko = new Date(r.kickoff).getTime();
+        r.analyzed = snaps.some(
+          (e) =>
+            e.fotmobId === r.fotmobId ||
+            (Math.abs(new Date(e.kickoff).getTime() - ko) < 90 * MIN && nameSimilarity(e.home, r.home) >= 0.6 && nameSimilarity(e.away, r.away) >= 0.6),
+        );
+        changed = true;
+      }
+      if (!analyzedRec(r) || !r.result || r.result.won === null) continue;
+      const c = (learn[r.kind] ??= { n: 0, hits: 0, pred: 0 });
+      c.n++;
+      c.hits += r.result.won ? 1 : 0;
+      c.pred += r.raw ?? r.prob;
+      addSituation(sit, r);
+    }
+    if (changed) await setJSON(liveKey(date), day);
+    await savePnl(date, { canli: dayPnl(canliItems(Object.values(day))) }).catch(() => {});
+  }
+  await setJSON(LEARN_KEY, learn);
+  await setJSON(SIT_KEY, sit);
+  await store.set(ANALYZED_FLAG, new Date(now).toISOString());
+  learnMemo = null;
+  sitMemo = null;
+  analyzedChecked = true;
 }
