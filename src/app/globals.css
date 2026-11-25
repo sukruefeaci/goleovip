@@ -107,6 +107,36 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .page-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
 .page-head h1 { margin: 0; font-size: 26px; }
 
+/* ---------- Gün sekmeleri ve maç satırları ---------- */
+.daytabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 4px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); margin-bottom: 14px; }
+.daytabs a { display: grid; justify-items: center; padding: 8px 4px; border-radius: 10px; font-weight: 800; color: var(--muted); }
+.daytabs a small { font-size: 11px; font-weight: 600; }
+.daytabs a.on { background: var(--brand); color: #fff; }
+.daytabs a.on small { color: #ede9fe; }
+.daystat { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; padding: 10px 14px; margin-bottom: 14px; }
+.daystat > b { font-size: 20px; }
+.mrow { display: grid; gap: 8px; padding: 12px 14px; transition: border-color 0.15s; }
+.mrow:hover { border-color: rgba(139, 92, 246, 0.6); }
+.mrow-top { display: flex; align-items: center; gap: 8px; }
+.mrow-time { font-weight: 900; color: #c4b5fd; font-variant-numeric: tabular-nums; }
+.mrow-status { margin-left: auto; }
+.mrow-score { font-size: 18px; color: var(--brand-2); font-variant-numeric: tabular-nums; }
+.mrow-teams { font-size: 16.5px; font-weight: 800; }
+.mrow-teams .vs { font-size: 11px; color: var(--muted); font-weight: 600; margin: 0 4px; }
+.mp { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto auto; gap: 10px; align-items: center; padding: 9px 12px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line); }
+.mp-won { border-color: rgba(16, 185, 129, 0.6); background: linear-gradient(90deg, var(--good-soft), var(--bg-2) 60%); }
+.mp-lost { border-color: rgba(244, 63, 94, 0.5); background: linear-gradient(90deg, var(--bad-soft), var(--bg-2) 60%); }
+.mp-main { display: grid; min-width: 0; }
+.mp-main b { font-size: 16px; }
+.mp-stat { display: grid; justify-items: end; font-variant-numeric: tabular-nums; }
+.mp-stat span { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); font-weight: 700; }
+.mp-badge { font-size: 12px; font-weight: 900; padding: 4px 9px; border-radius: 999px; white-space: nowrap; }
+.mp-badge.won { background: var(--good); color: #022c22; }
+.mp-badge.lost { background: var(--bad); color: #fff; }
+.mp-badge.void { background: var(--surface-2); color: var(--muted); }
+.learn { margin-top: 16px; }
+.learn-row { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--line); }
+
 /* ---------- Günün seçkisi ---------- */
 .daily { margin-bottom: 20px; border-color: rgba(34, 211, 238, 0.4); background: linear-gradient(135deg, rgba(34, 211, 238, 0.1), transparent 55%), var(--surface); }
 .daily-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
@@ -487,6 +517,10 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   .bottomnav a:active { background: var(--surface-2); }
   .bottomnav a.active { color: #fff; background: var(--brand-soft); }
   .page-head h1 { font-size: 22px; }
+  .mp { grid-template-columns: minmax(0, 1fr) auto auto auto; }
+  .mp-main { grid-column: 1 / -1; }
+  .mp .oddpill { justify-self: start; }
+  .mp-badge { grid-column: 1 / -1; justify-self: start; }
   .slot { grid-template-columns: 1fr; gap: 6px; }
   .slot-hour { padding-top: 0; }
   .slot-picks { grid-template-columns: 1fr; }

@@ -1,92 +1,178 @@
 import Link from "next/link";
-import { kickoffParts, pct, signedPct } from "@/lib/format";
-import { choosePick } from "@/lib/pick";
+import { kickoffParts, signedPct } from "@/lib/format";
 import { loadAnalyses } from "@/lib/data";
 import type { Analysis } from "@/lib/types";
 import DailyPicks from "@/components/DailyPicks";
 import { selectDaily } from "@/lib/daily";
+import { calibrationFactors, getLearning, loadDay, mainPick, settleDay, trDate, type Learning, type SnapEntry, type SnapPick } from "@/lib/tracking";
+import { getStore } from "@/lib/auth/store";
+import { confLevel, winLevel } from "@/components/WinConfidence";
 
 export const dynamic = "force-dynamic";
 
-export default async function MatchesPage() {
-  const { analyses, source, banner } = await loadAnalyses();
+const DAYS = { dun: -1, bugun: 0, yarin: 1 } as const;
+type DayKey = keyof typeof DAYS;
+const LABEL: Record<DayKey, string> = { dun: "Dün", bugun: "Bugün", yarin: "Yarın" };
 
-  const groups = new Map<string, Analysis[]>();
-  for (const a of analyses) {
-    const d = kickoffParts(a.match.kickoff).date;
-    groups.set(d, [...(groups.get(d) ?? []), a]);
-  }
+type Item = { id: string; kickoff: string; league: string; home: string; away: string; pick: SnapPick | null; result?: SnapEntry["result"]; live: boolean };
+
+function fromAnalysis(a: Analysis, snap?: SnapEntry): Item {
+  const p = mainPick(a);
+  return {
+    id: a.match.id,
+    kickoff: a.match.kickoff,
+    league: a.match.league,
+    home: a.match.home.name,
+    away: a.match.away.name,
+    pick: p && { key: p.key, category: p.category, market: p.market, selection: p.selection, odd: p.odd, prob: p.prob, confidence: p.confidence },
+    result: snap?.result,
+    live: true,
+  };
+}
+
+function PickLine({ p, result }: { p: SnapPick; result?: SnapEntry["result"] }) {
+  const wl = winLevel(p.prob);
+  const cl = confLevel(p.confidence);
+  const state = result ? (result.pickWon === true ? "won" : result.pickWon === false ? "lost" : "void") : "open";
+  return (
+    <div className={`mp mp-${state}`}>
+      <div className="mp-main">
+        <span className="muted small">{p.market}</span>
+        <b>{p.selection}</b>
+      </div>
+      <span className="oddpill">{p.odd.toFixed(2)}</span>
+      <div className="mp-stat">
+        <span>Kazanma</span>
+        <b className={wl.cls}>%{Math.round(p.prob * 100)}</b>
+      </div>
+      <div className="mp-stat">
+        <span>Güven</span>
+        <b className={cl.cls}>%{p.confidence}</b>
+      </div>
+      {state !== "open" && <span className={`mp-badge ${state}`}>{state === "won" ? "✓ Tuttu" : state === "lost" ? "✗ Tutmadı" : "—"}</span>}
+    </div>
+  );
+}
+
+export default async function MatchesPage({ searchParams }: { searchParams: Promise<{ gun?: string }> }) {
+  const { gun } = await searchParams;
+  const day: DayKey = gun && gun in DAYS ? (gun as DayKey) : "bugun";
+  const now = Date.now();
+  const date = trDate(now + DAYS[day] * 86400_000);
+  const tracking = !!getStore();
+
+  if (tracking && day !== "yarin") await settleDay(date, now).catch(() => 0);
+  const [{ analyses, source, banner }, snaps, learning] = await Promise.all([
+    loadAnalyses(),
+    tracking ? loadDay(date).catch(() => []) : Promise.resolve([] as SnapEntry[]),
+    day === "dun" && tracking ? getLearning() : Promise.resolve({} as Learning),
+  ]);
+
+  const snapById = new Map(snaps.map((s) => [s.id, s]));
+  const live = analyses.filter((a) => trDate(new Date(a.match.kickoff).getTime()) === date);
+  const liveIds = new Set(live.map((a) => a.match.id));
+  const items: Item[] = [
+    ...live.map((a) => fromAnalysis(a, snapById.get(a.match.id))),
+    ...snaps.filter((s) => !liveIds.has(s.id)).map((s) => ({ ...s, pick: s.pick, result: s.result, live: false })),
+  ].sort((x, y) => x.kickoff.localeCompare(y.kickoff));
+
+  const decided = items.filter((i) => i.result && i.result.pickWon !== null && i.result.pickWon !== undefined);
+  const hits = decided.filter((i) => i.result!.pickWon).length;
+  const factors = calibrationFactors(learning);
 
   return (
     <div className="page-narrow">
       {banner && <div className="notice">⚠ {banner}</div>}
 
-      <DailyPicks daily={selectDaily(analyses)} />
+      <div className="daytabs" role="tablist">
+        {(Object.keys(DAYS) as DayKey[]).map((k) => (
+          <Link key={k} href={k === "bugun" ? "/" : `/?gun=${k}`} className={k === day ? "on" : ""} role="tab" aria-selected={k === day}>
+            {LABEL[k]}
+            <small>{kickoffParts(new Date(now + DAYS[k] * 86400_000).toISOString()).date}</small>
+          </Link>
+        ))}
+      </div>
+
+      {decided.length > 0 && (
+        <div className="daystat card">
+          <span>
+            Tercihler: <b>{hits}</b> / {decided.length} tuttu
+          </span>
+          <b className={hits / decided.length >= 0.55 ? "pos" : "neg"}>%{Math.round((hits / decided.length) * 100)}</b>
+          <span className="muted small">beklenen ≈ %{Math.round((decided.reduce((s, i) => s + (i.pick?.prob ?? 0), 0) / decided.length) * 100)}</span>
+        </div>
+      )}
+
+      {day === "bugun" && <DailyPicks daily={selectDaily(analyses)} />}
 
       <div className="page-head">
-        <h1>Maçlar</h1>
+        <h1>{{ dun: "Dünün", bugun: "Bugünün", yarin: "Yarının" }[day]} maçları</h1>
         <span className="muted small">
-          {analyses.length} maç · kaynak: {source}
+          {items.length} maç{day !== "dun" ? ` · kaynak: ${source}` : ""}
         </span>
       </div>
 
-      {[...groups.entries()].map(([day, list]) => (
-        <div key={day} className="day">
-          <div className="day-label">{day}</div>
-          <div className="match-list">
-            {list.map((a) => {
-              const k = kickoffParts(a.match.kickoff);
-              const pick = choosePick(a);
-              const [p1, px, p2] = a.model1x2;
-              const htftBest = [...a.htft].sort((x, y) => y.prob - x.prob)[0];
-              return (
-                <Link key={a.match.id} href={`/mac/${a.match.id}`} className="match-row">
-                  <div className="mr-time">{k.time}</div>
-                  <div className="mr-body">
-                    <span className="chip">{a.match.league}</span>
-                    <div className="mr-teams">
-                      <span>{a.match.home.name}</span>
-                      <span className="vs">vs</span>
-                      <span>{a.match.away.name}</span>
-                    </div>
-                    <div className="tri" title="Model: ev / beraberlik / deplasman">
-                      <i className="t1" style={{ flex: p1 }}>
-                        {pct(p1, 0)}
-                      </i>
-                      <i className="tx" style={{ flex: px }}>
-                        {pct(px, 0)}
-                      </i>
-                      <i className="t2" style={{ flex: p2 }}>
-                        {pct(p2, 0)}
-                      </i>
-                    </div>
-                    <div className="mr-htft">
-                      İY/MS en olası: <b>{htftBest.outcome}</b> <span className="muted">{pct(htftBest.prob, 0)}</span>
-                    </div>
-                    {pick && (
-                      <div className={`mr-pick lvl-${pick.level === "güçlü" ? "strong" : pick.level === "zayıf" ? "weak" : "none"}`}>
-                        <span className="ai">AI</span>
-                        {pick.level === "değer yok" ? (
-                          <span>Değer yok — pas geç</span>
-                        ) : (
-                          <span>
-                            {pick.row.market}: <b>{pick.row.selection}</b> <span className="oddpill">{pick.row.odd.toFixed(2)}</span>{" "}
-                            <span className={pick.row.ev >= 0 ? "pos" : "neg"}>{signedPct(pick.row.ev)}</span>
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <div className="mr-go" aria-hidden>
-                    ›
-                  </div>
-                </Link>
-              );
-            })}
+      {!tracking && day === "dun" && (
+        <div className="notice subtle">Geçmiş maçların kaydı için veritabanı (Upstash) bağlı olmalı; /kurulum sayfasından kontrol edebilirsin.</div>
+      )}
+
+      <div className="match-list">
+        {items.map((it) => {
+          const k = kickoffParts(it.kickoff);
+          const started = new Date(it.kickoff).getTime() <= now;
+          return (
+            <Link key={it.id} href={`/mac/${it.id}`} className="card mrow">
+              <div className="mrow-top">
+                <span className="mrow-time">{k.time}</span>
+                <span className="chip">{it.league}</span>
+                <span className="mrow-status">
+                  {it.result ? (
+                    <b className="mrow-score">
+                      {it.result.hg} - {it.result.ag}
+                    </b>
+                  ) : started ? (
+                    <span className="muted small">başladı / sonuç bekleniyor</span>
+                  ) : null}
+                </span>
+              </div>
+              <div className="mrow-teams">
+                {it.home} <span className="vs">vs</span> {it.away}
+              </div>
+              {it.pick ? <PickLine p={it.pick} result={it.result} /> : <div className="muted small">Uygun tercih yok</div>}
+            </Link>
+          );
+        })}
+        {!items.length && (
+          <div className="card pad empty">
+            {day === "dun"
+              ? tracking
+                ? "Dün için kayıtlı maç yok. Kayıt, sitenin açıldığı günlerden itibaren birikir."
+                : "Kayıt yok."
+              : "Bu gün için analiz edilmiş maç yok."}
           </div>
-        </div>
-      ))}
-      {!analyses.length && <div className="empty card">Şu an analiz edilecek maç yok.</div>}
+        )}
+      </div>
+
+      {day === "dun" && Object.keys(learning).length > 0 && (
+        <section className="card pad learn">
+          <h3 className="card-title">Sistem ne öğrendi?</h3>
+          <p className="muted small" style={{ marginTop: 0 }}>
+            Her bitmiş maçta tercihin tutup tutmadığı kaydedilir. Bir tercih türü beklenenden sık tutuyorsa olasılıkları biraz yükseltilir,
+            seyrek tutuyorsa düşürülür. Az veriyle düzeltme küçük kalır.
+          </p>
+          {(Object.entries(learning) as [string, { n: number; hits: number; pred: number }][]).map(([cat, v]) => (
+            <div key={cat} className="learn-row">
+              <b>{cat}</b>
+              <span className="small">
+                {v.hits}/{v.n} tuttu (%{Math.round((v.hits / Math.max(1, v.n)) * 100)}) · beklenen %{Math.round((v.pred / Math.max(1, v.n)) * 100)}
+              </span>
+              <span className="small">
+                düzeltme <b>×{(factors[cat as keyof typeof factors] ?? 1).toFixed(2)}</b>
+              </span>
+            </div>
+          ))}
+        </section>
+      )}
     </div>
   );
 }

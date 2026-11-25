@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getProvider } from "@/lib/providers";
-import { analyze } from "@/lib/model";
+import { loadAnalyses } from "@/lib/data";
+import { findSnapshot, type SnapEntry } from "@/lib/tracking";
 import { kickoffParts, pct } from "@/lib/format";
 import type { TeamInput } from "@/lib/types";
 import BetTable from "@/components/BetTable";
@@ -44,11 +44,78 @@ function ProbRow({ label, sub, values, highlight }: { label: string; sub: string
   );
 }
 
+/** Bitmiş / bültenden kalkmış maç: kayıttaki tahmin ve sonuç */
+function SnapshotView({ e }: { e: SnapEntry }) {
+  const k = kickoffParts(e.kickoff);
+  const r = e.result;
+  const won = r?.pickWon;
+  return (
+    <>
+      <Link href="/" className="back">
+        ‹ Tüm maçlar
+      </Link>
+      <section className="board">
+        <span className="chip">{e.league}</span>
+        <div className="board-row">
+          <div className="team">
+            <h1>{e.home}</h1>
+          </div>
+          <div className="kick">
+            <b>{r ? `${r.hg} - ${r.ag}` : k.time}</b>
+            <span>{r ? `İY ${r.hht ?? "?"}-${r.aht ?? "?"} · ${k.date}` : `${k.date} · sonuç bekleniyor`}</span>
+          </div>
+          <div className="team right">
+            <h1>{e.away}</h1>
+          </div>
+        </div>
+      </section>
+      <section className="card pad" style={{ marginTop: 14 }}>
+        <h3 className="card-title">Maç öncesi tahmin</h3>
+        {e.pick ? (
+          <div className={`mp mp-${r ? (won === true ? "won" : won === false ? "lost" : "void") : "open"}`}>
+            <div className="mp-main">
+              <span className="muted small">{e.pick.market}</span>
+              <b>{e.pick.selection}</b>
+            </div>
+            <span className="oddpill">{e.pick.odd.toFixed(2)}</span>
+            <div className="mp-stat">
+              <span>Kazanma</span>
+              <b>%{Math.round(e.pick.prob * 100)}</b>
+            </div>
+            <div className="mp-stat">
+              <span>Güven</span>
+              <b>%{e.pick.confidence}</b>
+            </div>
+            {r && <span className={`mp-badge ${won === true ? "won" : won === false ? "lost" : "void"}`}>{won === true ? "✓ Tuttu" : won === false ? "✗ Tutmadı" : "—"}</span>}
+          </div>
+        ) : (
+          <p className="muted">Bu maç için tercih yoktu.</p>
+        )}
+        <p className="small" style={{ marginBottom: 0 }}>
+          Model: 1 %{Math.round(e.summary.p1x2[0] * 100)} · X %{Math.round(e.summary.p1x2[1] * 100)} · 2 %{Math.round(e.summary.p1x2[2] * 100)} · 2.5 Üst %
+          {Math.round(e.summary.over25 * 100)} · KG Var %{Math.round(e.summary.btts * 100)} · en olası skor {e.summary.topScore}
+          {r && (
+            <>
+              {" "}
+              → gerçek skor <b>{r.hg}-{r.ag}</b>
+            </>
+          )}
+        </p>
+      </section>
+    </>
+  );
+}
+
 export default async function MatchPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const match = await getProvider().getMatch(id);
-  if (!match) notFound();
-  const a = analyze(match);
+  const found = (await loadAnalyses()).analyses.find((x) => x.match.id === id);
+  if (!found) {
+    const snap = await findSnapshot(id).catch(() => null);
+    if (!snap) notFound();
+    return <SnapshotView e={snap} />;
+  }
+  const a = found;
+  const match = a.match;
   const { home, away } = match;
   const k = kickoffParts(match.kickoff);
   const pick = choosePick(a);

@@ -117,6 +117,8 @@ export interface Analysis {
   attackPenalty: { home: number; away: number };
   /** İlk yarıya düşen gol payı (ev, deplasman) */
   halfShare: { home: number; away: number };
+  /** Geçmiş tahminlerden öğrenilip uygulanan olasılık çarpanları (tercih türü → çarpan) */
+  calibration?: Record<string, number>;
   /** Maç özeti (maç sayfasının üstü) */
   summary: {
     over25: number;

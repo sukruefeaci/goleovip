@@ -18,6 +18,7 @@ export interface UserRecord {
 
 interface KV {
   get(key: string): Promise<string | null>;
+  set(key: string, value: string): Promise<void>;
   setNX(key: string, value: string): Promise<boolean>;
   incr(key: string, ttlSec: number): Promise<number>;
   reset(key: string): Promise<void>;
@@ -61,6 +62,9 @@ function upstash(): KV | null {
   };
   return {
     get: async (k) => ((await cmd("GET", k)) as string | null) ?? null,
+    set: async (k, v) => {
+      await cmd("SET", k, v);
+    },
     setNX: async (k, v) => (await cmd("SET", k, v, "NX")) === "OK",
     incr: async (k, ttl) => {
       const n = (await cmd("INCR", k)) as number;
@@ -89,6 +93,11 @@ function fileStore(): KV {
   };
   return {
     get: async (k) => (await load())[k] ?? null,
+    set: async (k, v) => {
+      const d = await load();
+      d[k] = v;
+      await save(d);
+    },
     setNX: async (k, v) => {
       const d = await load();
       if (k in d) return false;
@@ -128,4 +137,19 @@ export async function createUser(u: UserRecord): Promise<boolean> {
   const store = getStore();
   if (!store) throw new Error("Veritabanı ayarlanmamış");
   return store.setNX(userKey(u.email), JSON.stringify(u));
+}
+
+/** Genel JSON okuma/yazma (tahmin kayıtları, öğrenme istatistikleri) */
+export async function getJSON<T>(key: string): Promise<T | null> {
+  const store = getStore();
+  if (!store) return null;
+  const raw = await store.get(key);
+  return raw ? (JSON.parse(raw) as T) : null;
+}
+
+export async function setJSON(key: string, value: unknown): Promise<boolean> {
+  const store = getStore();
+  if (!store) return false;
+  await store.set(key, JSON.stringify(value));
+  return true;
 }

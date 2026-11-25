@@ -1,5 +1,6 @@
 import { getProvider } from "./providers";
-import { analyze } from "./model";
+import { analyze, applyCalibration } from "./model";
+import { calibrationFactors, getLearning, recordSnapshots } from "./tracking";
 import type { Analysis } from "./types";
 import type { CouponMatch } from "./coupon";
 
@@ -13,7 +14,12 @@ let inflight: Promise<Loaded> | null = null;
 async function compute(): Promise<Loaded> {
   const provider = getProvider();
   const matches = await provider.listMatches();
-  const analyses = matches.map(analyze).sort((a, b) => a.match.kickoff.localeCompare(b.match.kickoff));
+  const factors = calibrationFactors(await getLearning().catch(() => ({})));
+  const analyses = matches
+    .map((m) => applyCalibration(analyze(m), factors))
+    .sort((a, b) => a.match.kickoff.localeCompare(b.match.kickoff));
+  // Başlamamış maçların tercihlerini günlük kayda yaz (sonra tuttu/tutmadı değerlendirmesi için)
+  await recordSnapshots(analyses).catch(() => {});
   return { analyses, source: provider.name, banner: analyses[0]?.match.warnings.find((w) => w.startsWith("Canlı")) };
 }
 

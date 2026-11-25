@@ -403,3 +403,25 @@ export function analyze(match: MatchInput): Analysis {
     rows,
   };
 }
+
+/**
+ * Öğrenilmiş düzeltmeyi uygular (tracking.ts → calibrationFactors): tercih türü başına olasılık çarpanı.
+ * Getiri, güvenli getiri, avantaj ihtimali ve etiket yeniden hesaplanır.
+ */
+export function applyCalibration(a: Analysis, factors: Partial<Record<string, number>>): Analysis {
+  const used: Record<string, number> = {};
+  for (const r of a.rows) {
+    const f = factors[r.category];
+    if (!f || Math.abs(f - 1) < 1e-6) continue;
+    used[r.category] = f;
+    r.prob = Math.min(0.99, Math.max(0.01, r.prob * f));
+    r.ev = r.prob * r.odd - 1;
+    r.evConservative = Math.max(0, r.prob - r.sigma) * r.odd - 1;
+    r.edgeChance = normCdf((r.prob - r.required) / r.sigma);
+    let rating: Rating = r.evConservative > 0 ? "Avantajlı" : r.ev > 0 ? "Sınırda" : "Dezavantajlı";
+    if (a.match.source === "elo" && a.match.eloDisagreement == null && rating === "Avantajlı") rating = "Sınırda";
+    r.rating = rating;
+  }
+  a.calibration = used;
+  return a;
+}

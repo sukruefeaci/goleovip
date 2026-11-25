@@ -55,6 +55,17 @@ Her maçtan en fazla bir seçenek alınır; Güvenli strateji belirsizliği dü�
 iddaa'nın MBS kuralına uyar (MBS 3 olan seçenek ancak 3+ maçlık kupona girer). Başlamış maçlar alınmaz.
 Tutma olasılığı = seçenek olasılıklarının çarpımı (maçlar bağımsız varsayılır); beklenen dönüş de gösterilir.
 
+## Maçlar sayfası, geçmiş ve kendini geliştirme
+
+- **Dün / Bugün / Yarın** sekmeleri (Türkiye günü). Her maçın altında tek tercih (`mainPick`, `src/lib/tracking.ts`):
+  maç sonucu / gol / ilk yarı / İY-MS pazarlarından, oran ≥ 1.40 ve kazanma olasılığı ≥ %55 olanlar içinde
+  belirsizlik düşülmüş beklenen dönüşü en yüksek olan.
+- **Kayıt:** başlamamış maçların tercihi `snap:YYYY-MM-DD` anahtarıyla veritabanına (Upstash; yerelde `.data/`) yazılır; maç başlayınca dondurulur.
+- **Sonuçlandırma:** Dün/Bugün açıldığında bitmiş maçların skoru ve ilk yarı skoru FotMob'dan alınır, tercih ✓/✗ işaretlenir.
+- **Öğrenme:** tercih türü başına gerçek isabet ve beklenen isabet biriktirilir (`learn:v1`). Olasılık çarpanı
+  (isabet + 40) / (beklenen + 40), 0.85–1.15 arası; tüm seçeneklere uygulanır, getiri ve etiketler yeniden hesaplanır.
+  Kayıt sitenin açıldığı günlerden itibaren birikir; veritabanı yoksa bu özellikler kapalıdır.
+
 ## Yapay zekanın tercihi
 
 Her maç sayfasının üstünde modelin tercihi gösterilir (`src/lib/pick.ts`): 1.30–6.00 oran aralığında temkinli getirisi en yüksek seçenek.
