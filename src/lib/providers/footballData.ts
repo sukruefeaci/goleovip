@@ -247,6 +247,13 @@ export function teamFromResults(name: string, short: string, results: PlayedMatc
     cornersAgainst: avg(nums(v6.map((x) => x.ca))) || 5,
     cards: avg(nums(v6.map((x) => x.cards))) || 2,
     missing: [],
+    cornerSplit: (() => {
+      const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+      const homeC = games.filter((m) => m.home === name && m.hc !== null).slice(-10).map((m) => m.hc!);
+      const awayC = games.filter((m) => m.away === name && m.ac !== null).slice(-10).map((m) => m.ac!);
+      const allC = games.slice(-10).map((m) => (m.home === name ? m.hc : m.ac)).filter((x): x is number => x !== null);
+      return { home: mean(homeC), away: mean(awayC), overall: mean(allC), homeN: homeC.length, awayN: awayC.length };
+    })(),
     halfShareFor: gf ? { share: sum(half.map((v) => v.htf!)) / gf, goals: gf } : undefined,
     halfShareAgainst: ga ? { share: sum(half.map((v) => v.hta!)) / ga, goals: ga } : undefined,
     htftHistory,

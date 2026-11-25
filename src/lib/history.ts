@@ -71,7 +71,7 @@ let memo: { at: number; data: HistMatch[]; files: number } | null = null;
 
 /** Tüm liglerin son üç sezonu (12 saat önbellek). Hata veren dosyalar atlanır. */
 export async function loadHistory(now = new Date()): Promise<{ matches: HistMatch[]; files: number }> {
-  if (memo && Date.now() - memo.at < 30 * 60_000) return { matches: memo.data, files: memo.files };
+  if (memo && Date.now() - memo.at < 6 * 60 * 60_000) return { matches: memo.data, files: memo.files };
   const seasons = [0, 1, 2].map((y) => seasonCode(new Date(Date.UTC(now.getUTCFullYear() - y, now.getUTCMonth(), 1))));
   const jobs = Object.keys(LEAGUES).flatMap((div) => seasons.map((s) => ({ div, s })));
   const results: HistMatch[][] = [];

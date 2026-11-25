@@ -81,21 +81,26 @@ function findFotmob(m: MatchInput, list: FotmobMatch[]): FotmobMatch | null {
   return best?.f ?? null;
 }
 
-async function pool<T>(items: T[], size: number, fn: (x: T) => Promise<void>, deadline: number) {
+/** Sınırlı eşzamanlılıkla çalıştırır; süre dolunca beklemeyi bırakır ama kalan işler arka planda sürer */
+async function poolWithBudget<T>(items: T[], size: number, fn: (x: T, live: () => boolean) => Promise<void>, budgetMs: number) {
   let i = 0;
-  await Promise.all(
+  let open = true;
+  const live = () => open;
+  const all = Promise.all(
     Array.from({ length: Math.min(size, items.length) }, async () => {
-      while (i < items.length && Date.now() < deadline) await fn(items[i++]);
+      while (i < items.length) await fn(items[i++], live);
     }),
-  );
+  ).catch(() => {});
+  await Promise.race([all, new Promise((r) => setTimeout(r, budgetMs).unref?.())]);
+  open = false; // süreden sonra gelen yanıtlar maçlara yazılmaz, yalnız önbelleğe girer
 }
 
 /**
  * Maçlara FotMob sakat/cezalı listesini ekler (yerinde değiştirir). Hata olursa sessizce atlar.
- * Yalnız önümüzdeki 3 gündeki maçlar, en fazla 6 eşzamanlı istek, toplam süre sınırı.
+ * Yalnız önümüzdeki 3 gündeki maçlar, en fazla 6 eşzamanlı istek. 3 sn içinde yetişmeyenler arka planda
+ * önbelleğe çekilir ve bir sonraki yüklemede gelir (site beklemez).
  */
-export async function enrichWithFotmob(matches: MatchInput[], now = new Date(), budgetMs = 12_000): Promise<{ matched: number; withData: number }> {
-  const deadline = Date.now() + budgetMs;
+export async function enrichWithFotmob(matches: MatchInput[], now = new Date(), budgetMs = 3_000): Promise<{ matched: number; withData: number }> {
   const soon = matches.filter((m) => {
     const t = new Date(m.kickoff).getTime();
     return t > now.getTime() && t < now.getTime() + 72 * 60 * MIN;
@@ -103,7 +108,7 @@ export async function enrichWithFotmob(matches: MatchInput[], now = new Date(), 
   if (!soon.length) return { matched: 0, withData: 0 };
 
   const dates = [...new Set(soon.map((m) => ymd(new Date(m.kickoff))))];
-  const lists = await Promise.all(
+  const listsP = Promise.all(
     dates.map(async (d) => {
       try {
         const f = await cachedFetch(`fotmob-matches-${d}.json`, "FotMob maç listesi", `${BASE}/matches?date=${d}`, 60 * MIN);
@@ -113,18 +118,19 @@ export async function enrichWithFotmob(matches: MatchInput[], now = new Date(), 
       }
     }),
   );
+  const lists = await Promise.race([listsP, new Promise<FotmobMatch[][]>((r) => setTimeout(() => r([]), budgetMs).unref?.())]);
   const all = lists.flat();
 
   const pairs = soon.map((m) => ({ m, f: findFotmob(m, all) })).filter((p): p is { m: MatchInput; f: FotmobMatch } => p.f !== null);
   let withData = 0;
-  await pool(
+  await poolWithBudget(
     pairs,
     6,
-    async ({ m, f }) => {
+    async ({ m, f }, live) => {
       try {
         const res = await cachedFetch(`fotmob-details-${f.id}.json`, "FotMob maç ayrıntısı", `${BASE}/matchDetails?matchId=${f.id}`, 120 * MIN);
         const u = parseUnavailable(JSON.parse(res.text));
-        if (!u) return;
+        if (!u || !live()) return;
         m.home.missing = u.home;
         m.away.missing = u.away;
         m.fotmob = { matchId: f.id, predicted: u.predicted };
@@ -134,7 +140,7 @@ export async function enrichWithFotmob(matches: MatchInput[], now = new Date(), 
         /* bu maç için FotMob verisi yok */
       }
     },
-    deadline,
+    budgetMs,
   );
   return { matched: pairs.length, withData };
 }

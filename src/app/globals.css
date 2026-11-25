@@ -155,6 +155,13 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .hodd { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 8px; background: var(--surface-2); color: var(--muted); font-variant-numeric: tabular-nums; }
 .hodd.won { background: var(--good-soft); color: #6ee7b7; box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.5); }
 
+.oa-pick { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--bg-2); border: 1px solid rgba(16, 185, 129, 0.35); }
+.oa-pick-main { display: grid; min-width: 0; }
+.oa-pick-main b { font-size: 17px; }
+.oa-pick .oddpill { font-size: 16px; padding: 4px 10px; }
+.oa-pick-stat { display: grid; justify-items: end; font-variant-numeric: tabular-nums; }
+.oa-pick-stat span { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); font-weight: 700; }
+.oa-pick-stat b { font-size: 16px; }
 .oa-best3 { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .oa-chip { font-size: 12px; padding: 3px 8px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--line); }
 .sel { display: grid; gap: 14px; }
@@ -327,6 +334,29 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .mtag.inj { background: var(--bad-soft); color: #fda4af; }
 .mtag.susp { background: var(--warn-soft); color: #fcd34d; }
 
+/* ---------- Maç özeti ---------- */
+.ms { margin: 14px 0 0; display: grid; gap: 14px; }
+.ms-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.ms-tile { display: grid; gap: 2px; padding: 10px 12px; border-radius: 14px; background: var(--bg-2); border: 1px solid var(--line); }
+.ms-tile span { font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.ms-tile b { font-size: 28px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.ms-tile small { font-size: 11.5px; }
+.ms-corners { width: 100%; border-collapse: separate; border-spacing: 0 4px; font-size: 13px; }
+.ms-corners thead th { font-size: 10.5px; color: var(--muted); font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; text-align: center; }
+.ms-corners thead th:first-child { text-align: left; }
+.ms-corners tbody th { text-align: left; font-weight: 700; padding: 6px 8px; background: var(--bg-2); border-radius: 10px 0 0 10px; }
+.ms-corners td { text-align: center; padding: 6px 4px; background: var(--bg-2); font-variant-numeric: tabular-nums; }
+.ms-corners td:last-child { border-radius: 0 10px 10px 0; color: var(--brand-2); }
+.ms-score { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+.ms-score-head { display: flex; align-items: center; gap: 8px; }
+.ms-scores { display: flex; gap: 8px; }
+.ms-sc { display: grid; justify-items: center; padding: 8px 14px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line); min-width: 72px; }
+.ms-sc b { font-size: 22px; font-variant-numeric: tabular-nums; }
+.ms-sc span { font-size: 12px; color: var(--muted); }
+.ms-sc.top { border-color: var(--brand-2); background: rgba(34, 211, 238, 0.1); }
+.ms-sc.top b { color: var(--brand-2); }
+.ms-comment { margin: 0; line-height: 1.6; font-size: 13.5px; }
+
 /* ---------- İY/MS ---------- */
 .htft { margin: 0 0 16px; }
 .htft-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
@@ -446,6 +476,9 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   .bottomnav a span { font-size: 17px; }
   .bottomnav a { font-size: 10.5px; }
   .tablewrap.oa-table { display: block; }
+  .oa-pick { grid-template-columns: minmax(0, 1fr) auto; }
+  .oa-pick-main { grid-column: 1 / -1; }
+  .oa-pick .oddpill { justify-self: start; }
   .sel-row summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
   .sel-row summary .sel-name { flex: 1 1 100%; }
   .sel-row summary .sel-num { justify-items: start; }
@@ -484,6 +517,11 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   .xg-bar { width: 40%; }
 
   .pick { padding: 14px; }
+  .ms-tile { padding: 8px; }
+  .ms-tile b { font-size: 22px; }
+  .ms-tile small { font-size: 10.5px; }
+  .ms-corners { font-size: 12px; }
+  .ms-sc { min-width: 0; flex: 1; padding: 6px; }
   .htft-best { font-size: 24px; }
   .htft-grid { grid-template-columns: 40px repeat(3, 1fr); gap: 4px; }
   .htft-cell { padding: 6px 2px; }

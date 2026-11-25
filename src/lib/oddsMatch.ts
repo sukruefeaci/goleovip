@@ -12,7 +12,7 @@ import { lambdaForOver, pmfVector } from "./poisson";
  * olasılığına yakın olan geçmiş maçlar bulunur ve o seçeneğin gerçekte kaç kez kazandığı sayılır.
  */
 
-const N = 10;
+const N = 8; // 0–8 gol (olasılığın >%99.9'u); hız için
 
 /** Bir geçmiş maçın gol beklentisi (λ ev, λ dep): Alt/Üst 2.5'ten toplam, 1X2'den paylaşım */
 function fitLambdas(m: HistMatch): [number, number] {
@@ -159,10 +159,12 @@ export function matchAllSelections(
   tolerance: number,
   home: string,
   away: string,
+  minOdd = 0,
 ): SelectionMatch[] {
   const fair = fairProbs(lines, home, away);
   const out: SelectionMatch[] = [];
   for (const l of lines) {
+    if (l.odd < minOdd) continue;
     let def: MarketDef;
     try {
       def = describe(l.key, home, away);
@@ -206,4 +208,14 @@ export function matchAllSelections(
     });
   }
   return out;
+}
+
+export const ODDS_PICK_MIN = 1.6;
+
+/** Oran sayfası için tek tercih: oran ≥ 1.60, en az 150 benzer maç, en az %40 kazanmış; beklenen getirisi en yüksek */
+export function bestOddsPick(sel: SelectionMatch[]): SelectionMatch | null {
+  const pool = sel.filter((s) => s.supported && s.odd >= ODDS_PICK_MIN && s.n >= 150);
+  const reliable = pool.filter((s) => s.rate >= 0.4).sort((a, b) => (b.roi ?? -1) - (a.roi ?? -1));
+  if (reliable.length) return reliable[0];
+  return pool.sort((a, b) => b.rate - a.rate)[0] ?? null;
 }

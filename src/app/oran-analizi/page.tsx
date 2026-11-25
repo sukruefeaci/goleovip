@@ -1,112 +1,72 @@
 import Link from "next/link";
 import { loadAnalyses } from "@/lib/data";
-import { loadHistory, sampleLabel, TOLERANCE, TOLERANCE_LABEL, type ToleranceKey } from "@/lib/history";
-import { analyzeOdds } from "@/lib/oddsAnalysis";
+import { loadHistory, TOLERANCE } from "@/lib/history";
+import { bestOddsPick, matchAllSelections, ODDS_PICK_MIN } from "@/lib/oddsMatch";
 import { kickoffParts, signedPct } from "@/lib/format";
-import { matchAllSelections } from "@/lib/oddsMatch";
+import type { Analysis } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-const pc = (x: number) => `%${Math.round(x * 100)}`;
+// Aynı analiz ve arşiv için sonucu yeniden hesaplama (analizler ~3 dk'da bir yenilenir)
+let cache: { key: unknown; hist: unknown; rows: { a: Analysis; pick: ReturnType<typeof bestOddsPick> }[] } | null = null;
 
-export default async function OddsAnalysisPage({ searchParams }: { searchParams: Promise<{ h?: string }> }) {
-  const { h } = await searchParams;
-  const tol: ToleranceKey = h && h in TOLERANCE ? (h as ToleranceKey) : "normal";
+export default async function OddsAnalysisPage() {
   const [{ analyses, banner }, hist] = await Promise.all([loadAnalyses(), loadHistory()]);
-  const rows = analyses
-    .filter((a) => new Date(a.match.kickoff).getTime() > Date.now())
-    .map((a) => {
-      const sel = matchAllSelections(a.match.iddaa, hist.matches, TOLERANCE[tol], a.match.home.name, a.match.away.name);
-      const top = sel.filter((x) => x.roi !== null && x.n >= 100).sort((x, y) => (y.roi ?? 0) - (x.roi ?? 0)).slice(0, 3);
-      return { ...analyzeOdds(a, hist.matches, tol), top, count: sel.filter((x) => x.supported).length };
-    });
+  if (!cache || cache.key !== analyses || cache.hist !== hist.matches) {
+    cache = {
+      key: analyses,
+      hist: hist.matches,
+      rows: analyses.map((a) => ({
+        a,
+        pick: bestOddsPick(matchAllSelections(a.match.iddaa, hist.matches, TOLERANCE.normal, a.match.home.name, a.match.away.name, ODDS_PICK_MIN)),
+      })),
+    };
+  }
+  const rows = cache.rows.filter(({ a }) => new Date(a.match.kickoff).getTime() > Date.now());
 
   return (
     <div className="page-narrow">
       {banner && <div className="notice">⚠ {banner}</div>}
       <div className="page-head">
         <h1>Oran analizi</h1>
-        <span className="muted small">{hist.matches.length.toLocaleString("tr-TR")} geçmiş maç arşivi</span>
+        <span className="muted small">{ODDS_PICK_MIN.toFixed(2)} ve üstü · {hist.matches.length.toLocaleString("tr-TR")} geçmiş maç</span>
       </div>
       <p className="muted small" style={{ marginTop: 4 }}>
-        Her maçın iddaa maç sonucu oranları, geçmişte aynı oranlarla oynanmış maçlarla karşılaştırılır; o maçlarda hangi tercihin ne sıklıkla
-        kazandığı gösterilir. Karşılaştırma bahis şirketlerinin kesintisi çıkarılmış (adil) oranlarla yapılır.
+        Her maç için, geçmişte aynı oranla oynanmış maçlarda en güvenilir sonucu veren tek tercih. Ayrıntı için maça dokun.
       </p>
-      <div className="seg tol-seg">
-        {(Object.keys(TOLERANCE) as ToleranceKey[]).map((k) => (
-          <Link key={k} href={`/oran-analizi?h=${k}`} className={k === tol ? "on" : ""}>
-            {TOLERANCE_LABEL[k]}
-          </Link>
-        ))}
-      </div>
 
       <div className="oa-list">
-        {rows.map(({ analysis: a, iddaa1x2, similar, stats, top: best3, count }) => {
+        {rows.map(({ a, pick }) => {
           const k = kickoffParts(a.match.kickoff);
-          const s = (key: string) => stats.find((x) => x.key === key)!;
-          const sl = sampleLabel(similar.length);
-          const top = [...stats].filter((x) => x.n >= 20).sort((x, y) => y.rate - x.rate)[0];
           return (
-            <Link key={a.match.id} href={`/oran-analizi/${a.match.id}?h=${tol}`} className="card oa-row">
+            <Link key={a.match.id} href={`/oran-analizi/${a.match.id}`} className="card oa-row">
               <div className="oa-top">
                 <span className="muted small">
                   {k.date} · {k.time} · {a.match.league}
-                </span>
-                <span className={`small ${sl.cls}`}>
-                  {similar.length} benzer maç · {sl.text}
                 </span>
               </div>
               <div className="oa-match">
                 {a.match.home.name} <span className="vs">vs</span> {a.match.away.name}
               </div>
-              <div className="oa-odds">
-                <span className="muted small">iddaa MS</span>
-                {iddaa1x2 ? (
-                  iddaa1x2.map((o, i) => (
-                    <span key={i} className="oddpill">
-                      {o.toFixed(2)}
-                    </span>
-                  ))
-                ) : (
-                  <span className="muted small">oran yok (model olasılığı kullanıldı)</span>
-                )}
-              </div>
-              {similar.length > 0 ? (
-                <>
-                  <div className="oa-bar">
-                    <i className="t1" style={{ flex: s("1x2:1").rate || 0.001 }}>
-                      1 {pc(s("1x2:1").rate)}
-                    </i>
-                    <i className="tx" style={{ flex: s("1x2:X").rate || 0.001 }}>
-                      X {pc(s("1x2:X").rate)}
-                    </i>
-                    <i className="t2" style={{ flex: s("1x2:2").rate || 0.001 }}>
-                      2 {pc(s("1x2:2").rate)}
-                    </i>
+              {pick ? (
+                <div className="oa-pick">
+                  <div className="oa-pick-main">
+                    <span className="muted small">{pick.market}</span>
+                    <b>{pick.selection}</b>
                   </div>
-                  <div className="oa-sub small">
-                    <span>2.5 Üst {pc(s("ou:2.5:o").rate)}</span>
-                    <span>KG Var {pc(s("btts:y").rate)}</span>
-                    {top && (
-                      <span>
-                        En sık: <b>{top.label}</b> {pc(top.rate)}
-                      </span>
-                    )}
+                  <span className="oddpill">{pick.odd.toFixed(2)}</span>
+                  <div className="oa-pick-stat">
+                    <span>Geçmişte</span>
+                    <b className={pick.rate >= 0.5 ? "pos" : ""}>%{Math.round(pick.rate * 100)}</b>
+                    <small className="muted">{pick.n.toLocaleString("tr-TR")} maç</small>
                   </div>
-                  {best3.length > 0 && (
-                    <div className="oa-best3">
-                      <span className="muted small">Geçmişe göre en iyi ({count} seçenek tarandı):</span>
-                      {best3.map((b) => (
-                        <span key={b.key} className="oa-chip">
-                          {b.market.replace("Maç Sonucu ve ", "MS+").replace("İlk Yarı / Maç Sonucu", "İY/MS")}: <b>{b.selection}</b> @{b.odd.toFixed(2)}{" "}
-                          <span className={(b.roi ?? 0) >= 0 ? "pos" : "neg"}>{signedPct(b.roi!)}</span>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </>
+                  <div className="oa-pick-stat">
+                    <span>Getiri</span>
+                    <b className={(pick.roi ?? 0) >= 0 ? "pos" : "neg"}>{signedPct(pick.roi ?? 0)}</b>
+                  </div>
+                </div>
               ) : (
-                <div className="muted small">Bu oranlarla oynanmış geçmiş maç bulunamadı. Hassasiyeti "Geniş" yapmayı deneyin.</div>
+                <div className="muted small">{ODDS_PICK_MIN.toFixed(2)} üstünde yeterli geçmiş veriye sahip tercih yok.</div>
               )}
             </Link>
           );

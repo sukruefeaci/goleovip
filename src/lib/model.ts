@@ -34,31 +34,36 @@ export function devig(odds: number[]): { fair: number[]; margin: number } {
 
 /** Avrupa 1X2 + Ü2.5 olasılıklarına en iyi uyan Poisson λ çiftini ızgara aramasıyla bulur */
 export function fitLambdas(p: [number, number, number], pOver25: number) {
-  const step = 0.02;
-  const values: number[] = [];
-  for (let l = 0.2; l <= 4.2; l += step) values.push(Number(l.toFixed(2)));
-  const vecs = values.map((l) => pmfVector(l));
-  let best = { home: 1.4, away: 1.1, err: Infinity };
-  for (let i = 0; i < values.length; i++) {
-    for (let j = 0; j < values.length; j++) {
-      const ph = vecs[i];
-      const pa = vecs[j];
-      let p1 = 0,
-        pX = 0,
-        pO = 0;
-      for (let h = 0; h < ph.length; h++)
-        for (let a = 0; a < pa.length; a++) {
-          const v = ph[h] * pa[a];
-          if (h > a) p1 += v;
-          else if (h === a) pX += v;
-          if (h + a > 2.5) pO += v;
-        }
-      const p2 = 1 - p1 - pX;
-      const err = (p1 - p[0]) ** 2 + (pX - p[1]) ** 2 + (p2 - p[2]) ** 2 + (pO - pOver25) ** 2;
-      if (err < best.err) best = { home: values[i], away: values[j], err };
+  // Kaba ızgara (0.1 adım) ardından en iyi noktanın çevresinde ince ızgara (0.01 adım): ~25 kat hızlı
+  const err = (lh: number, la: number) => {
+    const ph = pmfVector(lh),
+      pa = pmfVector(la);
+    let p1 = 0,
+      pX = 0,
+      pO = 0;
+    for (let h = 0; h < ph.length; h++)
+      for (let a = 0; a < pa.length; a++) {
+        const v = ph[h] * pa[a];
+        if (h > a) p1 += v;
+        else if (h === a) pX += v;
+        if (h + a > 2.5) pO += v;
+      }
+    const p2 = 1 - p1 - pX;
+    return (p1 - p[0]) ** 2 + (pX - p[1]) ** 2 + (p2 - p[2]) ** 2 + (pO - pOver25) ** 2;
+  };
+  let best = { home: 1.4, away: 1.1, e: Infinity };
+  for (let lh = 0.2; lh <= 4.2001; lh += 0.1)
+    for (let la = 0.2; la <= 4.2001; la += 0.1) {
+      const e = err(lh, la);
+      if (e < best.e) best = { home: lh, away: la, e };
     }
-  }
-  return { home: best.home, away: best.away };
+  const c = best;
+  for (let lh = Math.max(0.15, c.home - 0.1); lh <= c.home + 0.1001; lh += 0.01)
+    for (let la = Math.max(0.15, c.away - 0.1); la <= c.away + 0.1001; la += 0.01) {
+      const e = err(lh, la);
+      if (e < best.e) best = { home: lh, away: la, e };
+    }
+  return { home: Number(best.home.toFixed(2)), away: Number(best.away.toFixed(2)) };
 }
 
 function penalty(team: TeamInput, role: "hücum" | "defans", per: number, max: number) {
@@ -376,6 +381,25 @@ export function analyze(match: MatchInput): Analysis {
     attackPenalty: st.attackPenalty,
     halfShare,
     htft,
+    summary: (() => {
+      const blend = (key: string) => {
+        const d = describe(key, home.name, away.name);
+        return w * probability(d, ctxMarket) + (1 - w) * probability(d, ctxStats);
+      };
+      const scores: { score: string; prob: number }[] = [];
+      for (let h = 0; h < ftBlend.length; h++) for (let a = 0; a < ftBlend[h].length; a++) scores.push({ score: `${h}-${a}`, prob: ftBlend[h][a] });
+      scores.sort((x, y) => y.prob - x.prob);
+      let corners: Analysis["summary"]["corners"] = null;
+      if (hasHistory) {
+        // iddaa'daki toplam korner çizgilerinden 50/50'ye en yakın olanı, yoksa 9.5
+        const lines = [...new Set(match.iddaa.filter((l) => l.key.startsWith("cor:")).map((l) => Number(l.key.split(":")[1])))];
+        const expected = cornerLambda.home + cornerLambda.away;
+        const pick = (L: number) => probability(describe(`cor:${L}:o`), ctxMarket);
+        const line = lines.length ? lines.sort((x, y) => Math.abs(pick(x) - 0.5) - Math.abs(pick(y) - 0.5))[0] : 9.5;
+        corners = { expected, line, over: pick(line) };
+      }
+      return { over25: blend("ou:2.5:o"), btts: blend("btts:y"), topScores: scores.slice(0, 3), corners };
+    })(),
     rows,
   };
 }

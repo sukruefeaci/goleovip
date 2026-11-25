@@ -3,12 +3,44 @@ import { analyze } from "./model";
 import type { Analysis } from "./types";
 import type { CouponMatch } from "./coupon";
 
-/** Sayfaların ortak kullandığı: tüm maçların analizi (başlama saatine göre sıralı) */
-export async function loadAnalyses(): Promise<{ analyses: Analysis[]; source: string; banner?: string }> {
+type Loaded = { analyses: Analysis[]; source: string; banner?: string };
+
+const FRESH_MS = 3 * 60_000; // bu süre içinde yeniden hesaplama yok
+const STALE_MS = 30 * 60_000; // bu süreye kadar eski sonuç hemen gösterilir, yenisi arka planda hazırlanır
+let memo: { at: number; data: Loaded } | null = null;
+let inflight: Promise<Loaded> | null = null;
+
+async function compute(): Promise<Loaded> {
   const provider = getProvider();
   const matches = await provider.listMatches();
   const analyses = matches.map(analyze).sort((a, b) => a.match.kickoff.localeCompare(b.match.kickoff));
   return { analyses, source: provider.name, banner: analyses[0]?.match.warnings.find((w) => w.startsWith("Canlı")) };
+}
+
+function refresh(): Promise<Loaded> {
+  inflight ??= compute()
+    .then((data) => {
+      memo = { at: Date.now(), data };
+      return data;
+    })
+    .finally(() => {
+      inflight = null;
+    });
+  return inflight;
+}
+
+/**
+ * Sayfaların ortak kullandığı: tüm maçların analizi (başlama saatine göre sıralı).
+ * Bellekte tutulur; süresi geçmiş ama çok eski olmayan sonuç beklemeden döner ve arka planda yenilenir.
+ */
+export async function loadAnalyses(): Promise<Loaded> {
+  const age = memo ? Date.now() - memo.at : Infinity;
+  if (memo && age < FRESH_MS) return memo.data;
+  if (memo && age < STALE_MS) {
+    refresh().catch(() => {});
+    return memo.data;
+  }
+  return refresh();
 }
 
 /** Kupon / banko hesapları için sade veri (istemciye gönderilir) */

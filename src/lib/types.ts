@@ -25,6 +25,8 @@ export interface TeamInput {
   halfShareFor?: { share: number; goals: number };
   /** Geçmiş maçlardan: yediği gollerin ilk yarıda yenen payı */
   halfShareAgainst?: { share: number; goals: number };
+  /** Kazandığı korner ortalaması: evinde, deplasmanda ve genel (son 10'ar maç) */
+  cornerSplit?: { home: number | null; away: number | null; overall: number | null; homeN: number; awayN: number };
   /** Son maçların İY/MS sonuçları takımın gözünden, ör. "G/G" (İY önde, maçı kazandı), "B/M" */
   htftHistory?: string[];
 }
@@ -115,6 +117,13 @@ export interface Analysis {
   attackPenalty: { home: number; away: number };
   /** İlk yarıya düşen gol payı (ev, deplasman) */
   halfShare: { home: number; away: number };
+  /** Maç özeti (maç sayfasının üstü) */
+  summary: {
+    over25: number;
+    btts: number;
+    topScores: { score: string; prob: number }[];
+    corners: { expected: number; line: number; over: number } | null;
+  };
   /** 9 İY/MS sonucunun model olasılığı (iddaa oranı olsun olmasın) */
   htft: { outcome: string; prob: number }[];
   rows: BetRow[];

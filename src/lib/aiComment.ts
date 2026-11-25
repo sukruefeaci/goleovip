@@ -82,3 +82,44 @@ export async function aiComment(a: Analysis, p: Pick): Promise<string | null> {
     return null;
   }
 }
+
+/** Skor önerisi + maç özeti için kısa yorum (Claude). Anahtar yoksa null. */
+export async function aiSummaryComment(a: Analysis): Promise<string | null> {
+  if (!aiEnabled()) return null;
+  const m = a.match;
+  const sm = a.summary;
+  const key = `sum|${m.id}|${sm.topScores.map((x) => x.score).join(",")}|${sm.over25.toFixed(3)}`;
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < TTL) return hit.text;
+  const f = (x: number) => `%${(x * 100).toFixed(1)}`;
+  const content = [
+    `Maç: ${m.home.name} – ${m.away.name} (${m.league})`,
+    `Gol beklentisi: ${a.lambda.home.toFixed(2)} – ${a.lambda.away.toFixed(2)}`,
+    `Maç sonucu olasılıkları 1/X/2: ${a.model1x2.map(f).join(" / ")}`,
+    `En olası skorlar: ${sm.topScores.map((x) => `${x.score} (${f(x.prob)})`).join(", ")}`,
+    `2.5 Üst: ${f(sm.over25)} · KG Var: ${f(sm.btts)}`,
+    sm.corners ? `Korner beklentisi ${sm.corners.expected.toFixed(1)}, ${sm.corners.line} Üst ${f(sm.corners.over)}` : "Korner verisi yok",
+    `Eksik oyuncu sayısı: ${m.home.short} ${m.home.missing.length}, ${m.away.short} ${m.away.missing.length}`,
+    ``,
+    `Bu maç için en olası skoru öner ve maçın genel gidişatını 2–3 cümlede yorumla.`,
+  ].join("\n");
+  const client = new Anthropic({ timeout: 45_000, maxRetries: 1 });
+  try {
+    const response = await client.beta.messages.create({
+      model: MODEL,
+      max_tokens: 4000,
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      output_config: { effort: "low" },
+      system: SYSTEM,
+      messages: [{ role: "user", content }],
+    });
+    if (response.stop_reason === "refusal") return null;
+    const text = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("").trim();
+    if (!text) return null;
+    cache.set(key, { at: Date.now(), text });
+    return text;
+  } catch {
+    return null;
+  }
+}

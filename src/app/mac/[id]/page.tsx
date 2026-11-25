@@ -6,6 +6,7 @@ import { kickoffParts, pct } from "@/lib/format";
 import type { TeamInput } from "@/lib/types";
 import BetTable from "@/components/BetTable";
 import PickCard from "@/components/PickCard";
+import MatchSummary from "@/components/MatchSummary";
 import HtftCard from "@/components/HtftCard";
 import { choosePick } from "@/lib/pick";
 
@@ -90,6 +91,8 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           <b>{a.lambda.away.toFixed(2)}</b>
         </div>
       </section>
+
+      <MatchSummary analysis={a} />
 
       {pick && <PickCard analysis={a} pick={pick} />}
 
