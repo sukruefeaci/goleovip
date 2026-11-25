@@ -66,3 +66,21 @@ test("Telegram: oranı olmayan ya da 1.45 altı öneri paylaşılmaz", async () 
   assert.equal(n, 0);
   assert.equal(calls.length, 0);
 });
+
+test("maç sürerken kesinleşen tercihler erken sonuçlanır", () => {
+  const at = { hg: 0, ag: 0 };
+  // İY 0.5 Alt: devre arası skoru 0-0 → tuttu (maç bitmeden)
+  assert.equal(T.earlyWon({ t: "ou1H", line: 0.5, over: false }, at, { hg: 0, ag: 0, hht: 0, aht: 0 }, undefined), true);
+  // devre arası gelmediyse belli değil
+  assert.equal(T.earlyWon({ t: "ou1H", line: 0.5, over: false }, at, { hg: 0, ag: 0 }, undefined), undefined);
+  // MS 1.5 Üst: 2 gol oldu → tuttu; MS 1.5 Alt → yattı
+  assert.equal(T.earlyWon({ t: "ouFT", line: 1.5, over: true }, at, { hg: 1, ag: 1 }, undefined), true);
+  assert.equal(T.earlyWon({ t: "ouFT", line: 1.5, over: false }, at, { hg: 2, ag: 0 }, undefined), false);
+  assert.equal(T.earlyWon({ t: "ouFT", line: 2.5, over: true }, at, { hg: 1, ag: 1 }, undefined), undefined);
+  // KG Var: iki takım da attı
+  assert.equal(T.earlyWon({ t: "btts", yes: true }, at, { hg: 1, ag: 1 }, undefined), true);
+  // Sıradaki gol: öneriden sonra ev sahibi attı
+  assert.equal(T.earlyWon({ t: "next", home: true }, at, { hg: 1, ag: 0 }, true), true);
+  // Sonuç tercihleri maç sonunu bekler
+  assert.equal(T.earlyWon({ t: "res", out: ["1"] }, at, { hg: 3, ag: 0 }, undefined), undefined);
+});

@@ -15,6 +15,7 @@ const trDay = (ms: number) => new Date(ms + 3 * 3600_000).toISOString().slice(0,
 export interface StatsRow extends SharedPick {
   won: boolean | null | undefined; // undefined: maç bitmedi / sonuç bekleniyor
   fhg?: number;
+  early?: boolean; // maç bitmeden kesinleşti (skor o anki)
   fag?: number;
 }
 
@@ -41,7 +42,7 @@ export async function sharedStats(scope: StatsScope, now = Date.now()): Promise<
   const days = new Map(await Promise.all(dates.map(async (d) => [d, await loadLiveDay(d).catch(() => [])] as const)));
   const rows: StatsRow[] = picked.map((p) => {
     const rec = days.get(p.date)?.find((r) => `${r.fotmobId}|${r.label}` === p.id);
-    return { ...p, won: rec?.result ? rec.result.won : undefined, fhg: rec?.result?.hg, fag: rec?.result?.ag };
+    return { ...p, won: rec?.result ? rec.result.won : undefined, fhg: rec?.result?.hg, fag: rec?.result?.ag, early: rec?.result?.early };
   });
   rows.sort((a, b) => b.at.localeCompare(a.at));
   const wins = rows.filter((r) => r.won === true);

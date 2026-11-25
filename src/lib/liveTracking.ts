@@ -48,7 +48,7 @@ export interface LiveRecord {
   raw?: number; // öğrenme düzeltmesinden önceki model olasılığı
   ctx?: LiveCtx;
   at: string;
-  result?: { hg: number; ag: number; hht?: number; aht?: number; won: boolean | null };
+  result?: { hg: number; ag: number; hht?: number; aht?: number; won: boolean | null; early?: boolean }; // early: maç bitmeden kesinleşti (skor o anki)
 }
 
 type Day = Record<string, LiveRecord>;
@@ -167,12 +167,44 @@ export function liveFactors(l: LiveLearning): Partial<Record<LiveKind, number>> 
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, "");
 
-/** Bitmiş maçlardaki canlı önerileri sonuçlandırır, öğrenmeyi günceller */
+/**
+ * Maç devam ederken kesinleşmiş sonucu verir; henüz belli değilse undefined.
+ * İY tercihleri devre arasından sonra, Üst/KG Var çizgi aşılınca (Alt/KG Yok aynı anda kaybeder),
+ * sıradaki gol de öneriden sonra gol olunca kesinleşir.
+ */
+export function earlyWon(
+  spec: LiveSpec,
+  at: { hg: number; ag: number },
+  now: { hg: number; ag: number; hht?: number; aht?: number },
+  nextGoalHome: boolean | null | undefined,
+): boolean | null | undefined {
+  const total = now.hg + now.ag;
+  switch (spec.t) {
+    case "ou1H":
+      if (now.hht === undefined || now.aht === undefined) return undefined;
+      return spec.over ? now.hht + now.aht > spec.line : now.hht + now.aht < spec.line;
+    case "ouFT":
+      return total > spec.line ? spec.over : undefined;
+    case "btts":
+      return now.hg > 0 && now.ag > 0 ? spec.yes : undefined;
+    case "next":
+      if (total <= at.hg + at.ag || nextGoalHome === undefined || nextGoalHome === null) return undefined;
+      return nextGoalHome === spec.home;
+    case "res":
+      return undefined;
+  }
+}
+
+/**
+ * Canlı önerileri sonuçlandırır, öğrenmeyi günceller.
+ * Maç bitince hepsi; maç sürerken kesinleşenler (ör. İY tercihleri devre arasında) hemen.
+ */
 export async function settleLive(date: string, now = Date.now(), budgetMs = 4000): Promise<number> {
   if (!getStore()) return 0;
   const day = await getJSON<Day>(liveKey(date));
   if (!day) return 0;
-  const pending = Object.values(day).filter((r) => !r.result && new Date(r.kickoff).getTime() + 105 * MIN < now);
+  // Sonucu kesinleşmemiş ya da erken sonuçlanıp son skoru henüz yazılmamış kayıtlar
+  const pending = Object.values(day).filter((r) => (!r.result || r.result.early) && new Date(r.kickoff).getTime() + 45 * MIN < now);
   if (!pending.length) return 0;
   const deadline = Date.now() + budgetMs;
   const days = [...new Set(pending.map((r) => ymd(new Date(r.kickoff))))];
@@ -180,7 +212,7 @@ export async function settleLive(date: string, now = Date.now(), budgetMs = 4000
     await Promise.all(
       days.map(async (d) => {
         try {
-          const f = await cachedFetch(`fotmob-results-${d}.json`, "FotMob sonuçlar", `https://www.fotmob.com/api/data/matches?date=${d}`, 10 * MIN);
+          const f = await cachedFetch(`fotmob-results-${d}.json`, "FotMob sonuçlar", `https://www.fotmob.com/api/data/matches?date=${d}`, 3 * MIN);
           return parseFotmobResults(JSON.parse(f.text));
         } catch {
           return [];
@@ -192,40 +224,69 @@ export async function settleLive(date: string, now = Date.now(), budgetMs = 4000
   const learn = (await getJSON<LiveLearning>(LEARN_KEY)) ?? {};
   const sit = await loadSituations(now);
   const detCache = new Map<number, { ht: { hht: number; aht: number } | null; goals: { home: boolean; min: number }[] } | null>();
-  let settled = 0;
+  const details = async (id: number, finished: boolean) => {
+    const k = id * (finished ? 1 : -1);
+    if (!detCache.has(k)) {
+      try {
+        // Bitmiş maç uzun süre, süren maç kısa süre önbellekte tutulur
+        const f = finished
+          ? await cachedFetch(`fotmob-details-${id}-final.json`, "FotMob ayrıntı", `https://www.fotmob.com/api/data/matchDetails?matchId=${id}`, 24 * 60 * MIN)
+          : await cachedFetch(`fotmob-live-det-${id}.json`, "FotMob canlı ayrıntı", `https://www.fotmob.com/api/data/matchDetails?matchId=${id}`, 45_000);
+        const j = JSON.parse(f.text);
+        detCache.set(k, { ht: parseHalfTime(j), goals: parseGoals(j) });
+      } catch {
+        detCache.set(k, null);
+      }
+    }
+    return detCache.get(k);
+  };
+  const learnFrom = (r: LiveRecord, won: boolean) => {
+    const c = (learn[r.kind] ??= { n: 0, hits: 0, pred: 0 });
+    c.n++;
+    c.hits += won ? 1 : 0;
+    c.pred += r.raw ?? r.prob;
+    addSituation(sit, r);
+  };
+
+  let changed = 0;
   for (const r of pending) {
     if (Date.now() > deadline) break;
     const fm = lists.find((x) => x.id === r.fotmobId);
-    if (!fm || !fm.finished) continue;
-    if (!detCache.has(fm.id)) {
-      try {
-        const f = await cachedFetch(`fotmob-details-${fm.id}-final.json`, "FotMob ayrıntı", `https://www.fotmob.com/api/data/matchDetails?matchId=${fm.id}`, 24 * 60 * MIN);
-        const j = JSON.parse(f.text);
-        detCache.set(fm.id, { ht: parseHalfTime(j), goals: parseGoals(j) });
-      } catch {
-        detCache.set(fm.id, null);
-      }
-    }
-    const det = detCache.get(fm.id);
-    const fin = { hg: fm.hg, ag: fm.ag, ...(det?.ht ?? {}) };
+    if (!fm) continue;
+    const det = await details(fm.id, fm.finished);
+    const score = { hg: fm.hg, ag: fm.ag, ...(det?.ht ?? {}) };
     // Öneri anından sonraki ilk gol: o andaki skordan sonraki gol olayı
     let next: boolean | null | undefined = undefined;
     if (det?.goals.length) {
       const after = det.goals[r.hg + r.ag];
       next = after ? after.home : null;
     }
-    const won = liveWon(r.spec, r, fin, next);
-    r.result = { ...fin, won };
-    if (won !== null) {
-      const c = (learn[r.kind] ??= { n: 0, hits: 0, pred: 0 });
-      c.n++;
-      c.hits += won ? 1 : 0;
-      c.pred += r.raw ?? r.prob;
-      addSituation(sit, r);
+
+    if (r.result?.early) {
+      // Önceden kesinleşmiş: yalnız maç bitince son skoru yaz (öğrenmeye tekrar eklenmez)
+      if (!fm.finished) continue;
+      r.result = { ...score, won: r.result.won };
+      changed++;
+      continue;
     }
-    settled++;
+
+    if (fm.finished) {
+      const won = liveWon(r.spec, r, score, next);
+      // İlk yarı skoru alınamadıysa birkaç saat daha dene
+      if (won === null && r.spec.t === "ou1H" && new Date(r.kickoff).getTime() + 6 * 60 * MIN > now) continue;
+      r.result = { ...score, won };
+      if (won !== null) learnFrom(r, won);
+      changed++;
+      continue;
+    }
+
+    const won = earlyWon(r.spec, r, score, next);
+    if (won === undefined || won === null) continue;
+    r.result = { ...score, won, early: true };
+    learnFrom(r, won);
+    changed++;
   }
-  if (settled) {
+  if (changed) {
     await setJSON(liveKey(date), day);
     await setJSON(LEARN_KEY, learn);
     await setJSON(SIT_KEY, sit);
@@ -233,7 +294,7 @@ export async function settleLive(date: string, now = Date.now(), budgetMs = 4000
     sitMemo = null;
     await savePnl(date, { canli: dayPnl(canliItems(Object.values(day))) }).catch(() => {});
   }
-  return settled;
+  return changed;
 }
 
 /* ------------------------------------------------------------------ */

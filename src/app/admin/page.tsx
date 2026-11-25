@@ -137,7 +137,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                     </span>
                     <span className="small">
                       <b>{r.label}</b> @ {r.odd.toFixed(2)}
-                      {r.fhg !== undefined ? ` · son ${r.fhg}-${r.fag}` : ""}
+                      {r.fhg !== undefined ? ` · ${r.early ? "maç sürüyor" : "son"} ${r.fhg}-${r.fag}` : ""}
                     </span>
                   </div>
                 ))}
