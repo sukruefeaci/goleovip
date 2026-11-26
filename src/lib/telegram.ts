@@ -14,6 +14,31 @@ import { LIVE_MIN_ODD, type LiveBet, type LiveStats } from "./liveModel";
  * Aynı maç + aynı öneri bir kez gönderilir (veritabanında tg: anahtarı).
  */
 
+export interface TelegramSettings {
+  minProb: number; // kazanma olasılığı eşiği, %
+  minOdd: number; // en düşük iddaa canlı oranı
+  cooldownMin: number; // iki paylaşım arası en az dakika
+  results: boolean; // paylaşılan tahminlerin sonucunu (kazandı/kaybetti) da gönder
+}
+export const SETTINGS_KEY = "tg:settings";
+let settingsMemo: { at: number; v: TelegramSettings } | null = null;
+
+/** Admin panelinden değiştirilebilen ayarlar (yoksa ortam değişkenleri / varsayılanlar) */
+export async function telegramSettings(): Promise<TelegramSettings> {
+  if (settingsMemo && Date.now() - settingsMemo.at < 15_000) return settingsMemo.v;
+  const cfg = telegramConfig();
+  const base: TelegramSettings = { minProb: cfg?.minProb ?? 70, minOdd: LIVE_MIN_ODD, cooldownMin: cfg?.cooldownMin ?? 30, results: true };
+  const saved = getStore() ? await getJSON<Partial<TelegramSettings>>(SETTINGS_KEY).catch(() => null) : null;
+  const v = { ...base, ...(saved ?? {}) };
+  settingsMemo = { at: Date.now(), v };
+  return v;
+}
+
+export async function saveTelegramSettings(v: TelegramSettings): Promise<void> {
+  await setJSON(SETTINGS_KEY, v);
+  settingsMemo = { at: Date.now(), v };
+}
+
 export function telegramConfig(): { token: string; chat: string; minProb: number; cooldownMin: number } | null {
   const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
   const chat = process.env.TELEGRAM_CHAT_ID?.trim();
@@ -203,6 +228,7 @@ export interface SharedPick {
   hg: number;
   ag: number;
   at: string;
+  resultSentAt?: string; // sonuç mesajı gönderildiyse zamanı
 }
 export const SHARED_KEY = "tg:shared:v1";
 const trDay = (ms: number) => new Date(ms + 3 * 3600_000).toISOString().slice(0, 10);
@@ -297,15 +323,16 @@ export async function shareLivePicks(list: LiveShare[], budgetMs = 7000, now = D
   const store = getStore();
   if (!cfg || !store) return 0;
   if (!(await isTelegramEnabled())) return 0; // admin panelinden durdurulmuş
+  const set = await telegramSettings(); // admin panelindeki eşikler
   const todo = list
-    .filter((s) => s.rec.prob * 100 >= cfg.minProb && !!s.rec.odd && s.rec.odd >= LIVE_MIN_ODD)
+    .filter((s) => Math.round(s.rec.prob * 100) >= set.minProb && !!s.rec.odd && s.rec.odd >= set.minOdd)
     .sort((a, b) => b.rec.prob - a.rec.prob || b.rec.confidence - a.rec.confidence);
   if (!todo.length) return 0;
 
   const job = async (): Promise<number> => {
     // Bekleme süresi: son paylaşımdan bu yana yeterli zaman geçmediyse gönderme
     const last = Number(await store.get(LAST_KEY).catch(() => null)) || 0;
-    if (now - last < cfg.cooldownMin * 60_000) return 0;
+    if (now - last < set.cooldownMin * 60_000) return 0;
     // Daha önce gönderilmemiş en iyi öneri
     let pick: LiveShare | null = null;
     for (const s of todo) {
@@ -316,9 +343,9 @@ export async function shareLivePicks(list: LiveShare[], budgetMs = 7000, now = D
     }
     if (!pick) return 0;
     // Aynı anda çalışan iki sunucudan yalnız biri gönderir
-    if ((await store.incr(COOLDOWN_KEY, cfg.cooldownMin * 60).catch(() => 2)) !== 1) {
+    if ((await store.incr(COOLDOWN_KEY, Math.max(60, set.cooldownMin * 60)).catch(() => 2)) !== 1) {
       // sayaç takılı kaldıysa (süresi dolmadan silinmediyse) temizle; bir sonraki yenilemede gönderilir
-      if (now - last >= cfg.cooldownMin * 60_000 * 2) await store.reset(COOLDOWN_KEY).catch(() => {});
+      if (now - last >= set.cooldownMin * 60_000 * 2) await store.reset(COOLDOWN_KEY).catch(() => {});
       return 0;
     }
     if (!(await store.setNX(recKey(pick), new Date(now).toISOString()).catch(() => false))) return 0;

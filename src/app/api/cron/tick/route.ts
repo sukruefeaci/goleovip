@@ -9,6 +9,7 @@ import { computeOddsPicks } from "@/lib/oddsPicks";
 import { loadHistory } from "@/lib/history";
 import { getCalibration } from "@/lib/calibration";
 import { getStore, setJSON } from "@/lib/auth/store";
+import { postSharedResults } from "@/lib/tgStats";
 
 /**
  * Otomatik zamanlayıcı (ör. cron-job.org her 5 dk): kimse siteye bakmasa da
@@ -98,6 +99,7 @@ async function run(): Promise<Record<string, unknown>> {
     ]);
     return { mac_oncesi: mb + md, canli: cb + cd, uclu: ub + ud };
   }, log);
+  await step("telegram_sonuc", async () => postSharedResults(Date.now(), 15000), log);
   await step("karne", async () => {
     const c = await getCalibration(); // eskiyse arka planda yeniden kurulur
     return c ? c.builtAt : "hazırlanıyor";

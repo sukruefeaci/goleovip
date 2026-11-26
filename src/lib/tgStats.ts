@@ -1,4 +1,5 @@
-import { C, div, loadFonts, loadShared, sendPhoto, telegramConfig, type SharedPick } from "./telegram";
+import { C, div, isTelegramEnabled, loadFonts, loadShared, sendPhoto, SHARED_KEY, telegramConfig, telegramSettings, type SharedPick } from "./telegram";
+import { getStore, setJSON } from "./auth/store";
 import { loadLiveDay, settleLive } from "./liveTracking";
 import { dayPnl, STAKE, type DayPnl } from "./pnl";
 
@@ -162,4 +163,120 @@ export async function shareStatsToChannel(scope: StatsScope): Promise<{ ok: bool
   if (!st.pnl.settled) return { ok: false, error: "Bu dönemde sonuçlanmış paylaşım yok", stats: st };
   const r = await sendPhoto(cfg.token, cfg.chat, await renderStatsImage(st), statsCaption(st));
   return { ...r, stats: st };
+}
+
+/* ------------------------------------------------------------ paylaşılan tahminin sonucu */
+
+export interface ResultShare {
+  pick: SharedPick;
+  won: boolean;
+  hg: number;
+  ag: number;
+  early: boolean; // maç bitmeden kesinleşti
+}
+
+export function resultCard(r: ResultShare) {
+  const p = r.pick;
+  const color = r.won ? C.good : "#ff5d6c";
+  return div(
+    { width: "100%", height: "100%", flexDirection: "column", background: `linear-gradient(135deg, ${C.bg} 0%, #1a1240 100%)`, color: C.text, fontFamily: "Inter", padding: "44px 56px" },
+    div(
+      { alignItems: "center", justifyContent: "space-between" },
+      div(
+        { alignItems: "center" },
+        div({ width: 60, height: 60, borderRadius: 16, background: `linear-gradient(135deg, ${C.accent}, #38bdf8)`, alignItems: "center", justifyContent: "center", fontSize: 36, fontWeight: 700 }, "G"),
+        div({ fontSize: 38, fontWeight: 700, marginLeft: 16 }, "goleo"),
+        div({ fontSize: 24, fontWeight: 700, background: C.gold, color: "#1a1240", borderRadius: 10, padding: "4px 12px", marginLeft: 10 }, "VIP"),
+      ),
+      div({ fontSize: 26, fontWeight: 700, color: C.muted }, "CANLI TAHMİN SONUCU"),
+    ),
+    div({ fontSize: 26, color: C.muted, marginTop: 30 }, p.league),
+    div(
+      { alignItems: "center", justifyContent: "space-between", marginTop: 10 },
+      div({ fontSize: 46, fontWeight: 700, flex: 1 }, p.home),
+      div({ fontSize: 66, fontWeight: 700, padding: "0 30px", color: C.gold }, `${r.hg} - ${r.ag}`),
+      div({ fontSize: 46, fontWeight: 700, flex: 1, justifyContent: "flex-end", textAlign: "right" }, p.away),
+    ),
+    div(
+      { marginTop: 30, alignItems: "center", justifyContent: "space-between", padding: "24px 30px", borderRadius: 26, border: `3px solid ${color}`, background: r.won ? "rgba(34,196,147,0.14)" : "rgba(255,93,108,0.14)" },
+      div(
+        { flexDirection: "column" },
+        div({ fontSize: 26, color: C.muted }, `Tercih · ${p.minute} ${p.hg}-${p.ag} iken`),
+        div({ fontSize: 56, fontWeight: 700, marginTop: 4 }, p.label),
+        div({ fontSize: 26, color: C.muted, marginTop: 6 }, `oran ${p.odd.toFixed(2)} · kazanma %${Math.round(p.prob * 100)}`),
+      ),
+      div({ fontSize: 58, fontWeight: 700, color }, r.won ? "KAZANDI" : "KAYBETTİ"),
+    ),
+    div({ flex: 1 }),
+    div(
+      { fontSize: 22, color: C.muted, justifyContent: "space-between" },
+      div({}, r.early ? "Maç sürerken kesinleşti · 18+ · Bilgi amaçlıdır." : "Maç sonu · 18+ · Bilgi amaçlıdır."),
+      div({}, "goleo VIP"),
+    ),
+  );
+}
+
+export async function renderResultImage(r: ResultShare): Promise<Buffer> {
+  const { ImageResponse } = await import("next/og");
+  const res = new ImageResponse(resultCard(r), { width: 1200, height: 600, fonts: await loadFonts() });
+  return Buffer.from(await res.arrayBuffer());
+}
+
+const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+export function resultCaption(r: ResultShare): string {
+  const p = r.pick;
+  return [
+    `${r.won ? "✅ <b>KAZANDI</b>" : "❌ <b>KAYBETTİ</b>"} · ${esc(p.label)} @ ${p.odd.toFixed(2)}`,
+    `${esc(p.home)} <b>${r.hg}-${r.ag}</b> ${esc(p.away)}${r.early ? " (maç sürüyor)" : ""}`,
+    `<i>${esc(p.league)} · ${esc(p.minute)} ${p.hg}-${p.ag} iken paylaşılmıştı</i>`,
+  ].join("\n");
+}
+
+/**
+ * Kanalda paylaşılan ve sonucu kesinleşen tahminler için "kazandı / kaybetti" mesajı (her tahmin için bir kez).
+ * Paylaşım admin panelinden durdurulduysa ya da sonuç mesajları kapalıysa gönderilmez. Son 48 saatin paylaşımları.
+ */
+const RESULTS_SINCE_KEY = "tg:results:since";
+
+export async function postSharedResults(now = Date.now(), budgetMs = 15000): Promise<number> {
+  const cfg = telegramConfig();
+  if (!cfg || !getStore()) return 0;
+  if (!(await isTelegramEnabled())) return 0;
+  if (!(await telegramSettings()).results) return 0;
+  // Özellik açıldığı andan önceki paylaşımların sonucu gönderilmez (kanala toplu eski mesaj düşmesin)
+  const store = getStore()!;
+  let since = Number(await store.get(RESULTS_SINCE_KEY).catch(() => null));
+  if (!since) {
+    since = now;
+    await store.set(RESULTS_SINCE_KEY, String(now)).catch(() => {});
+  }
+  const list = await loadShared();
+  const pending = list.filter((p) => !p.resultSentAt && Date.parse(p.at) >= since && now - Date.parse(p.at) < 48 * 3600_000);
+  if (!pending.length) return 0;
+  const dates = [...new Set(pending.map((p) => p.date))];
+  const days = new Map(await Promise.all(dates.map(async (d) => [d, await loadLiveDay(d).catch(() => [])] as const)));
+  const deadline = Date.now() + budgetMs;
+  const sent: string[] = [];
+  for (const p of pending.sort((a, b) => a.at.localeCompare(b.at))) {
+    if (Date.now() > deadline) break;
+    const rec = days.get(p.date)?.find((r) => `${r.fotmobId}|${r.label}` === p.id);
+    const res = rec?.result;
+    if (!res || typeof res.won !== "boolean") continue;
+    const r: ResultShare = { pick: p, won: res.won, hg: res.hg, ag: res.ag, early: !!res.early };
+    try {
+      const ok = await sendPhoto(cfg.token, cfg.chat, await renderResultImage(r), resultCaption(r));
+      if (ok.ok) sent.push(`${p.id}|${p.at}`);
+    } catch {
+      /* bir sonraki çalışmada tekrar denenir */
+    }
+  }
+  if (sent.length) {
+    // En güncel listeyi okuyup yalnız gönderilenleri işaretle (bu arada yeni paylaşım eklenmiş olabilir)
+    const latest = await loadShared();
+    const stamp = new Date().toISOString();
+    for (const x of latest) if (sent.includes(`${x.id}|${x.at}`)) x.resultSentAt = stamp;
+    await setJSON(SHARED_KEY, latest);
+  }
+  return sent.length;
 }

@@ -89,7 +89,7 @@ export default async function SetupPage() {
         </ul>
         <h3 style={{ marginBottom: 4 }}>Telegram (isteğe bağlı)</h3>
         <ul style={{ listStyle: "none", padding: 0, marginTop: 0 }}>
-          <Row ok={!!tg} label="TELEGRAM_BOT_TOKEN ve TELEGRAM_CHAT_ID" hint={tg ? `Eşik: kazanma olasılığı ≥ %${tg.minProb}` : "Canlı tercihleri kanala göndermek için ikisini de ekleyip Redeploy yapın."} />
+          <Row ok={!!tg} label="TELEGRAM_BOT_TOKEN ve TELEGRAM_CHAT_ID" hint={tg ? "Eşikler (olasılık, oran, bekleme) admin panelinden ayarlanır." : "Canlı tercihleri kanala göndermek için ikisini de ekleyip Redeploy yapın."} />
           {tg && <Row ok={tgBot} label="Bot anahtarı geçerli" hint={tgBot ? undefined : "Anahtar hatalı; BotFather'dan aldığın anahtarı kontrol et."} />}
           {tg && tgBot && (
             <Row ok={tgChat} label="Bot kanala erişebiliyor" hint={tgChat ? "Giriş yaptıktan sonra /api/telegram/test adresini açarak deneme kartı gönderebilirsin." : `Botu kanala yönetici olarak ekle. (${tgErr})`} />

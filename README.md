@@ -209,3 +209,7 @@ Yük sınırları: yalnız-iddaa maçları 48 saat ileriye kadar analiz edilir; 
 
 Kalibrasyon karnesi (`calib:v1`) her sistem için ayrıca dört boyutta tutulur (`fitDims`): **Yön** (Üst, Alt, İY Üst/Alt, KG Var/Yok, Ev/Beraberlik/Deplasman, Çifte şans…; `segOfKey`, `segOfSpec`), **Lig**, **Oran** aralığı (1.50–1.69, 1.70–1.99, 2.00+), **Kaynak** (Avrupa, ClubElo, iddaa). Her değer için adet, tutan, söylenen ve 1 birimle getiri saklanır. Düzeltme: o değerdeki (tutan + 30)/(söylenen + 30) oranının sistemin genel oranına bölümü, her boyut ±%8, toplam ±%15; aralık düzeltmesinden sonra uygulanır (`makeMapper`). Canlıda oran boyutu kullanılmaz (öneri anında oran henüz eklenmemiş). AI sekmesinde "Alt mı, üst mü?" kartı ve sistem başına boyut karneleri; öneriler `dimSuggestions`.
 
+## Telegram: admin ayarları ve sonuç mesajları
+
+Admin panelinde **Paylaşım ayarları** (`tg:settings`): en az kazanma olasılığı (%), en düşük canlı oran, iki paylaşım arası bekleme (dk) ve sonuç mesajları aç/kapa. Ortam değişkenleri yalnız varsayılan. **Sonuç mesajları** (`postSharedResults`, zamanlayıcıda her 5 dk): kanalda paylaşılan tahmin kesinleşince (maç sırasında ya da sonunda) "✅ KAZANDI / ❌ KAYBETTİ" görsel kart + metin, her tahmin için bir kez (`resultSentAt`); özellik açıldıktan önceki paylaşımlar için gönderilmez (`tg:results:since`), son 48 saat; paylaşım durdurulduysa gönderilmez.
+

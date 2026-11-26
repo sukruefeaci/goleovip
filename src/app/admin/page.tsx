@@ -1,9 +1,9 @@
 import { currentUser } from "@/lib/auth/current";
 import { adminEmails, isAdmin } from "@/lib/admin";
 import { getStore } from "@/lib/auth/store";
-import { isTelegramEnabled, telegramConfig } from "@/lib/telegram";
+import { isTelegramEnabled, telegramConfig, telegramSettings } from "@/lib/telegram";
 import { SCOPE_LABEL, sharedStats, type StatsScope } from "@/lib/tgStats";
-import { shareStats, toggleTelegram } from "./actions";
+import { saveSettings, shareStats, toggleTelegram } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +36,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const scope: StatsScope = d && d in SCOPE_LABEL ? (d as StatsScope) : "bugun";
   const cfg = telegramConfig();
   const tracking = !!getStore();
-  const [enabled, st] = await Promise.all([isTelegramEnabled(), tracking ? sharedStats(scope) : Promise.resolve(null)]);
+  const [enabled, st, set] = await Promise.all([isTelegramEnabled(), tracking ? sharedStats(scope) : Promise.resolve(null), telegramSettings()]);
   const p = st?.pnl;
 
   return (
@@ -58,13 +58,38 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               <b>{enabled ? "Açık" : "Durduruldu"}</b>
               <span className="muted small">
                 {enabled
-                  ? `Kazanma olasılığı ≥ %${cfg.minProb}, oran ≥ 1.45; iki paylaşım arası en az ${cfg.cooldownMin} dk.`
+                  ? `Kazanma olasılığı ≥ %${set.minProb}, oran ≥ ${set.minOdd.toFixed(2)}; iki paylaşım arası en az ${set.cooldownMin} dk.${set.results ? " Sonuçlar da paylaşılır." : ""}`
                   : "Canlı sekmesi açılsa bile kanala hiçbir tahmin gönderilmez."}
               </span>
             </div>
             <form action={toggleTelegram}>
               <input type="hidden" name="on" value={enabled ? "0" : "1"} />
               <button className={`btn ${enabled ? "danger" : "primary"} block`}>{enabled ? "⏸ Paylaşımı durdur" : "▶ Paylaşımı başlat"}</button>
+            </form>
+
+            <form action={saveSettings} className="adm-form">
+              <h3 className="sk-tier">Paylaşım ayarları</h3>
+              <label>
+                <span>En az kazanma olasılığı (%)</span>
+                <input name="minProb" type="number" inputMode="numeric" min={50} max={95} step={1} defaultValue={set.minProb} required />
+              </label>
+              <label>
+                <span>En düşük canlı oran</span>
+                <input name="minOdd" type="number" inputMode="decimal" min={1.01} max={10} step={0.01} defaultValue={set.minOdd.toFixed(2)} required />
+              </label>
+              <label>
+                <span>İki paylaşım arası en az (dakika)</span>
+                <input name="cooldownMin" type="number" inputMode="numeric" min={0} max={600} step={1} defaultValue={set.cooldownMin} required />
+              </label>
+              <label className="adm-check">
+                <input name="results" type="checkbox" defaultChecked={set.results} />
+                <span>Paylaşılan tahminin sonucunu (✅ kazandı / ❌ kaybetti) görsel ve metinle kanala gönder</span>
+              </label>
+              <button className="btn primary block">💾 Ayarları kaydet</button>
+              <p className="muted small" style={{ margin: 0 }}>
+                Not: 1.50 ve üstü oranlarda %70+ olasılık nadirdir; eşiği düşürürsen kanal daha sık paylaşır. Değişiklik bir sonraki taramada (en geç 5
+                dk) geçerli olur.
+              </p>
             </form>
           </>
         )}
