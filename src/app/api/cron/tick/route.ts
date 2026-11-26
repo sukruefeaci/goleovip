@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { after, NextResponse } from "next/server";
-import { refreshAnalyses } from "@/lib/data";
+import { loadAnalyses, refreshAnalyses } from "@/lib/data";
 import { refreshLiveNow } from "@/lib/liveData";
 import { recordOddsPicks, settleDay, trDate } from "@/lib/tracking";
 import { settleLive } from "@/lib/liveTracking";
@@ -10,6 +10,7 @@ import { loadHistory } from "@/lib/history";
 import { getCalibration } from "@/lib/calibration";
 import { getStore, setJSON } from "@/lib/auth/store";
 import { postSharedResults } from "@/lib/tgStats";
+import { postPrematchResults, sharePrematchPicks } from "@/lib/tgPre";
 
 /**
  * Otomatik zamanlayıcı (ör. cron-job.org her 5 dk): kimse siteye bakmasa da
@@ -100,6 +101,10 @@ async function run(): Promise<Record<string, unknown>> {
     return { mac_oncesi: mb + md, canli: cb + cd, uclu: ub + ud };
   }, log);
   await step("telegram_sonuc", async () => postSharedResults(Date.now(), 15000), log);
+  await step("telegram_mac_onu", async () => {
+    const { analyses } = await loadAnalyses();
+    return { paylasim: await sharePrematchPicks(analyses, Date.now()), sonuc: await postPrematchResults(Date.now()) };
+  }, log);
   await step("karne", async () => {
     const c = await getCalibration(); // eskiyse arka planda yeniden kurulur
     return c ? c.builtAt : "hazırlanıyor";

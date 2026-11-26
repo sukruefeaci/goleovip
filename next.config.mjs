@@ -1,11 +1,9 @@
 /** @type {import('next').NextConfig} */
 export default {
   reactStrictMode: true,
-  // Telegram kartı için yazı tipleri sunucu fonksiyonlarına dahil edilsin
+  // Telegram kartları (canlı, maç önü, sonuç, istatistik) zamanlayıcı dahil birçok yerden çizilir:
+  // yazı tipleri tüm sunucu fonksiyonlarına dahil edilsin
   outputFileTracingIncludes: {
-    "/canli": ["./assets/fonts/**"],
-    "/api/telegram/test": ["./assets/fonts/**"],
-    "/admin": ["./assets/fonts/**"],
-    "/api/admin/stats-image": ["./assets/fonts/**"],
+    "/**/*": ["./assets/fonts/**"],
   },
 };

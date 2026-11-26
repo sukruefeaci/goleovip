@@ -2,14 +2,14 @@ import { currentUser } from "@/lib/auth/current";
 import { adminEmails, isAdmin } from "@/lib/admin";
 import { getStore } from "@/lib/auth/store";
 import { isTelegramEnabled, telegramConfig, telegramSettings } from "@/lib/telegram";
-import { SCOPE_LABEL, sharedStats, type StatsScope } from "@/lib/tgStats";
-import { saveSettings, sendResultsNow, shareStats, toggleTelegram } from "./actions";
+import { KIND_LABEL, SCOPE_LABEL, sharedStats, type StatsKind, type StatsScope } from "@/lib/tgStats";
+import { savePreSettings, saveSettings, sendResultsNow, shareStats, toggleTelegram } from "./actions";
 
 export const dynamic = "force-dynamic";
 
 const SCOPES = Object.keys(SCOPE_LABEL) as StatsScope[];
 
-export default async function AdminPage({ searchParams }: { searchParams: Promise<{ ok?: string; err?: string; d?: string }> }) {
+export default async function AdminPage({ searchParams }: { searchParams: Promise<{ ok?: string; err?: string; d?: string; t?: string }> }) {
   const user = await currentUser();
   if (!isAdmin(user)) {
     return (
@@ -32,11 +32,12 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     );
   }
 
-  const { ok, err, d } = await searchParams;
+  const { ok, err, d, t } = await searchParams;
+  const kind: StatsKind = t === "mac" ? "mac" : "canli";
   const scope: StatsScope = d && d in SCOPE_LABEL ? (d as StatsScope) : "bugun";
   const cfg = telegramConfig();
   const tracking = !!getStore();
-  const [enabled, st, set] = await Promise.all([isTelegramEnabled(), tracking ? sharedStats(scope) : Promise.resolve(null), telegramSettings()]);
+  const [enabled, st, set] = await Promise.all([isTelegramEnabled(), tracking ? sharedStats(scope, Date.now(), kind) : Promise.resolve(null), telegramSettings()]);
   const p = st?.pnl;
 
   return (
@@ -98,15 +99,59 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         )}
       </section>
 
+      {cfg && (
+        <section className="card pad adm">
+          <h2 className="card-title">⚽ Maç önü paylaşımı</h2>
+          <p className="muted small" style={{ marginTop: 0 }}>
+            Maçlar sisteminin tercihi, maça belirlediğin süre kala ve şartları geçerse görsel kartla kanala gider; maç bitince sonucu da paylaşılır.
+            Yukarıdaki "Paylaşımı durdur" bunu da durdurur.
+          </p>
+          <form action={savePreSettings} className="adm-form" style={{ borderTop: 0, paddingTop: 0, marginTop: 0 }}>
+            <label className="adm-check">
+              <input name="enabled" type="checkbox" defaultChecked={set.pre.enabled} />
+              <span>Maç önü tahminleri kanalda paylaş</span>
+            </label>
+            <label>
+              <span>En az kazanma olasılığı (%)</span>
+              <input name="minProb" type="number" inputMode="numeric" min={50} max={95} step={1} defaultValue={set.pre.minProb} required />
+            </label>
+            <label>
+              <span>En düşük oran</span>
+              <input name="minOdd" type="number" inputMode="decimal" min={1.01} max={10} step={0.01} defaultValue={set.pre.minOdd.toFixed(2)} required />
+            </label>
+            <label>
+              <span>İki paylaşım arası en az (dakika)</span>
+              <input name="cooldownMin" type="number" inputMode="numeric" min={0} max={600} step={1} defaultValue={set.pre.cooldownMin} required />
+            </label>
+            <label>
+              <span>Maça en çok kaç saat kala</span>
+              <input name="hoursBefore" type="number" inputMode="numeric" min={1} max={36} step={1} defaultValue={set.pre.hoursBefore} required />
+            </label>
+            <label className="adm-check">
+              <input name="results" type="checkbox" defaultChecked={set.pre.results} />
+              <span>Maç bitince sonucu (✅ kazandı / ❌ kaybetti) görsel ve metinle gönder</span>
+            </label>
+            <button className="btn primary block">💾 Maç önü ayarlarını kaydet</button>
+          </form>
+        </section>
+      )}
+
       <section className="card pad adm">
         <h2 className="card-title">Kanal istatistiği</h2>
         <p className="muted small" style={{ marginTop: 0 }}>
           Kanalda paylaşılan canlı tahminlerin kaçta kaçının tuttuğu, tutanların oranları ve her tahmine 100 TL ile kâr/zarar. Dönemi seç, görseli
           kontrol et, sonra kanalda paylaş.
         </p>
+        <div className="daytabs sk-tabs" role="tablist">
+          {(["canli", "mac"] as StatsKind[]).map((k) => (
+            <a key={k} href={`/admin?d=${scope}&t=${k}`} className={k === kind ? "on" : ""} role="tab" aria-selected={k === kind}>
+              {k === "canli" ? "🔴" : "⚽"} {KIND_LABEL[k]}
+            </a>
+          ))}
+        </div>
         <div className="daytabs adm-tabs" role="tablist">
           {SCOPES.map((k) => (
-            <a key={k} href={`/admin?d=${k}`} className={k === scope ? "on" : ""} role="tab" aria-selected={k === scope}>
+            <a key={k} href={`/admin?d=${k}&t=${kind}`} className={k === scope ? "on" : ""} role="tab" aria-selected={k === scope}>
               {k === "tum" ? "Tümü" : SCOPE_LABEL[k]}
             </a>
           ))}
@@ -141,11 +186,12 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             {p.settled > 0 ? (
               <>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img className="adm-preview" src={`/api/admin/stats-image?d=${scope}`} alt="Kanalda paylaşılacak istatistik görseli" />
+                <img className="adm-preview" src={`/api/admin/stats-image?d=${scope}&t=${kind}`} alt="Kanalda paylaşılacak istatistik görseli" />
                 <form action={shareStats}>
                   <input type="hidden" name="scope" value={scope} />
+                  <input type="hidden" name="kind" value={kind} />
                   <button className="btn primary block" disabled={!cfg}>
-                    📤 {SCOPE_LABEL[scope]} istatistiğini kanalda paylaş
+                    📤 {KIND_LABEL[kind]} · {SCOPE_LABEL[scope]} istatistiğini kanalda paylaş
                   </button>
                 </form>
               </>

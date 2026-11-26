@@ -217,3 +217,7 @@ Admin panelinde **Paylaşım ayarları** (`tg:settings`): en az kazanma olasıl�
 
 `/uclu?ara=1&p=65&s=mac&s=oran&s=canli&o=1.50`: olasılık eşiği (%), sistem kutucukları (Maçlar, Oranlar, Canlı) ve en düşük oran. İşaretlenen **her** sistemin kazanma olasılığı eşiği geçen tercihler listelenir (`searchConsensus`). Canlı işaretliyse oynanan analizli maçlar (canlı olasılık + aynı seçeneğin maç öncesi Maçlar/Oranlar olasılıkları), değilse önümüzdeki 36 saatin başlamamış maçları (tüm seçenekler; Oranlar en az 150 benzer geçmiş maç). Maç öncesi tablolar 5 dk önbellekte, ilk hesap arka planda. Otomatik kayıt (üç sistem %65+) ayrıca sürer.
 
+## Telegram: maç önü paylaşımı
+
+`src/lib/tgPre.ts`: Maçlar sisteminin ana tercihi, maça en çok N saat kala (varsayılan 6), kazanma olasılığı ≥ eşik (varsayılan %65) ve oran ≥ en düşük oran (1.50) ise görsel kartla kanala gider (her maç bir kez, kendi bekleme süresi). Maç bitince paylaşılan tercih anahtarıyla sonuç değerlendirilir ve "kazandı / kaybetti" kartı gönderilir (`postPrematchResults`, çalışma başına en fazla 3). Kayıt `tg:preShared:v1`. Zamanlayıcıda her 5 dk çalışır. Admin panelinde ayrı ayarlar (aç/kapa, olasılık, oran, bekleme, kaç saat kala, sonuçlar) ve kanal istatistiğinde Canlı / Maç önü seçimi. Yazı tipleri tüm sunucu fonksiyonlarına dahil (`next.config.mjs`), böylece zamanlayıcıdan giden kartlar da çizilir.
+

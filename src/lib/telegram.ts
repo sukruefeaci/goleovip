@@ -19,7 +19,18 @@ export interface TelegramSettings {
   minOdd: number; // en düşük iddaa canlı oranı
   cooldownMin: number; // iki paylaşım arası en az dakika
   results: boolean; // paylaşılan tahminlerin sonucunu (kazandı/kaybetti) da gönder
+  /** Maç önü (Maçlar sistemi) paylaşımı */
+  pre: PreSettings;
 }
+export interface PreSettings {
+  enabled: boolean;
+  minProb: number; // %
+  minOdd: number;
+  cooldownMin: number;
+  hoursBefore: number; // maça en çok kaç saat kala paylaşılır
+  results: boolean;
+}
+export const DEFAULT_PRE: PreSettings = { enabled: true, minProb: 65, minOdd: 1.5, cooldownMin: 30, hoursBefore: 6, results: true };
 export const SETTINGS_KEY = "tg:settings";
 let settingsMemo: { at: number; v: TelegramSettings } | null = null;
 
@@ -27,9 +38,9 @@ let settingsMemo: { at: number; v: TelegramSettings } | null = null;
 export async function telegramSettings(): Promise<TelegramSettings> {
   if (settingsMemo && Date.now() - settingsMemo.at < 15_000) return settingsMemo.v;
   const cfg = telegramConfig();
-  const base: TelegramSettings = { minProb: cfg?.minProb ?? 70, minOdd: LIVE_MIN_ODD, cooldownMin: cfg?.cooldownMin ?? 30, results: true };
+  const base: TelegramSettings = { minProb: cfg?.minProb ?? 70, minOdd: LIVE_MIN_ODD, cooldownMin: cfg?.cooldownMin ?? 30, results: true, pre: DEFAULT_PRE };
   const saved = getStore() ? await getJSON<Partial<TelegramSettings>>(SETTINGS_KEY).catch(() => null) : null;
-  const v = { ...base, ...(saved ?? {}) };
+  const v = { ...base, ...(saved ?? {}), pre: { ...DEFAULT_PRE, ...(saved?.pre ?? {}) } };
   settingsMemo = { at: Date.now(), v };
   return v;
 }

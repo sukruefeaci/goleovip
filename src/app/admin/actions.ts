@@ -3,7 +3,8 @@
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth/current";
 import { isAdmin } from "@/lib/admin";
-import { saveTelegramSettings, setTelegramEnabled } from "@/lib/telegram";
+import { saveTelegramSettings, setTelegramEnabled, telegramSettings } from "@/lib/telegram";
+import { postPrematchResults } from "@/lib/tgPre";
 import { postSharedResults, SCOPE_LABEL, shareStatsToChannel, type StatsScope } from "@/lib/tgStats";
 
 async function requireAdmin() {
@@ -22,8 +23,9 @@ export async function toggleTelegram(formData: FormData) {
 export async function shareStats(formData: FormData) {
   await requireAdmin();
   const scope = String(formData.get("scope")) as StatsScope;
+  const kind = formData.get("kind") === "mac" ? "mac" : "canli";
   if (!(scope in SCOPE_LABEL)) back("Geçersiz dönem.", false);
-  const r = await shareStatsToChannel(scope);
+  const r = await shareStatsToChannel(scope, kind);
   if (r.ok) back(`${SCOPE_LABEL[scope]} istatistik görseli kanalda paylaşıldı.`);
   else back(`Paylaşılamadı: ${r.error}`, false);
 }
@@ -37,12 +39,34 @@ export async function saveSettings(formData: FormData) {
   if (!(minProb >= 50 && minProb <= 95)) back("Kazanma olasılığı eşiği %50 ile %95 arasında olmalı.", false);
   if (!(minOdd >= 1.01 && minOdd <= 10)) back("En düşük oran 1.01 ile 10 arasında olmalı.", false);
   if (!(cooldownMin >= 0 && cooldownMin <= 600)) back("Bekleme süresi 0 ile 600 dakika arasında olmalı.", false);
-  await saveTelegramSettings({ minProb, minOdd, cooldownMin, results: formData.get("results") === "on" });
+  const cur = await telegramSettings();
+  await saveTelegramSettings({ ...cur, minProb, minOdd, cooldownMin, results: formData.get("results") === "on" });
   back(`Ayarlar kaydedildi: olasılık ≥ %${minProb}, oran ≥ ${minOdd.toFixed(2)}, bekleme ${cooldownMin} dk.`);
 }
 
 export async function sendResultsNow() {
   await requireAdmin();
-  const n = await postSharedResults(Date.now(), 25_000, true);
+  const n = (await postSharedResults(Date.now(), 20_000, true)) + (await postPrematchResults(Date.now(), true));
   back(n ? `${n} sonuç mesajı kanala gönderildi.` : "Gönderilecek sonuç yok: son 24 saatte paylaşılan ve sonucu kesinleşmiş, henüz gönderilmemiş tahmin bulunamadı.", n > 0);
+}
+
+export async function savePreSettings(formData: FormData) {
+  await requireAdmin();
+  const num = (k: string) => Number(String(formData.get(k) ?? "").replace(",", "."));
+  const minProb = Math.round(num("minProb"));
+  const minOdd = Math.round(num("minOdd") * 100) / 100;
+  const cooldownMin = Math.round(num("cooldownMin"));
+  const hoursBefore = Math.round(num("hoursBefore"));
+  if (!(minProb >= 50 && minProb <= 95)) back("Kazanma olasılığı eşiği %50 ile %95 arasında olmalı.", false);
+  if (!(minOdd >= 1.01 && minOdd <= 10)) back("En düşük oran 1.01 ile 10 arasında olmalı.", false);
+  if (!(cooldownMin >= 0 && cooldownMin <= 600)) back("Bekleme süresi 0 ile 600 dakika arasında olmalı.", false);
+  if (!(hoursBefore >= 1 && hoursBefore <= 36)) back("Maça kalan süre 1 ile 36 saat arasında olmalı.", false);
+  const cur = await telegramSettings();
+  const enabled = formData.get("enabled") === "on";
+  await saveTelegramSettings({ ...cur, pre: { enabled, minProb, minOdd, cooldownMin, hoursBefore, results: formData.get("results") === "on" } });
+  back(
+    enabled
+      ? `Maç önü paylaşımı açık: olasılık ≥ %${minProb}, oran ≥ ${minOdd.toFixed(2)}, maça ${hoursBefore} saat kala, bekleme ${cooldownMin} dk.`
+      : "Maç önü paylaşımı kapatıldı.",
+  );
 }

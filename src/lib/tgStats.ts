@@ -1,5 +1,6 @@
 import { C, div, isTelegramEnabled, loadFonts, loadShared, sendPhoto, SHARED_KEY, telegramConfig, telegramSettings, type SharedPick } from "./telegram";
 import { getStore, setJSON } from "./auth/store";
+import { loadPreShared, preSharedWithResults } from "./tgPre";
 import { loadLiveDay, settleLive } from "./liveTracking";
 import { dayPnl, STAKE, type DayPnl } from "./pnl";
 
@@ -20,8 +21,12 @@ export interface StatsRow extends SharedPick {
   fag?: number;
 }
 
+export type StatsKind = "canli" | "mac";
+export const KIND_LABEL: Record<StatsKind, string> = { canli: "Canlı", mac: "Maç önü" };
+
 export interface SharedStats {
   scope: StatsScope;
+  kind?: StatsKind;
   rows: StatsRow[];
   pnl: DayPnl;
   avgWinOdd: number | null;
@@ -29,7 +34,8 @@ export interface SharedStats {
   to: string | null;
 }
 
-export async function sharedStats(scope: StatsScope, now = Date.now()): Promise<SharedStats> {
+export async function sharedStats(scope: StatsScope, now = Date.now(), kind: StatsKind = "canli"): Promise<SharedStats> {
+  if (kind === "mac") return preStats(scope, now);
   const today = trDay(now);
   const yesterday = trDay(now - 86400_000);
   const week = trDay(now - 6 * 86400_000);
@@ -49,6 +55,48 @@ export async function sharedStats(scope: StatsScope, now = Date.now()): Promise<
   const wins = rows.filter((r) => r.won === true);
   return {
     scope,
+    rows,
+    pnl: dayPnl(rows.map((r) => ({ odd: r.odd, won: r.won }))),
+    avgWinOdd: wins.length ? wins.reduce((s, r) => s + r.odd, 0) / wins.length : null,
+    from: picked.length ? picked.map((p) => p.date).sort()[0] : null,
+    to: picked.length ? picked.map((p) => p.date).sort().at(-1)! : null,
+  };
+}
+
+/** Maç önü paylaşımlarının karnesi (aynı görünüm) */
+async function preStats(scope: StatsScope, now: number): Promise<SharedStats> {
+  const today = trDay(now),
+    yesterday = trDay(now - 86400_000),
+    week = trDay(now - 6 * 86400_000);
+  const all = await loadPreShared();
+  const picked = all.filter((p) =>
+    scope === "bugun" ? p.date === today : scope === "dun" ? p.date === yesterday : scope === "7gun" ? p.date >= week : true,
+  );
+  const withRes = await preSharedWithResults(picked);
+  const rows: StatsRow[] = withRes.map((p) => ({
+    id: `${p.id}|${p.key}`,
+    date: p.date,
+    fotmobId: 0,
+    league: p.league,
+    home: p.home,
+    away: p.away,
+    label: p.label,
+    odd: p.odd,
+    prob: p.prob,
+    confidence: p.confidence,
+    minute: "MÖ",
+    hg: 0,
+    ag: 0,
+    at: p.at,
+    won: p.won,
+    fhg: p.hg,
+    fag: p.ag,
+  }));
+  rows.sort((a, b) => b.at.localeCompare(a.at));
+  const wins = rows.filter((r) => r.won === true);
+  return {
+    scope,
+    kind: "mac",
     rows,
     pnl: dayPnl(rows.map((r) => ({ odd: r.odd, won: r.won }))),
     avgWinOdd: wins.length ? wins.reduce((s, r) => s + r.odd, 0) / wins.length : null,
@@ -110,7 +158,7 @@ export function statsCard(st: SharedStats) {
         div({ fontSize: 38, fontWeight: 700, marginLeft: 16 }, "goleo"),
         div({ fontSize: 24, fontWeight: 700, background: C.gold, color: "#1a1240", borderRadius: 10, padding: "4px 12px", marginLeft: 10 }, "VIP"),
       ),
-      div({ fontSize: 28, fontWeight: 700, color: C.muted }, "CANLI TAHMİN KARNESİ"),
+      div({ fontSize: 28, fontWeight: 700, color: C.muted }, st.kind === "mac" ? "MAÇ ÖNÜ TAHMİN KARNESİ" : "CANLI TAHMİN KARNESİ"),
     ),
     div({ fontSize: 46, fontWeight: 700, marginTop: 30 }, SCOPE_LABEL[st.scope]),
     div({ fontSize: 26, color: C.muted, marginTop: 4 }, period ? `${period} · kanalda paylaşılan tahminler` : "kanalda paylaşılan tahminler"),
@@ -145,7 +193,7 @@ export function statsCaption(st: SharedStats): string {
   const p = st.pnl;
   const rate = p.settled ? Math.round((p.hits / p.settled) * 100) : 0;
   return [
-    `📊 <b>Canlı tahmin karnesi · ${SCOPE_LABEL[st.scope]}</b>`,
+    `📊 <b>${st.kind === "mac" ? "Maç önü" : "Canlı"} tahmin karnesi · ${SCOPE_LABEL[st.scope]}</b>`,
     p.settled ? `✅ ${p.hits}/${p.settled} tuttu (%${rate})` : "Henüz sonuçlanan paylaşım yok.",
     st.avgWinOdd ? `Tutanların ortalama oranı: <b>${st.avgWinOdd.toFixed(2)}</b>` : "",
     p.counted ? `Her tahmine ${STAKE} TL: <b>${tl(p.profit)}</b>` : "",
@@ -156,10 +204,10 @@ export function statsCaption(st: SharedStats): string {
     .join("\n");
 }
 
-export async function shareStatsToChannel(scope: StatsScope): Promise<{ ok: boolean; error?: string; stats?: SharedStats }> {
+export async function shareStatsToChannel(scope: StatsScope, kind: StatsKind = "canli"): Promise<{ ok: boolean; error?: string; stats?: SharedStats }> {
   const cfg = telegramConfig();
   if (!cfg) return { ok: false, error: "Telegram ayarlı değil" };
-  const st = await sharedStats(scope);
+  const st = await sharedStats(scope, Date.now(), kind);
   if (!st.pnl.settled) return { ok: false, error: "Bu dönemde sonuçlanmış paylaşım yok", stats: st };
   const r = await sendPhoto(cfg.token, cfg.chat, await renderStatsImage(st), statsCaption(st));
   return { ...r, stats: st };
