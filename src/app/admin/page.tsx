@@ -3,7 +3,7 @@ import { adminEmails, isAdmin } from "@/lib/admin";
 import { getStore } from "@/lib/auth/store";
 import { isTelegramEnabled, telegramConfig, telegramSettings } from "@/lib/telegram";
 import { SCOPE_LABEL, sharedStats, type StatsScope } from "@/lib/tgStats";
-import { saveSettings, shareStats, toggleTelegram } from "./actions";
+import { saveSettings, sendResultsNow, shareStats, toggleTelegram } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -90,6 +90,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                 Not: 1.50 ve üstü oranlarda %70+ olasılık nadirdir; eşiği düşürürsen kanal daha sık paylaşır. Değişiklik bir sonraki taramada (en geç 5
                 dk) geçerli olur.
               </p>
+            </form>
+            <form action={sendResultsNow} style={{ marginTop: 10 }}>
+              <button className="btn block">📨 Bekleyen sonuçları şimdi gönder</button>
             </form>
           </>
         )}

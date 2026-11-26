@@ -211,5 +211,5 @@ Kalibrasyon karnesi (`calib:v1`) her sistem için ayrıca dört boyutta tutulur 
 
 ## Telegram: admin ayarları ve sonuç mesajları
 
-Admin panelinde **Paylaşım ayarları** (`tg:settings`): en az kazanma olasılığı (%), en düşük canlı oran, iki paylaşım arası bekleme (dk) ve sonuç mesajları aç/kapa. Ortam değişkenleri yalnız varsayılan. **Sonuç mesajları** (`postSharedResults`, zamanlayıcıda her 5 dk): kanalda paylaşılan tahmin kesinleşince (maç sırasında ya da sonunda) "✅ KAZANDI / ❌ KAYBETTİ" görsel kart + metin, her tahmin için bir kez (`resultSentAt`); özellik açıldıktan önceki paylaşımlar için gönderilmez (`tg:results:since`), son 48 saat; paylaşım durdurulduysa gönderilmez.
+Admin panelinde **Paylaşım ayarları** (`tg:settings`): en az kazanma olasılığı (%), en düşük canlı oran, iki paylaşım arası bekleme (dk) ve sonuç mesajları aç/kapa. Ortam değişkenleri yalnız varsayılan. **Sonuç mesajları** (`postSharedResults`, zamanlayıcıda her 5 dk): kanalda paylaşılan tahmin kesinleşince (maç sırasında ya da sonunda) "✅ KAZANDI / ❌ KAYBETTİ" görsel kart + metin, her tahmin için bir kez (`resultSentAt`); son 24 saatin paylaşımları, bir çalışmada en fazla 3 mesaj; admin panelinde "Bekleyen sonuçları şimdi gönder"; paylaşım durdurulduysa gönderilmez.
 

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth/current";
 import { isAdmin } from "@/lib/admin";
 import { saveTelegramSettings, setTelegramEnabled } from "@/lib/telegram";
-import { SCOPE_LABEL, shareStatsToChannel, type StatsScope } from "@/lib/tgStats";
+import { postSharedResults, SCOPE_LABEL, shareStatsToChannel, type StatsScope } from "@/lib/tgStats";
 
 async function requireAdmin() {
   if (!isAdmin(await currentUser())) redirect("/admin");
@@ -39,4 +39,10 @@ export async function saveSettings(formData: FormData) {
   if (!(cooldownMin >= 0 && cooldownMin <= 600)) back("Bekleme süresi 0 ile 600 dakika arasında olmalı.", false);
   await saveTelegramSettings({ minProb, minOdd, cooldownMin, results: formData.get("results") === "on" });
   back(`Ayarlar kaydedildi: olasılık ≥ %${minProb}, oran ≥ ${minOdd.toFixed(2)}, bekleme ${cooldownMin} dk.`);
+}
+
+export async function sendResultsNow() {
+  await requireAdmin();
+  const n = await postSharedResults(Date.now(), 25_000, true);
+  back(n ? `${n} sonuç mesajı kanala gönderildi.` : "Gönderilecek sonuç yok: son 24 saatte paylaşılan ve sonucu kesinleşmiş, henüz gönderilmemiş tahmin bulunamadı.", n > 0);
 }

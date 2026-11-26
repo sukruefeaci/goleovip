@@ -235,31 +235,27 @@ export function resultCaption(r: ResultShare): string {
 
 /**
  * Kanalda paylaşılan ve sonucu kesinleşen tahminler için "kazandı / kaybetti" mesajı (her tahmin için bir kez).
- * Paylaşım admin panelinden durdurulduysa ya da sonuç mesajları kapalıysa gönderilmez. Son 48 saatin paylaşımları.
+ * Son 24 saatin paylaşımları; kanal dolmasın diye bir çalışmada en fazla 3 mesaj (kalanlar sonraki çalışmada).
+ * Paylaşım admin panelinden durdurulduysa ya da sonuç mesajları kapalıysa gönderilmez.
  */
-const RESULTS_SINCE_KEY = "tg:results:since";
+const RESULTS_PER_RUN = 3;
 
-export async function postSharedResults(now = Date.now(), budgetMs = 15000): Promise<number> {
+export async function postSharedResults(now = Date.now(), budgetMs = 15000, force = false): Promise<number> {
   const cfg = telegramConfig();
   if (!cfg || !getStore()) return 0;
-  if (!(await isTelegramEnabled())) return 0;
-  if (!(await telegramSettings()).results) return 0;
-  // Özellik açıldığı andan önceki paylaşımların sonucu gönderilmez (kanala toplu eski mesaj düşmesin)
-  const store = getStore()!;
-  let since = Number(await store.get(RESULTS_SINCE_KEY).catch(() => null));
-  if (!since) {
-    since = now;
-    await store.set(RESULTS_SINCE_KEY, String(now)).catch(() => {});
-  }
+  if (!force && !(await isTelegramEnabled())) return 0;
+  if (!force && !(await telegramSettings()).results) return 0;
   const list = await loadShared();
-  const pending = list.filter((p) => !p.resultSentAt && Date.parse(p.at) >= since && now - Date.parse(p.at) < 48 * 3600_000);
+  const pending = list.filter((p) => !p.resultSentAt && now - Date.parse(p.at) < 24 * 3600_000);
   if (!pending.length) return 0;
+  // Önce bu tahminlerin günlerini sonuçlandır (maç bitmiş ya da kesinleşmiş olabilir)
+  await Promise.all([...new Set(pending.map((p) => p.date))].map((d) => settleLive(d, now, 6000).catch(() => 0)));
   const dates = [...new Set(pending.map((p) => p.date))];
   const days = new Map(await Promise.all(dates.map(async (d) => [d, await loadLiveDay(d).catch(() => [])] as const)));
   const deadline = Date.now() + budgetMs;
   const sent: string[] = [];
   for (const p of pending.sort((a, b) => a.at.localeCompare(b.at))) {
-    if (Date.now() > deadline) break;
+    if (Date.now() > deadline || sent.length >= RESULTS_PER_RUN) break;
     const rec = days.get(p.date)?.find((r) => `${r.fotmobId}|${r.label}` === p.id);
     const res = rec?.result;
     if (!res || typeof res.won !== "boolean") continue;
