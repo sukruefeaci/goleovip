@@ -12,7 +12,7 @@ import { getStore } from "@/lib/auth/store";
 import { currentUser } from "@/lib/auth/current";
 import { isAdmin } from "@/lib/admin";
 import { liveSharedSet, telegramConfig } from "@/lib/telegram";
-import { shareLiveToChannel } from "./actions";
+import { shareLiveRecord, shareLiveToChannel } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -148,7 +148,7 @@ function LiveCard({ it, share = null }: { it: LiveItem; share?: ShareCtx }) {
   );
 }
 
-function History({ recs, day }: { recs: LiveRecord[]; day: "bugun" | "dun" }) {
+function History({ recs, day, date, admin }: { recs: LiveRecord[]; day: "bugun" | "dun"; date: string; admin: boolean }) {
   const decided = recs.filter((r) => r.result && r.result.won !== null);
   const hits = decided.filter((r) => r.result!.won).length;
   const exp = decided.reduce((s, r) => s + r.prob, 0);
@@ -200,6 +200,16 @@ function History({ recs, day }: { recs: LiveRecord[]; day: "bugun" | "dun" }) {
                 <span className={`mp-badge ${st}`}>
                   {st === "won" ? `✓ ${r.result!.hg}-${r.result!.ag}` : st === "lost" ? `✗ ${r.result!.hg}-${r.result!.ag}` : st === "void" ? "—" : "bekliyor"}
                 </span>
+                {admin && st !== "void" && (
+                  <form action={shareLiveRecord} className="lc-share">
+                    <input type="hidden" name="date" value={date} />
+                    <input type="hidden" name="rid" value={`${r.fotmobId}|${r.label}`} />
+                    <input type="hidden" name="gun" value={day} />
+                    <button className="btn sm" title={st === "open" ? "Tercihi kanalda paylaş" : "Sonucu kanalda paylaş"}>
+                      📤
+                    </button>
+                  </form>
+                )}
               </div>
             );
           })}
@@ -287,7 +297,7 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
 
       {tracking ? (
         <>
-          <History recs={hist} day={histDay} />
+          <History recs={hist} day={histDay} date={histDay === "dun" ? yesterday : today} admin={admin} />
           <p className="muted small" style={{ marginTop: 12 }}>
             Canlı sistemin ne öğrendiğini <a href="/ai">🧠 Yapay zeka</a> sekmesinde görebilirsin.
           </p>

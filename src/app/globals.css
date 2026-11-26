@@ -141,7 +141,7 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .lh-head .seg a { padding: 5px 12px; border-radius: 9px; color: var(--muted); font-weight: 700; font-size: 13px; }
 .lh-head .seg a.on { background: var(--surface-2); color: var(--text); }
 .lh-list { display: grid; gap: 6px; margin-top: 8px; }
-.lh-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line); }
+.lh-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto auto; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line); }
 .lh-main { display: grid; min-width: 0; }
 
 /* ---------- Gün sekmeleri ve maç satırları ---------- */
