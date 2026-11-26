@@ -174,7 +174,10 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
       )}
 
       <div className="detail-grid">
-        <BetTable rows={a.rows} homeName={home.name} awayName={away.name} homeShort={home.short} awayShort={away.short} fileName={`${match.id}.csv`} />
+        <details className="rest bt-all">
+          <summary>Tüm seçenekler ve hesaplar ({a.rows.length})</summary>
+          <BetTable rows={a.rows} homeName={home.name} awayName={away.name} homeShort={home.short} awayShort={away.short} fileName={`${match.id}.csv`} />
+        </details>
 
         <aside className="side-col">
           <section className="card pad">
@@ -190,8 +193,8 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
               </thead>
               <tbody>
                 <ProbRow
-                  label={match.source === "elo" ? "Referans" : "Avrupa"}
-                  sub={match.source === "elo" ? "ClubElo + iddaa ort." : match.euro.reference}
+                  label={match.source === "elo" || match.source === "iddaa" ? "Referans" : "Avrupa"}
+                  sub={match.source === "elo" ? "ClubElo + iddaa ort." : match.source === "iddaa" ? "iddaa, marjsız" : match.euro.reference}
                   values={a.euroFair}
                 />
                 {a.iddaaFair && <ProbRow label="iddaa" sub="marjı atılmış" values={a.iddaaFair} />}
@@ -201,7 +204,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
             {a.iddaaOdds && (
               <p className="muted small">
                 iddaa oranları {a.iddaaOdds.map((o) => o.toFixed(2)).join(" · ")}
-                {match.source !== "elo" && <> · Avrupa {match.euro.h2h.map((o) => o.toFixed(2)).join(" · ")}</>}
+                {match.source !== "elo" && match.source !== "iddaa" && <> · Avrupa {match.euro.h2h.map((o) => o.toFixed(2)).join(" · ")}</>}
               </p>
             )}
             <div className="margins">
@@ -211,10 +214,10 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
               </div>
               <div>
                 <span>Avrupa marjı</span>
-                <b className="pos">{match.source === "elo" ? "—" : pct(a.euroMargin)}</b>
+                <b className="pos">{match.source === "elo" || match.source === "iddaa" ? "—" : pct(a.euroMargin)}</b>
               </div>
               <div>
-                <span>2.5 Üst ({match.source === "elo" ? "iddaa, marjsız" : "Avrupa"})</span>
+                <span>2.5 Üst ({match.source === "elo" || match.source === "iddaa" ? "iddaa, marjsız" : "Avrupa"})</span>
                 <b>{pct(a.euroOver25)}</b>
               </div>
             </div>
@@ -253,9 +256,9 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
 
           <section className="card pad">
             <h3 className="card-title">Takım bilgisi</h3>
-            {match.source === "elo" && (
+            {(match.source === "elo" || match.source === "iddaa") && (
               <p className="muted small" style={{ marginTop: 0 }}>
-                Bu maç Football-Data kapsamında değil; olasılıklar ClubElo güç puanından. Takım istatistiği, korner ve kart tahmini yok.
+                Bu maç Football-Data kapsamında değil; olasılıklar {match.source === "elo" ? "ClubElo güç puanı ve iddaa oranlarından" : "iddaa'nın marjı atılmış oranlarından"}. Takım istatistiği, korner ve kart tahmini yok.
               </p>
             )}
             {[home, away].filter((t) => t.goalsFor10.length > 0).map((t) => (

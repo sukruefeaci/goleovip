@@ -708,3 +708,4 @@ details.rest .oa-list, details.rest .match-list, details.rest .lc-list { opacity
 .tier-aday { background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
 
 .rule-note { margin: 4px 0 12px; }
+.bt-all { margin: 0; } .bt-all[open] > summary { margin-bottom: 10px; } .bt-all .tablewrap, .bt-all .card { opacity: 1; }
