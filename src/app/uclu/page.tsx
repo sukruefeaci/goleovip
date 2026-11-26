@@ -75,7 +75,7 @@ export default async function UcluPage() {
         <AutoRefresh seconds={60} />
       </div>
       <p className="muted small" style={{ marginTop: 4 }}>
-        Aynı tercihe üç sistemin de (Maçlar, Oranlar, Canlı) kendi güveniyle en az %{CONS_MIN} verdiği tercihler. Canlı sistemi yalnız maç oynanırken
+        Aynı tercihe üç sistemin de (Maçlar, Oranlar, Canlı) kendi yöntemiyle en az %{CONS_MIN} kazanma olasılığı verdiği tercihler. Canlı sistemi yalnız maç oynanırken
         güven verdiği için üçlü onay maç sırasında oluşur. Son güncelleme{" "}
         {new Date(at).toLocaleTimeString("tr-TR", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit" })}.
       </p>
@@ -101,12 +101,12 @@ export default async function UcluPage() {
                   {odd && <span className="oddpill">{odd.toFixed(2)}</span>}
                   {!s.canli.odd && <span className="muted small">maç öncesi oran</span>}
                 </div>
-                <Trio mac={s.mac.confidence} oran={s.oran.confidence} canli={s.canli.confidence} />
+                <Trio mac={Math.round(s.mac.prob * 100)} oran={Math.round(s.oran.prob * 100)} canli={Math.round(s.canli.prob * 100)} />
               </Link>
             );
           }),
         )}
-        {!consensus.length && <div className="card pad empty">Şu an üç sistemin de %{CONS_MIN}+ güven verdiği bir tercih yok.</div>}
+        {!consensus.length && <div className="card pad empty">Şu an üç sistemin de %{CONS_MIN}+ olasılık verdiği bir tercih yok.</div>}
       </div>
 
       {tracking && hist.length > 0 && (
@@ -155,7 +155,7 @@ export default async function UcluPage() {
                     <b>{s.label}</b>
                     {s.mac.odd && <span className="oddpill">{s.mac.odd.toFixed(2)}</span>}
                   </div>
-                  <Trio mac={s.mac.confidence} oran={s.oran.confidence} />
+                  <Trio mac={Math.round(s.mac.prob * 100)} oran={Math.round(s.oran.prob * 100)} />
                 </Link>
               );
             }),

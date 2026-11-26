@@ -2,6 +2,7 @@ import { getProvider } from "./providers";
 import { analyze, applyCalibration } from "./model";
 import { calibrationFactors, getLearning, recordSnapshots } from "./tracking";
 import type { Analysis } from "./types";
+import { mapperFor } from "./calibration";
 import type { CouponMatch } from "./coupon";
 
 type Loaded = { analyses: Analysis[]; source: string; banner?: string };
@@ -14,9 +15,10 @@ let inflight: Promise<Loaded> | null = null;
 async function compute(): Promise<Loaded> {
   const provider = getProvider();
   const matches = await provider.listMatches();
-  const factors = calibrationFactors(await getLearning().catch(() => ({})));
+  const [learning, band] = await Promise.all([getLearning().catch(() => ({})), mapperFor("mac").catch(() => (p: number) => p)]);
+  const factors = calibrationFactors(learning);
   const analyses = matches
-    .map((m) => applyCalibration(analyze(m), factors))
+    .map((m) => applyCalibration(analyze(m), factors, band))
     .sort((a, b) => a.match.kickoff.localeCompare(b.match.kickoff));
   // Başlamamış maçların tercihlerini günlük kayda yaz (sonra tuttu/tutmadı değerlendirmesi için)
   await recordSnapshots(analyses).catch(() => {});

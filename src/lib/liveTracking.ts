@@ -48,6 +48,7 @@ export interface LiveRecord {
   confidence: number;
   odd?: number; // varsa öneri anındaki canlı oran
   raw?: number; // öğrenme düzeltmesinden önceki model olasılığı
+  preBand?: number; // aralık düzeltmesinden önceki olasılık
   ctx?: LiveCtx;
   analyzed?: boolean; // maç öncesi analizi olan maç mı (eski kayıtlar için sonradan belirlenir)
   at: string;
@@ -100,6 +101,7 @@ export async function recordLive(items: RecordInput[], now = Date.now()): Promis
       confidence: r.confidence,
       odd: r.odd,
       raw: r.raw,
+      preBand: r.preBand,
       ctx: it.ctx,
       at: new Date(now).toISOString(),
     };

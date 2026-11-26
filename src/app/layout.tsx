@@ -45,6 +45,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                       ⚙︎<span className="hide-sm"> Admin</span>
                     </Link>
                   )}
+                  <Link href="/ai" className="show-sm ai-link" aria-label="Yapay zeka">
+                    🧠
+                  </Link>
                   <Link href="/nasil-calisir" className="show-sm muted small" aria-label="Bilgi">
                     ⓘ
                   </Link>

@@ -2,6 +2,7 @@ import { loadAnalyses } from "./data";
 import { historyIfReady, TOLERANCE } from "./history";
 import { bestOddsPick, matchAllSelections, ODDS_PICK_MIN, type SelectionMatch } from "./oddsMatch";
 import type { Analysis } from "./types";
+import { mapperFor } from "./calibration";
 
 /**
  * Oran analizi sisteminin güveni (kendi mantığıyla): geçmişte aynı oranlı maçlarda bu tercihin tutma oranı,
@@ -20,10 +21,17 @@ export type OddsRow = { a: Analysis; pick: (SelectionMatch & { confidence: numbe
 let cache: { key: unknown; hist: unknown; rows: OddsRow[] } | null = null;
 
 /** Tüm analizler için Oran analizi tercihi (analizler değişmedikçe yeniden hesaplanmaz) */
-export async function computeOddsPicks(): Promise<{ rows: OddsRow[]; banner: string | null; histCount: number; loading: boolean }> {
-  const [{ analyses, banner }, hist] = await Promise.all([loadAnalyses(), historyIfReady()]);
+export async function computeOddsPicks(): Promise<{
+  rows: OddsRow[];
+  banner: string | null;
+  histCount: number;
+  loading: boolean;
+  /** Oranlar sisteminin kazanma olasılığı: geçmişteki tutma oranı, kendi sonuçlarına göre aralık düzeltmesiyle */
+  winOf: (rate: number) => number;
+}> {
+  const [{ analyses, banner }, hist, winOf] = await Promise.all([loadAnalyses(), historyIfReady(), mapperFor("oran").catch(() => (p: number) => p)]);
   // Arşiv henüz yüklenmediyse sayfa beklemez: önceki sonuç (varsa) ya da boş liste, "yükleniyor" işaretiyle
-  if (!hist) return { rows: cache?.rows ?? [], banner: banner ?? null, histCount: 0, loading: true };
+  if (!hist) return { rows: cache?.rows ?? [], banner: banner ?? null, histCount: 0, loading: true, winOf };
   if (!cache || cache.key !== analyses || cache.hist !== hist.matches) {
     cache = {
       key: analyses,
@@ -34,5 +42,5 @@ export async function computeOddsPicks(): Promise<{ rows: OddsRow[]; banner: str
       }),
     };
   }
-  return { rows: cache.rows, banner: banner ?? null, histCount: hist.matches.length, loading: false };
+  return { rows: cache.rows, banner: banner ?? null, histCount: hist.matches.length, loading: false, winOf };
 }

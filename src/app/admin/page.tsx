@@ -58,7 +58,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               <b>{enabled ? "Açık" : "Durduruldu"}</b>
               <span className="muted small">
                 {enabled
-                  ? `Güven ≥ %${cfg.minConf}, oran ≥ 1.45; iki paylaşım arası en az ${cfg.cooldownMin} dk.`
+                  ? `Kazanma olasılığı ≥ %${cfg.minProb}, oran ≥ 1.45; iki paylaşım arası en az ${cfg.cooldownMin} dk.`
                   : "Canlı sekmesi açılsa bile kanala hiçbir tahmin gönderilmez."}
               </span>
             </div>

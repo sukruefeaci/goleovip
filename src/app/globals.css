@@ -702,3 +702,20 @@ details.rest .oa-list, details.rest .match-list, details.rest .lc-list { opacity
 @keyframes skel { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) { .skel { animation: none; } }
+
+/* Yapay zeka sekmesi */
+.ai-note ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.ai-sys { margin-bottom: 12px; }
+.ai-sys-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; }
+.ai-sys-head h3 { margin: 0; font-size: 17px; }
+.ai-rel { margin-top: 10px; display: grid; gap: 4px; font-size: 13px; }
+.ai-rel-row { display: grid; grid-template-columns: 74px 1fr 44px 38px 54px; gap: 8px; align-items: center; }
+.ai-rel-hd { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+.ai-bar { position: relative; height: 14px; background: var(--surface-2); border-radius: 7px; overflow: hidden; }
+.ai-bar i { position: absolute; left: 0; border-radius: 7px; }
+.ai-bar i.said { top: 0; height: 6px; background: var(--brand); }
+.ai-bar i.act { bottom: 0; height: 6px; background: var(--good); }
+.ai-bar i.act.low { background: var(--bad); }
+.ai-sugg { margin: 12px 0; }
+.ai-sg { display: grid; grid-template-columns: 22px 1fr; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.ai-link { font-size: 18px; line-height: 1; }

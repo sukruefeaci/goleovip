@@ -3,10 +3,10 @@ import Link from "next/link";
 import { loadLive, type LiveItem } from "@/lib/liveData";
 import AutoRefresh from "@/components/AutoRefresh";
 import ProfitBoard from "@/components/ProfitBoard";
-import { SHOW_MIN_CONF, SHOW_MIN_ODD, STRONG_CONF, tierOf, TIER_LABEL } from "@/lib/showRule";
+import { SHOW_MIN_ODD, SHOW_MIN_PROB, STRONG_PROB, tierOf, TIER_LABEL } from "@/lib/showRule";
 
-/** Gösterim kuralı: gerçek iddaa canlı oranı ≥ 1.50 ve güven ≥ %60 (sistemin önerisi ve takibi değişmez) */
-const shownRecs = (it: LiveItem) => it.recs.filter((r) => tierOf(r.odd, r.confidence));
+/** Gösterim kuralı: gerçek iddaa canlı oranı ≥ 1.50 ve kazanma olasılığı ≥ %60 (sistemin önerisi ve takibi değişmez) */
+const shownRecs = (it: LiveItem) => it.recs.filter((r) => tierOf(r.odd, r.prob));
 import { analyzedRec, canliItems, dayPnl, totalPnl } from "@/lib/pnl";
 import { confLevel, winLevel } from "@/components/WinConfidence";
 import { getLiveLearning, getLiveSituations, liveFactors, loadLiveDay, settleLive, situationRows, type LiveLearning, type LiveRecord, type LiveSituations } from "@/lib/liveTracking";
@@ -104,7 +104,7 @@ function LiveCard({ it }: { it: LiveItem }) {
         {shownRecs(it).length ? (
           shownRecs(it).map((r) => (
             <div key={r.label} className={`lc-rec ${r.ev !== undefined && r.ev > 0 ? "value" : ""}`}>
-              <span className={`tier tier-${tierOf(r.odd, r.confidence)}`}>{TIER_LABEL[tierOf(r.odd, r.confidence)!]}</span>
+              <span className={`tier tier-${tierOf(r.odd, r.prob)}`}>{TIER_LABEL[tierOf(r.odd, r.prob)!]}</span>
               <b>{r.label}</b>
               {r.odd ? <span className="oddpill">{r.odd.toFixed(2)}</span> : <span className="muted small">oran yok</span>}
               <span className={winLevel(r.prob).cls}>{pc(r.prob)}</span>
@@ -118,7 +118,7 @@ function LiveCard({ it }: { it: LiveItem }) {
           ))
         ) : (
           <span className="muted small">
-            Şu an oranı {SHOW_MIN_ODD.toFixed(2)} ve üstü, güveni %{SHOW_MIN_CONF} ve üstü bir öneri yok.
+            Şu an oranı {SHOW_MIN_ODD.toFixed(2)} ve üstü, kazanma olasılığı %{SHOW_MIN_PROB} ve üstü bir öneri yok.
           </span>
         )}
       </div>
@@ -255,7 +255,7 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
     tracking ? getLiveLearning() : Promise.resolve({} as LiveLearning),
     tracking ? getLiveSituations() : Promise.resolve({ v: 1, b: {} } as LiveSituations),
   ]);
-  const hist = (histDay === "dun" ? ydayRecs : todayRecs).filter((r) => analyzedRec(r) && tierOf(r.odd, r.confidence));
+  const hist = (histDay === "dun" ? ydayRecs : todayRecs).filter((r) => analyzedRec(r) && tierOf(r.odd, r.prob));
   const pT = dayPnl(canliItems(todayRecs)),
     pY = dayPnl(canliItems(ydayRecs));
   const totalC = tracking ? await totalPnl("canli", { [today]: pT, [yesterday]: pY }).catch(() => null) : null;
@@ -278,7 +278,7 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
         skor durumu ve maç öncesi analize göre olasılık tahminidir. Yalnız oranı 1.45 ve üstü olan tercihler önerilir (iddaa canlı oranı; yoksa olasılıktan
         hesaplanan adil oran). Oranı olan önerilerde getiri (olasılık × oran − 1) de gösterilir; yeşil kenarlı öneriler artı getirili. Canlı tercih
         yalnız maç öncesi analiz ettiğimiz maçlara verilir; takip ve öğrenme de yalnız bunlardan yapılır. Gösterilen: iddaa canlı oranı{" "}
-        {SHOW_MIN_ODD.toFixed(2)}+ ve güveni %{SHOW_MIN_CONF}+ tercihler (%{STRONG_CONF}+ Güçlü).
+        {SHOW_MIN_ODD.toFixed(2)}+ ve kazanma olasılığı %{SHOW_MIN_PROB}+ tercihler (%{STRONG_PROB}+ Güçlü).
       </p>
 
       {analyzed.length > 0 && <h2 className="lc-h">Tercih olan maçlar</h2>}
@@ -288,7 +288,7 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
         ))}
         {analyzed.length > 0 && !withPicks.length && (
           <div className="card pad empty">
-            Şu an oranı {SHOW_MIN_ODD.toFixed(2)}+ ve güveni %{SHOW_MIN_CONF}+ tercih yok.
+            Şu an oranı {SHOW_MIN_ODD.toFixed(2)}+ ve olasılığı %{SHOW_MIN_PROB}+ tercih yok.
           </div>
         )}
       </div>

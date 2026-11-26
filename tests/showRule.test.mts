@@ -4,12 +4,12 @@ import assert from "node:assert/strict";
 const { tierOf } = await import("../src/lib/showRule.ts");
 const { oddsConfidence } = await import("../src/lib/oddsPicks.ts");
 
-test("gösterim kuralı: oran ≥ 1.50, güven ≥ %60, %70+ güçlü", () => {
-  assert.equal(tierOf(1.5, 70), "guclu");
-  assert.equal(tierOf(1.8, 65), "orta");
-  assert.equal(tierOf(1.49, 90), null, "oran 1.50 altı gösterilmez");
-  assert.equal(tierOf(1.7, 59), null, "güven %60 altı gösterilmez");
-  assert.equal(tierOf(undefined, 80), null, "oransız gösterilmez");
+test("gösterim kuralı: oran ≥ 1.50, kazanma olasılığı ≥ %60, %70+ güçlü", () => {
+  assert.equal(tierOf(1.5, 0.7), "guclu");
+  assert.equal(tierOf(1.8, 0.65), "orta");
+  assert.equal(tierOf(1.49, 0.9), null, "oran 1.50 altı gösterilmez");
+  assert.equal(tierOf(1.7, 0.59), null, "olasılık %60 altı gösterilmez");
+  assert.equal(tierOf(undefined, 0.8), null, "oransız gösterilmez");
 });
 
 test("Oranlar güveni: geçmiş oran adil olasılığı ne kadar kesin aşıyor", () => {

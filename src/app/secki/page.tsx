@@ -7,7 +7,7 @@ import { loadDay, mainPick, settleDay, trDate, type SnapEntry } from "@/lib/trac
 import { loadLiveDay, settleLive, type LiveRecord } from "@/lib/liveTracking";
 import { analyzedRec } from "@/lib/pnl";
 import { computeOddsPicks } from "@/lib/oddsPicks";
-import { SHOW_MIN_CONF, SHOW_MIN_ODD, STRONG_CONF, tierOf, TIER_LABEL, type Tier } from "@/lib/showRule";
+import { SHOW_MIN_ODD, SHOW_MIN_PROB, STRONG_PROB, tierOf, TIER_LABEL, type Tier } from "@/lib/showRule";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +25,7 @@ type Pick = {
   away: string;
   label: string;
   odd: number;
-  confidence: number;
+  prob: number; // kazanma olasılığı (0–1)
   extra?: string; // ör. canlıda öneri anındaki dakika ve skor
   result?: { hg: number; ag: number; won: boolean | null | undefined };
   tier: Tier;
@@ -52,7 +52,7 @@ function PickRow({ p, now }: { p: Pick; now: number }) {
       <div className="sk-pick">
         <b>{p.label}</b>
         <span className="oddpill">{p.odd.toFixed(2)}</span>
-        <span className={`small ${p.confidence >= STRONG_CONF ? "pos" : ""}`}>güven %{p.confidence}</span>
+        <span className={`small ${p.prob * 100 >= STRONG_PROB ? "pos" : ""}`}>kazanma %{Math.round(p.prob * 100)}</span>
         {p.extra && <span className="muted small">{p.extra}</span>}
         {st ? (
           <span className={`mp-badge ${st}`}>
@@ -88,7 +88,7 @@ function Section({ title, sub, picks, now }: { title: string; sub: string; picks
         {sub}
       </p>
       {!picks.length && <div className="card pad empty small">Şartı geçen tercih yok.</div>}
-      {strong.length > 0 && <h3 className="sk-tier">Güçlü · güven %{STRONG_CONF}+</h3>}
+      {strong.length > 0 && <h3 className="sk-tier">Güçlü · kazanma %{STRONG_PROB}+</h3>}
       <div className="sk-list">
         {strong.map((p) => (
           <PickRow key={p.key} p={p} now={now} />
@@ -96,7 +96,7 @@ function Section({ title, sub, picks, now }: { title: string; sub: string; picks
       </div>
       {mid.length > 0 && (
         <h3 className="sk-tier">
-          Orta · güven %{SHOW_MIN_CONF}–{STRONG_CONF - 1}
+          Orta · kazanma %{SHOW_MIN_PROB}–{STRONG_PROB - 1}
         </h3>
       )}
       <div className="sk-list">
@@ -108,7 +108,7 @@ function Section({ title, sub, picks, now }: { title: string; sub: string; picks
   );
 }
 
-const byTime = (a: Pick, b: Pick) => a.kickoff.localeCompare(b.kickoff) || b.confidence - a.confidence;
+const byTime = (a: Pick, b: Pick) => a.kickoff.localeCompare(b.kickoff) || b.prob - a.prob;
 
 export default async function SeckiPage({ searchParams }: { searchParams: Promise<{ gun?: string }> }) {
   const { gun } = await searchParams;
@@ -129,8 +129,8 @@ export default async function SeckiPage({ searchParams }: { searchParams: Promis
 
   // ---- Maçlar sistemi: maç başına tek tercih (başlamışsa kayıttaki)
   const mac = new Map<string, Pick>();
-  const addMac = (id: string, e: { kickoff: string; league: string; home: string; away: string }, p: { market: string; selection: string; odd: number; confidence: number } | null, result?: SnapEntry["result"]) => {
-    const tier = p && tierOf(p.odd, p.confidence);
+  const addMac = (id: string, e: { kickoff: string; league: string; home: string; away: string }, p: { market: string; selection: string; odd: number; prob: number } | null, result?: SnapEntry["result"]) => {
+    const tier = p && tierOf(p.odd, p.prob);
     if (!p || !tier) return;
     mac.set(id, {
       key: `m-${id}`,
@@ -138,7 +138,7 @@ export default async function SeckiPage({ searchParams }: { searchParams: Promis
       ...e,
       label: `${p.market} · ${p.selection}`,
       odd: p.odd,
-      confidence: p.confidence,
+      prob: p.prob,
       result: result ? { hg: result.hg, ag: result.ag, won: result.pickWon } : undefined,
       tier,
     });
@@ -153,7 +153,7 @@ export default async function SeckiPage({ searchParams }: { searchParams: Promis
   const oran = new Map<string, Pick>();
   for (const s of snaps) {
     const o = s.oddsPick;
-    const tier = o && tierOf(o.odd, o.confidence);
+    const tier = o && tierOf(o.odd, odds.winOf(o.rate));
     if (!o || !tier) continue;
     if (new Date(s.kickoff).getTime() > now && odds.rows.some((r) => r.a.match.id === s.id)) continue; // başlamamışsa güncel hesap
     oran.set(s.id, {
@@ -165,14 +165,14 @@ export default async function SeckiPage({ searchParams }: { searchParams: Promis
       away: s.away,
       label: `${o.market} · ${o.selection}`,
       odd: o.odd,
-      confidence: o.confidence!,
+      prob: odds.winOf(o.rate),
       result: s.result ? { hg: s.result.hg, ag: s.result.ag, won: s.result.oddsWon } : undefined,
       tier,
     });
   }
   for (const { a, pick } of odds.rows) {
     if (trDate(new Date(a.match.kickoff).getTime()) !== date || oran.has(a.match.id)) continue;
-    const tier = pick && tierOf(pick.odd, pick.confidence);
+    const tier = pick && tierOf(pick.odd, odds.winOf(pick.rate));
     if (!pick || !tier) continue;
     oran.set(a.match.id, {
       key: `o-${a.match.id}`,
@@ -183,7 +183,7 @@ export default async function SeckiPage({ searchParams }: { searchParams: Promis
       away: a.match.away.name,
       label: `${pick.market} · ${pick.selection}`,
       odd: pick.odd,
-      confidence: pick.confidence,
+      prob: odds.winOf(pick.rate),
       tier,
     });
   }
@@ -191,7 +191,7 @@ export default async function SeckiPage({ searchParams }: { searchParams: Promis
   // ---- Canlı sistemi: o gün yapılan canlı öneriler (öneri anındaki oran ve güvenle)
   const canli: Pick[] = [];
   for (const r of liveRecs) {
-    const tier = tierOf(r.odd, r.confidence);
+    const tier = tierOf(r.odd, r.prob);
     if (!analyzedRec(r) || !tier) continue;
     canli.push({
       key: `c-${r.fotmobId}-${r.label}`,
@@ -202,7 +202,7 @@ export default async function SeckiPage({ searchParams }: { searchParams: Promis
       away: r.away,
       label: r.label,
       odd: r.odd!,
-      confidence: r.confidence,
+      prob: r.prob,
       extra: `${r.minute} ${r.hg}-${r.ag} iken`,
       result: r.result ? { hg: r.result.hg, ag: r.result.ag, won: r.result.won } : undefined,
       tier,
@@ -215,8 +215,8 @@ export default async function SeckiPage({ searchParams }: { searchParams: Promis
         <h1>Seçki</h1>
       </div>
       <p className="muted small" style={{ marginTop: 4 }}>
-        Üç sistemin kendi güvenine göre şartı geçen tercihleri: oran {SHOW_MIN_ODD.toFixed(2)} ve üstü, güven %{SHOW_MIN_CONF} ve üstü (%{STRONG_CONF}+
-        Güçlü). Her sistem güveni kendi yöntemiyle hesaplar; aynı maça farklı güven vermeleri normaldir.
+        Üç sistemin şartı geçen tercihleri: oran {SHOW_MIN_ODD.toFixed(2)} ve üstü, kazanma olasılığı %{SHOW_MIN_PROB} ve üstü (%{STRONG_PROB}+
+        Güçlü). Her sistem olasılığı kendi yöntemiyle hesaplar ve kendi sonuçlarına göre düzeltir ("%70 diyorsa %70"); aynı maça farklı olasılık vermeleri normaldir.
       </p>
       <div className="daytabs sk-tabs" role="tablist">
         {(Object.keys(DAYS) as DayKey[]).map((k) => (
@@ -229,19 +229,19 @@ export default async function SeckiPage({ searchParams }: { searchParams: Promis
 
       <Section
         title="⚽ Maçlar sistemi"
-        sub="Maç öncesi model (piyasa + istatistik). Güven: model ile piyasanın uyumu, veri kalitesi ve belirsizlik."
+        sub="Maç öncesi model (piyasa + istatistik)."
         picks={[...mac.values()].sort(byTime)}
         now={now}
       />
       <Section
         title="🔴 Canlı sistemi"
-        sub="Canlı model (tempo, skor, kalan süre, maç öncesi analiz). Öneri anındaki iddaa canlı oranı ve güven."
+        sub="Canlı model (tempo, skor, kalan süre, maç öncesi analiz). Öneri anındaki iddaa canlı oranı ve olasılık."
         picks={canli.sort(byTime)}
         now={now}
       />
       <Section
         title="📊 Oranlar sistemi"
-        sub="Geçmişte aynı oranlı maçlar. Güven: geçmişteki tutma oranının oranın ima ettiği olasılığı ne kadar kesin aştığı."
+        sub="Geçmişte aynı oranlı maçlardaki tutma oranı (kendi sonuçlarına göre düzeltilmiş)."
         picks={[...oran.values()].sort(byTime)}
         now={now}
       />

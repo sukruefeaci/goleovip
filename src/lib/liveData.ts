@@ -7,6 +7,7 @@ import { getLiveLearning, getLiveSituations, liveFactorFn, recordLive, type Live
 import { shareLivePicks } from "./telegram";
 import { liveConsensus, recordConsensus, type ConsMatch } from "./consensus";
 import { inBackground } from "./background";
+import { mapperFor } from "./calibration";
 import { fetchLiveOdds, fetchLiveProgram, matchIddaaLive } from "./providers/iddaaLive";
 import { loadDay, parseHalfTime, priorOf, trDate, type LivePrior, type SnapEntry } from "./tracking";
 
@@ -216,9 +217,10 @@ async function computeLive(): Promise<{ items: LiveItem[]; total: number }> {
   );
   await Promise.race([work, new Promise((res) => setTimeout(res, 3500).unref?.())]);
 
-  const [learning, situations] = await Promise.all([
+  const [learning, situations, band] = await Promise.all([
     getLiveLearning().catch(() => ({})),
     getLiveSituations().catch(() => ({ v: 1 as const, b: {} })),
+    mapperFor("canli").catch(() => (p: number) => p),
   ]);
   const items: LiveItem[] = withPre.map(({ r, prior, pre }) => {
     const d = details.get(r.id);
@@ -234,6 +236,11 @@ async function computeLive(): Promise<{ items: LiveItem[]; total: number }> {
       prior: prior ? (prior.source === "elo" ? "elo" : "market") : "yok",
     };
     const model = calibrateLive(raw, liveFactorFn(learning, situations, ctx, r.hg, r.ag));
+    // Yüzde aralığı düzeltmesi ("%70 diyorsa %70"): tür/durum düzeltmesinden sonra
+    for (const b of model.probs) {
+      b.preBand = b.prob;
+      b.prob = band(b.prob);
+    }
     return {
       id: r.id,
       kickoff: r.kickoff.toISOString(),

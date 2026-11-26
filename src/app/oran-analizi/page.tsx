@@ -6,7 +6,7 @@ import { getStore } from "@/lib/auth/store";
 import { loadDay, recordOddsPicks, settleDay, trDate, type SnapEntry } from "@/lib/tracking";
 import { dayPnl, oranItems, totalPnl } from "@/lib/pnl";
 import { computeOddsPicks } from "@/lib/oddsPicks";
-import { SHOW_MIN_CONF, SHOW_MIN_ODD, STRONG_CONF, tierOf, TIER_LABEL } from "@/lib/showRule";
+import { SHOW_MIN_ODD, SHOW_MIN_PROB, STRONG_PROB, tierOf, TIER_LABEL } from "@/lib/showRule";
 import ProfitBoard from "@/components/ProfitBoard";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ type Row = {
   home: string;
   away: string;
   href: string;
-  pick: { market: string; selection: string; odd: number; rate: number; n: number; roi: number | null; confidence?: number } | null;
+  pick: { market: string; selection: string; odd: number; rate: number; n: number; roi: number | null; confidence?: number; win: number } | null;
   result?: { hg: number; ag: number; won: boolean | null | undefined };
 };
 
@@ -30,7 +30,7 @@ function OddsRowCard({ r, now }: { r: Row; now: number }) {
   const k = kickoffParts(r.kickoff);
   const started = new Date(r.kickoff).getTime() <= now;
   const st = r.result ? (r.result.won === true ? "won" : r.result.won === false ? "lost" : "void") : null;
-  const tier = r.pick ? tierOf(r.pick.odd, r.pick.confidence) : null;
+  const tier = r.pick ? tierOf(r.pick.odd, r.pick.win) : null;
   return (
     <Link href={r.href} className={`card oa-row${st ? ` oa-${st}` : ""}`}>
       <div className="oa-top">
@@ -62,8 +62,8 @@ function OddsRowCard({ r, now }: { r: Row; now: number }) {
             <small className="muted">{r.pick.n.toLocaleString("tr-TR")} maç</small>
           </div>
           <div className="oa-pick-stat">
-            <span>Güven</span>
-            <b className={(r.pick.confidence ?? 0) >= STRONG_CONF ? "pos" : ""}>{r.pick.confidence !== undefined ? `%${r.pick.confidence}` : "—"}</b>
+            <span>Kazanma</span>
+            <b className={r.pick.win * 100 >= STRONG_PROB ? "pos" : ""}>%{Math.round(r.pick.win * 100)}</b>
           </div>
           {st ? (
             <span className={`mp-badge ${st}`}>{st === "won" ? "✓ Tuttu" : st === "lost" ? "✗ Tutmadı" : "—"}</span>
@@ -84,7 +84,7 @@ function OddsRowCard({ r, now }: { r: Row; now: number }) {
 export default async function OddsAnalysisPage({ searchParams }: { searchParams: Promise<{ gun?: string }> }) {
   const { gun } = await searchParams;
   const day: DayKey = gun && gun in DAYS ? (gun as DayKey) : "bugun";
-  const { rows: computed, banner, histCount, loading } = await computeOddsPicks();
+  const { rows: computed, banner, histCount, loading, winOf } = await computeOddsPicks();
 
   // Takip: tercihleri günlük kayda ekle, bitmiş maçları sonuçlandır, 100 TL kâr/zarar
   const tracking = !!getStore();
@@ -129,7 +129,7 @@ export default async function OddsAnalysisPage({ searchParams }: { searchParams:
       home: e.home,
       away: e.away,
       href: `/mac/${e.id}`,
-      pick: { market: o.market, selection: o.selection, odd: o.odd, rate: o.rate, n: o.n, roi: o.rate * o.odd - 1, confidence: o.confidence },
+      pick: { market: o.market, selection: o.selection, odd: o.odd, rate: o.rate, n: o.n, roi: o.rate * o.odd - 1, confidence: o.confidence, win: winOf(o.rate) },
       result: e.result ? { hg: e.result.hg, ag: e.result.ag, won: e.result.oddsWon } : undefined,
     });
   }
@@ -144,12 +144,12 @@ export default async function OddsAnalysisPage({ searchParams }: { searchParams:
       home: a.match.home.name,
       away: a.match.away.name,
       href: `/oran-analizi/${a.match.id}`,
-      pick: pick && { market: pick.market, selection: pick.selection, odd: pick.odd, rate: pick.rate, n: pick.n, roi: pick.roi, confidence: pick.confidence },
+      pick: pick && { market: pick.market, selection: pick.selection, odd: pick.odd, rate: pick.rate, n: pick.n, roi: pick.roi, confidence: pick.confidence, win: winOf(pick.rate) },
       result: byId.get(a.match.id)?.result,
     });
   }
   const rows = [...byId.values()].sort((x, y) => x.kickoff.localeCompare(y.kickoff));
-  const shown = rows.filter((r) => r.pick && tierOf(r.pick.odd, r.pick.confidence));
+  const shown = rows.filter((r) => r.pick && tierOf(r.pick.odd, r.pick.win));
   const rest = rows.filter((r) => !shown.includes(r));
   const decided = shown.filter((r) => r.result && (r.result.won === true || r.result.won === false));
   const hits = decided.filter((r) => r.result!.won).length;
@@ -163,8 +163,8 @@ export default async function OddsAnalysisPage({ searchParams }: { searchParams:
         <span className="muted small">{histCount.toLocaleString("tr-TR")} geçmiş maç</span>
       </div>
       <p className="muted small" style={{ marginTop: 4 }}>
-        Her maç için, geçmişte aynı oranla oynanmış maçlarda en güvenilir sonucu veren tek tercih. Gösterilen: oran {SHOW_MIN_ODD.toFixed(2)} ve üstü, güven
-        %{SHOW_MIN_CONF} ve üstü (%{STRONG_CONF}+ Güçlü). Güven: geçmişteki tutma oranının, bugünkü oranın ima ettiği olasılığı ne kadar kesin aştığı.
+        Her maç için, geçmişte aynı oranla oynanmış maçlarda en güvenilir sonucu veren tek tercih. Gösterilen: oran {SHOW_MIN_ODD.toFixed(2)} ve üstü, kazanma olasılığı
+        %{SHOW_MIN_PROB} ve üstü (%{STRONG_PROB}+ Güçlü). Kazanma: geçmişteki tutma oranı, bu sistemin kendi sonuçlarına göre düzeltilmiş hali.
       </p>
 
       {loading && <div className="notice subtle">Geçmiş maç arşivi yükleniyor; birkaç saniye sonra sayfayı yenile.</div>}
@@ -197,7 +197,7 @@ export default async function OddsAnalysisPage({ searchParams }: { searchParams:
       {rest.length > 0 && (
         <details className="rest">
           <summary>
-            Şartı geçmeyen maçlar ({rest.length}) — oran {SHOW_MIN_ODD.toFixed(2)} altı ya da güven %{SHOW_MIN_CONF} altı
+            Şartı geçmeyen maçlar ({rest.length}) — oran {SHOW_MIN_ODD.toFixed(2)} altı ya da olasılık %{SHOW_MIN_PROB} altı
           </summary>
           <div className="oa-list">
             {rest.map((r) => (

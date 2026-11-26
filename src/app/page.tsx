@@ -9,7 +9,7 @@ import { calibrationFactors, getLearning, loadDay, mainPick, settleDay, trDate, 
 import { getStore } from "@/lib/auth/store";
 import { confLevel, winLevel } from "@/components/WinConfidence";
 import ProfitBoard from "@/components/ProfitBoard";
-import { SHOW_MIN_CONF, SHOW_MIN_ODD, STRONG_CONF, tierOf, TIER_LABEL } from "@/lib/showRule";
+import { SHOW_MIN_ODD, SHOW_MIN_PROB, STRONG_PROB, tierOf, TIER_LABEL } from "@/lib/showRule";
 import { dayPnl, macItems, totalPnl } from "@/lib/pnl";
 
 export const dynamic = "force-dynamic";
@@ -66,8 +66,8 @@ function MatchRow({ it, now }: { it: Item; now: number }) {
               <div className="mrow-top">
                 <span className="mrow-time">{k.time}</span>
                 <span className="chip">{it.league}</span>
-                {it.pick && tierOf(it.pick.odd, it.pick.confidence) && (
-                  <span className={`tier tier-${tierOf(it.pick.odd, it.pick.confidence)}`}>{TIER_LABEL[tierOf(it.pick.odd, it.pick.confidence)!]}</span>
+                {it.pick && tierOf(it.pick.odd, it.pick.prob) && (
+                  <span className={`tier tier-${tierOf(it.pick.odd, it.pick.prob)}`}>{TIER_LABEL[tierOf(it.pick.odd, it.pick.prob)!]}</span>
                 )}
                 <span className="mrow-status">
                   {it.result ? (
@@ -119,8 +119,8 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
     ...snaps.filter((s) => !liveIds.has(s.id)).map((s) => ({ ...s, pick: s.pick, result: s.result, live: false })),
   ].sort((x, y) => x.kickoff.localeCompare(y.kickoff));
 
-  // Gösterim kuralı: oran ≥ 1.50 ve güven ≥ %60 (sistem hesabı ve takibi değişmez)
-  const shown = items.filter((i) => i.pick && tierOf(i.pick.odd, i.pick.confidence));
+  // Gösterim kuralı: oran ≥ 1.50 ve kazanma olasılığı ≥ %60 (sistem hesabı ve takibi değişmez)
+  const shown = items.filter((i) => i.pick && tierOf(i.pick.odd, i.pick.prob));
   const rest = items.filter((i) => !shown.includes(i));
   const decided = shown.filter((i) => i.result && i.result.pickWon !== null && i.result.pickWon !== undefined);
   const hits = decided.filter((i) => i.result!.pickWon).length;
@@ -160,7 +160,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
         </span>
       </div>
       <p className="muted small" style={{ marginTop: 0 }}>
-        Gösterilen: oran {SHOW_MIN_ODD.toFixed(2)} ve üstü, güven %{SHOW_MIN_CONF} ve üstü tercihler (%{STRONG_CONF}+ Güçlü).
+        Gösterilen: oran {SHOW_MIN_ODD.toFixed(2)} ve üstü, kazanma olasılığı %{SHOW_MIN_PROB} ve üstü tercihler (%{STRONG_PROB}+ Güçlü).
       </p>
 
       {!tracking && day === "dun" && (
@@ -186,7 +186,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
       {rest.length > 0 && (
         <details className="rest">
           <summary>
-            Şartı geçmeyen maçlar ({rest.length}) — oran {SHOW_MIN_ODD.toFixed(2)} altı ya da güven %{SHOW_MIN_CONF} altı
+            Şartı geçmeyen maçlar ({rest.length}) — oran {SHOW_MIN_ODD.toFixed(2)} altı ya da olasılık %{SHOW_MIN_PROB} altı
           </summary>
           <div className="match-list">
             {rest.map((it) => (

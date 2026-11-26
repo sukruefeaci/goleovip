@@ -28,6 +28,8 @@ export interface SnapPick {
   odd: number;
   prob: number;
   confidence: number;
+  raw?: number; // modelin ham olasılığı (tür öğrenmesi bunun üzerinden)
+  preBand?: number; // aralık düzeltmesinden önceki olasılık (kalibrasyon öğrenmesi bunun üzerinden)
 }
 
 export interface SnapResult {
@@ -120,6 +122,8 @@ function toEntry(a: Analysis): SnapEntry {
       odd: p.odd,
       prob: p.prob,
       confidence: p.confidence,
+      raw: p.probModel,
+      preBand: p.probPreBand,
     },
     prior: priorOf(a),
     summary: {
@@ -320,7 +324,7 @@ export async function settleDay(date: string, now = Date.now(), budgetMs = 4000)
       const c = (learn[e.pick.category] ??= { n: 0, hits: 0, pred: 0 });
       c.n++;
       c.hits += won ? 1 : 0;
-      c.pred += e.pick.prob;
+      c.pred += e.pick.raw ?? e.pick.prob;
     }
     settled++;
   }

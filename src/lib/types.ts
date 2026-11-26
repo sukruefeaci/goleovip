@@ -93,7 +93,9 @@ export interface BetRow {
   selection: string;
   odd: number;
   required: number; // 1/oran
-  prob: number; // harman model olasılığı
+  prob: number; // harman model olasılığı (öğrenme düzeltmeleri uygulanmış)
+  probModel?: number; // modelin ham olasılığı (tür düzeltmesinden önce)
+  probPreBand?: number; // aralık (kalibrasyon) düzeltmesinden önceki olasılık
   sigma: number; // belirsizlik (std)
   ev: number; // prob*odd - 1
   evConservative: number; // (prob - sigma)*odd - 1

@@ -1,0 +1,200 @@
+import { getStore } from "@/lib/auth/store";
+import { currentUser } from "@/lib/auth/current";
+import { isAdmin } from "@/lib/admin";
+import { bandMapper, getCalibration, SYSTEMS, type SystemKey } from "@/lib/calibration";
+import { dailyNote, leagueRows, suggestions, summarize, type DayResult } from "@/lib/aiInsights";
+import { calibrationFactors, getLearning, loadDay, trDate } from "@/lib/tracking";
+import { getLiveLearning, getLiveSituations, liveFactors, loadLiveDay, situationRows } from "@/lib/liveTracking";
+import { analyzedRec } from "@/lib/pnl";
+import { loadConsensusDay } from "@/lib/consensus";
+import { rebuildCalibration } from "./actions";
+
+export const dynamic = "force-dynamic";
+
+const pc = (x: number | null) => (x === null ? "—" : `%${Math.round(x * 100)}`);
+
+export default async function AiPage({ searchParams }: { searchParams: Promise<{ ok?: string }> }) {
+  const { ok } = await searchParams;
+  const tracking = !!getStore();
+  const now = Date.now();
+  const yesterday = trDate(now - 86400_000);
+  const [c, user, macL, liveL, sit, ySnap, yLive, yUclu] = await Promise.all([
+    getCalibration(),
+    currentUser(),
+    getLearning().catch(() => ({})),
+    getLiveLearning().catch(() => ({})),
+    getLiveSituations().catch(() => ({ v: 1 as const, b: {} })),
+    tracking ? loadDay(yesterday).catch(() => []) : Promise.resolve([]),
+    tracking ? loadLiveDay(yesterday).catch(() => []) : Promise.resolve([]),
+    tracking ? loadConsensusDay(yesterday).catch(() => []) : Promise.resolve([]),
+  ]);
+  const systems = summarize(c);
+  const oranMap = bandMapper(c?.sys.oran);
+  const dr = (name: string, list: { said: number; won: boolean | null | undefined }[]): DayResult => {
+    const d = list.filter((x) => typeof x.won === "boolean");
+    return { name, n: d.length, hits: d.filter((x) => x.won).length, said: d.reduce((s, x) => s + x.said, 0) };
+  };
+  const yRes: DayResult[] = [
+    dr("Maçlar", ySnap.filter((e) => e.pick).map((e) => ({ said: e.pick!.prob, won: e.result?.pickWon }))),
+    dr("Oranlar", ySnap.filter((e) => e.oddsPick).map((e) => ({ said: oranMap(e.oddsPick!.rate), won: e.result?.oddsWon }))),
+    dr("Canlı", yLive.filter(analyzedRec).map((r) => ({ said: r.prob, won: r.result?.won }))),
+    dr("Üçlü onay", yUclu.map((r) => ({ said: Math.min(r.mac, r.oran, r.canli) / 100, won: r.result?.won }))),
+  ];
+  const note = dailyNote(c, yRes);
+  const sugg = suggestions(c, systems);
+  const leagues = leagueRows(c);
+  const macF = calibrationFactors(macL);
+  const liveF = liveFactors(liveL);
+  const sitRows = situationRows(liveL, sit).slice(0, 8);
+  const admin = isAdmin(user);
+
+  return (
+    <div className="page-narrow">
+      <div className="page-head">
+        <h1>🧠 Yapay zeka</h1>
+        {c && <span className="muted small">karne: {new Date(c.builtAt).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>}
+      </div>
+      <p className="muted small" style={{ marginTop: 4 }}>
+        Sistemin şimdiye kadar öğrendikleri. Amaç: <b>%70 diyorsa gerçekten %70 tutsun.</b> Her sistem tercihlerini söylediği olasılığa göre aralıklara böler,
+        her aralığın gerçekte ne kadar tuttuğuna bakar ve olasılıklarını buna göre kendiliğinden düzeltir (az veriyle küçük, en fazla ±%20). Karne en
+        geç 6 saatte bir kendini yeniler.
+      </p>
+      {ok && <div className="notice subtle">✓ {ok}</div>}
+      {!tracking && <div className="notice">Öğrenme için veritabanı (Upstash) bağlı olmalı.</div>}
+      {tracking && !c && <div className="notice subtle">Karne ilk kez hazırlanıyor; bir dakika sonra sayfayı yenile.</div>}
+
+      <section className="card pad ai-note">
+        <h2 className="card-title">Bugünün notu</h2>
+        <ul>
+          {note.map((l, i) => (
+            <li key={i}>{l}</li>
+          ))}
+        </ul>
+      </section>
+
+      <h2 className="lc-h">Ne kadar dürüst? (dediği ↔ tuttuğu)</h2>
+      {systems.map((s) => (
+        <section key={s.key} className="card pad ai-sys">
+          <div className="ai-sys-head">
+            <h3>{s.name}</h3>
+            <span className="small">
+              {s.n ? (
+                <>
+                  {s.hits}/{s.n} tuttu · dediği ort. <b>{pc(s.said)}</b> · tuttuğu <b className={s.actual! >= s.said! - 0.03 ? "pos" : "neg"}>{pc(s.actual)}</b>
+                  {s.gap !== null && <span className="muted"> · sapma {s.gap.toFixed(1)} puan</span>}
+                </>
+              ) : (
+                <span className="muted">henüz sonuçlanmış tercih yok</span>
+              )}
+            </span>
+          </div>
+          {s.n > 0 && (
+            <div className="ai-rel">
+              <div className="ai-rel-row ai-rel-hd">
+                <span>Dediği</span>
+                <span />
+                <span>Tuttuğu</span>
+                <span>Adet</span>
+                <span>Düzeltme</span>
+              </div>
+              {s.rows
+                .filter((r) => r.n > 0)
+                .map((r) => (
+                  <div key={r.i} className="ai-rel-row">
+                    <span>{r.label}</span>
+                    <span className="ai-bar" aria-hidden>
+                      <i className="said" style={{ width: `${Math.round(r.said * 100)}%` }} />
+                      <i className={`act ${r.actual !== null && r.actual < r.said - 0.05 ? "low" : ""}`} style={{ width: `${Math.round((r.actual ?? 0) * 100)}%` }} />
+                    </span>
+                    <b className={r.actual !== null && Math.abs(r.actual - r.said) <= 0.05 ? "pos" : r.actual !== null && r.actual < r.said ? "neg" : ""}>{pc(r.actual)}</b>
+                    <span className="muted">{r.n}</span>
+                    <span className={r.factor < 0.995 ? "neg" : r.factor > 1.005 ? "pos" : "muted"}>×{r.factor.toFixed(2)}</span>
+                  </div>
+                ))}
+              <p className="muted small" style={{ margin: "6px 0 0" }}>
+                Mor çubuk: söylenen olasılık · yeşil: gerçekte tutma. Düzeltme, o aralıktaki yeni tahminlere uygulanan çarpan.
+              </p>
+            </div>
+          )}
+        </section>
+      ))}
+
+      <section className="card pad ai-sugg">
+        <h2 className="card-title">Kendini geliştirme önerileri</h2>
+        {!sugg.length && <p className="muted small">Şu an dikkat çeken bir şey yok.</p>}
+        {sugg.map((g, i) => (
+          <div key={i} className={`ai-sg ai-sg-${g.level}`}>
+            <span>{g.level === "iyi" ? "✅" : g.level === "dikkat" ? "⚠️" : "💡"}</span>
+            <span>{g.text}</span>
+          </div>
+        ))}
+        <p className="muted small" style={{ marginBottom: 0 }}>
+          Olasılık düzeltmeleri kendiliğinden uygulanır. Lig çıkarma, yeni veri kaynağı gibi kod değişikliği gerektiren öneriler senin kararınla yapılır.
+        </p>
+      </section>
+
+      <section className="card pad">
+        <h2 className="card-title">Tercih türüne göre öğrendikleri</h2>
+        <h3 className="sk-tier">⚽ Maçlar</h3>
+        {Object.entries(macL).map(([k, v]) => (
+          <div key={k} className="learn-row">
+            <b>{k}</b>
+            <span className="small">
+              {v!.hits}/{v!.n} tuttu ({pc(v!.hits / v!.n)}) · model {pc(v!.pred / v!.n)} demişti
+            </span>
+            <span className="small">
+              düzeltme <b>×{(macF[k as keyof typeof macF] ?? 1).toFixed(2)}</b>
+            </span>
+          </div>
+        ))}
+        {!Object.keys(macL).length && <p className="muted small">Henüz veri yok.</p>}
+        <h3 className="sk-tier">🔴 Canlı</h3>
+        {Object.entries(liveL).map(([k, v]) => (
+          <div key={k} className="learn-row">
+            <b>{k}</b>
+            <span className="small">
+              {v!.hits}/{v!.n} tuttu ({pc(v!.hits / v!.n)}) · model {pc(v!.pred / v!.n)} demişti
+            </span>
+            <span className="small">
+              düzeltme <b>×{(liveF[k as keyof typeof liveF] ?? 1).toFixed(2)}</b>
+            </span>
+          </div>
+        ))}
+        {sitRows.length > 0 && <h3 className="sk-tier">🔴 Canlı · duruma göre (en belirgin)</h3>}
+        {sitRows.map((r) => (
+          <div key={`${r.kind}|${r.dim}|${r.val}`} className="learn-row">
+            <b>
+              {r.kind} · {r.dim}: {r.val}
+            </b>
+            <span className="small">
+              {r.hits}/{r.n} tuttu ({pc(r.hits / r.n)}) · beklenen {pc(r.pred / r.n)}
+            </span>
+            <span className={`small ${r.adj > 1.005 ? "pos" : r.adj < 0.995 ? "neg" : ""}`}>×{r.adj.toFixed(2)}</span>
+          </div>
+        ))}
+      </section>
+
+      {leagues.length > 0 && (
+        <section className="card pad">
+          <h2 className="card-title">Liglere göre (Maçlar sistemi)</h2>
+          {leagues.slice(0, 20).map((l) => (
+            <div key={l.name} className="learn-row">
+              <b>{l.name}</b>
+              <span className="small">
+                {l.hits}/{l.n} tuttu · dediği {pc(l.said)} · tuttuğu{" "}
+                <b className={l.actual >= l.said - 0.03 ? "pos" : "neg"}>{pc(l.actual)}</b>
+              </span>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {admin && tracking && (
+        <form action={rebuildCalibration} style={{ marginTop: 16 }}>
+          <button className="btn block">🔄 Karneyi şimdi yeniden hesapla</button>
+        </form>
+      )}
+      <p className="muted small">Sistemler: {(Object.keys(SYSTEMS) as SystemKey[]).map((k) => SYSTEMS[k]).join(", ")} ve üçlü onay.</p>
+    </div>
+  );
+}

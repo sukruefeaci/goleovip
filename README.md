@@ -183,3 +183,11 @@ Canlı tercih yalnız maç öncesi analizi olan maçlara verilir (`liveData.ts`:
 
 Aynı seçenek için üç sistemin de kendi güveniyle **≥ %65** verdiği tercihler (`src/lib/consensus.ts`). Canlı tercih maç öncesi pazar anahtarına çevrilir (`specKey`: MS Üst/Alt → `ou:`, İY Üst/Alt → `htou:`, KG → `btts:`, MS 1/X/2 → `1x2:`, çifte şans → `dc:`); Maçlar güveni o seçeneğin `BetRow.confidence` değeri, Oranlar güveni aynı seçeneğin geçmiş eşleştirmesinden `oddsConfidence` (en az 150 maç). Canlı sistemi yalnız maç oynanırken güven verdiği için üçlü onay maç sırasında oluşur; `loadLive` her çalışmada hesaplar ve ilk onay anını `uclu:YYYY-MM-DD` anahtarına kaydeder, kesinleşince ✓/✗ işaretlenir. Bugün başlayacak maçlarda Maçlar + Oranlar ≥ %65 olanlar "canlı onayını bekleyenler" bölümünde durur.
 
+## Yapay zeka sekmesi ve "%70 diyorsa %70" kalibrasyonu
+
+`src/lib/calibration.ts`: her sistem (Maçlar, Canlı, Oranlar) için tercihler söylenen olasılığa göre aralıklara bölünür (%50 altı, %50–55 … %90+); aralık başına gerçek isabetten düzeltme çarpanı (K = 30 önsel, 0.80–1.20, aralıklar arası yumuşak ve sıralamayı koruyan) çıkarılır ve yeni tahminlere uygulanır. Öğrenme düzeltme öncesi olasılık (`preBand`) üzerinden yapılır; Maçlar tür öğrenmesi de artık ham model olasılığı (`raw`) üzerinden (düzeltme kendini silmesin). Karne `calib:v1`, en geç 6 saatte bir kayıtlardan (60 gün maç öncesi, 45 gün canlı) arka planda yeniden kurulur.
+
+Gösterim filtreleri artık **kazanma olasılığına** göre: oran ≥ 1.50, olasılık ≥ %60 (≥ %70 Güçlü); Üçlü onay her sistemde olasılık ≥ %65; Telegram olasılık ≥ %70 (`TELEGRAM_MIN_PROB`). Oranlar sisteminin olasılığı: geçmiş tutma oranının kendi sonuçlarıyla düzeltilmiş hali.
+
+`/ai` (üst çubukta 🧠): günlük not (dünün sonuçları, karnede değişen düzeltmeler), her sistemin "dediği ↔ tuttuğu" tablosu, kendini geliştirme önerileri (iyimser/temkinli aralıklar, kötü ligler, veri azlığı; `src/lib/aiInsights.ts`), tür/durum/lig öğrenmeleri. Admin "Karneyi şimdi yeniden hesapla" düğmesi.
+

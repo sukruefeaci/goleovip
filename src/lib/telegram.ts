@@ -5,23 +5,25 @@ import { getJSON, getStore, setJSON } from "./auth/store";
 import { LIVE_MIN_ODD, type LiveBet, type LiveStats } from "./liveModel";
 
 /**
- * Canlı bölümünde güveni yüksek (varsayılan ≥ %70) ve iddaa canlı oranı ≥ 1.45 olan bir öneri çıkınca görsel kart hazırlayıp Telegram kanalına gönderir.
+ * Canlı bölümünde kazanma olasılığı yüksek (varsayılan ≥ %70) ve iddaa canlı oranı ≥ 1.45 olan bir öneri çıkınca görsel kart hazırlayıp Telegram kanalına gönderir.
  * Ayarlar (Vercel → Environment Variables):
  *   TELEGRAM_BOT_TOKEN  BotFather'dan alınan bot anahtarı (gizli)
  *   TELEGRAM_CHAT_ID    kanal adı (@kanal) ya da sayısal kimlik
- *   TELEGRAM_MIN_CONF   isteğe bağlı eşik (varsayılan 70)
+ *   TELEGRAM_MIN_PROB   isteğe bağlı kazanma olasılığı eşiği, % (varsayılan 70)
  *   TELEGRAM_COOLDOWN_MIN  iki paylaşım arası en az süre, dakika (varsayılan 30)
  * Aynı maç + aynı öneri bir kez gönderilir (veritabanında tg: anahtarı).
  */
 
-export function telegramConfig(): { token: string; chat: string; minConf: number; cooldownMin: number } | null {
+export function telegramConfig(): { token: string; chat: string; minProb: number; cooldownMin: number } | null {
   const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
   const chat = process.env.TELEGRAM_CHAT_ID?.trim();
   if (!token || !chat) return null;
-  const m = Number(process.env.TELEGRAM_MIN_CONF);
+  // Eşik: kazanma olasılığı % (TELEGRAM_MIN_PROB; eski adı TELEGRAM_MIN_CONF da kabul edilir)
+  const mRaw = (process.env.TELEGRAM_MIN_PROB ?? process.env.TELEGRAM_MIN_CONF)?.trim();
+  const m = mRaw ? Number(mRaw) : NaN;
   const cdRaw = process.env.TELEGRAM_COOLDOWN_MIN?.trim();
   const cd = cdRaw ? Number(cdRaw) : NaN;
-  return { token, chat, minConf: Number.isFinite(m) && m > 0 ? m : 70, cooldownMin: Number.isFinite(cd) && cd >= 0 ? cd : 30 };
+  return { token, chat, minProb: Number.isFinite(m) && m > 0 ? m : 70, cooldownMin: Number.isFinite(cd) && cd >= 0 ? cd : 30 };
 }
 
 export interface LiveShare {
@@ -296,8 +298,8 @@ export async function shareLivePicks(list: LiveShare[], budgetMs = 7000, now = D
   if (!cfg || !store) return 0;
   if (!(await isTelegramEnabled())) return 0; // admin panelinden durdurulmuş
   const todo = list
-    .filter((s) => s.rec.confidence >= cfg.minConf && !!s.rec.odd && s.rec.odd >= LIVE_MIN_ODD)
-    .sort((a, b) => b.rec.prob * b.rec.confidence - a.rec.prob * a.rec.confidence);
+    .filter((s) => s.rec.prob * 100 >= cfg.minProb && !!s.rec.odd && s.rec.odd >= LIVE_MIN_ODD)
+    .sort((a, b) => b.rec.prob - a.rec.prob || b.rec.confidence - a.rec.confidence);
   if (!todo.length) return 0;
 
   const job = async (): Promise<number> => {

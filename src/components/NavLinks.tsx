@@ -11,6 +11,7 @@ const ITEMS = [
   { href: "/kupon", label: "Kupon", icon: "🎟️", match: (p: string) => p.startsWith("/kupon") },
   { href: "/banko", label: "Banko", icon: "🎯", match: (p: string) => p.startsWith("/banko") },
   { href: "/oran-analizi", label: "Oranlar", icon: "📊", match: (p: string) => p.startsWith("/oran-analizi") },
+  { href: "/ai", label: "AI", icon: "🧠", match: (p: string) => p.startsWith("/ai"), topOnly: true },
   { href: "/nasil-calisir", label: "Bilgi", icon: "📘", match: (p: string) => p.startsWith("/nasil-calisir"), topOnly: true },
 ];
 

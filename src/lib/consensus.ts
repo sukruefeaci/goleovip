@@ -4,6 +4,7 @@ import { loadAnalyses } from "./data";
 import { historyIfReady, loadHistory, TOLERANCE } from "./history";
 import { matchAllSelections, type SelectionMatch } from "./oddsMatch";
 import { oddsConfidence } from "./oddsPicks";
+import { mapperFor } from "./calibration";
 import { parseFotmobResults, parseHalfTime, trDate } from "./tracking";
 import { earlyWon, liveWon, parseGoals } from "./liveTracking";
 import type { LiveBet, LiveSpec } from "./liveModel";
@@ -11,7 +12,8 @@ import type { LiveItem } from "./liveData";
 import type { Analysis } from "./types";
 
 /**
- * Üçlü onay: aynı tercih için üç sistemin (Maçlar, Oranlar, Canlı) her biri kendi güveniyle ≥ %65 veriyorsa.
+ * Üçlü onay: aynı tercih için üç sistemin (Maçlar, Oranlar, Canlı) her biri kazanma olasılığı ≥ %65 veriyorsa
+ * (her sistem kendi yöntemiyle ve kendi sonuçlarına göre düzeltilmiş olasılıkla).
  * Sistemlerin hesabı değişmez; yalnız aynı seçenek için üçünün güveni yan yana konur.
  * Canlı sistemi yalnız maç oynanırken güven verdiği için üçlü onay maç sırasında oluşur.
  */
@@ -39,9 +41,9 @@ export function specKey(spec: LiveSpec): string | null {
 }
 
 export interface SysScore {
+  prob: number; // kazanma olasılığı (0–1), sistemin kendi aralık düzeltmesiyle
   confidence: number;
   odd?: number;
-  prob?: number;
 }
 
 export interface ConsSel {
@@ -80,15 +82,15 @@ async function oddsSelections(a: Analysis): Promise<SelectionMatch[]> {
   return s;
 }
 
-const oranScore = (s: SelectionMatch | undefined) =>
-  s && s.supported && s.n >= 150 ? { confidence: oddsConfidence(s), odd: s.odd, rate: s.rate, n: s.n } : null;
+const oranScore = (s: SelectionMatch | undefined, winOf: (r: number) => number) =>
+  s && s.supported && s.n >= 150 ? { prob: winOf(s.rate), confidence: oddsConfidence(s), odd: s.odd, rate: s.rate, n: s.n } : null;
 
 /** Maç öncesi iki sistem (Maçlar + Oranlar): her seçenek için güvenler */
 export async function preScores(a: Analysis): Promise<Map<string, { mac: SysScore; oran: SysScore & { rate: number; n: number } }>> {
-  const sel = await oddsSelections(a);
+  const [sel, winOf] = await Promise.all([oddsSelections(a), mapperFor("oran").catch(() => (p: number) => p)]);
   const out = new Map<string, { mac: SysScore; oran: SysScore & { rate: number; n: number } }>();
   for (const r of a.rows) {
-    const o = oranScore(sel.find((x) => x.key === r.key));
+    const o = oranScore(sel.find((x) => x.key === r.key), winOf);
     if (!o) continue;
     out.set(r.key, { mac: { confidence: r.confidence, odd: r.odd, prob: r.prob }, oran: o });
   }
@@ -108,7 +110,7 @@ export async function liveConsensus(items: LiveItem[], min = CONS_MIN): Promise<
       const key = specKey(b.spec);
       const p = key ? pre.get(key) : undefined;
       if (!key || !p) continue;
-      if (b.confidence < min || p.mac.confidence < min || p.oran.confidence < min) continue;
+      if (b.prob * 100 < min || p.mac.prob * 100 < min || p.oran.prob * 100 < min) continue;
       sels.push({ key, label: b.label, spec: b.spec, mac: p.mac, oran: p.oran, canli: { confidence: b.confidence, odd: b.odd, prob: b.prob } });
     }
     if (sels.length)
@@ -122,7 +124,7 @@ export async function liveConsensus(items: LiveItem[], min = CONS_MIN): Promise<
         minute: it.minuteLabel,
         hg: it.hg,
         ag: it.ag,
-        sels: sels.sort((x, y) => Math.min(y.mac.confidence, y.oran.confidence, y.canli.confidence) - Math.min(x.mac.confidence, x.oran.confidence, x.canli.confidence)),
+        sels: sels.sort((x, y) => Math.min(y.mac.prob, y.oran.prob, y.canli.prob) - Math.min(x.mac.prob, x.oran.prob, x.canli.prob)),
       });
   }
   return out;
@@ -139,7 +141,7 @@ export async function waitingConsensus(min = CONS_MIN, now = Date.now()) {
     if (t <= now || trDate(t) !== today) continue;
     const pre = await preScores(a);
     const sels = [...pre.entries()]
-      .filter(([, p]) => p.mac.confidence >= min && p.oran.confidence >= min)
+      .filter(([, p]) => p.mac.prob * 100 >= min && p.oran.prob * 100 >= min)
       .map(([key, p]) => {
         const r = a.rows.find((x) => x.key === key)!;
         return { key, label: `${r.market} · ${r.selection}`, ...p };
@@ -165,7 +167,7 @@ export interface ConsRecord {
   minute: string;
   hg: number;
   ag: number;
-  mac: number;
+  mac: number; // kazanma olasılığı %
   oran: number;
   canli: number;
   odd?: number; // canlı oran (varsa), yoksa maç öncesi oran
@@ -199,9 +201,9 @@ export async function recordConsensus(list: ConsMatch[], now = Date.now()): Prom
         minute: m.minute,
         hg: m.hg,
         ag: m.ag,
-        mac: s.mac.confidence,
-        oran: s.oran.confidence,
-        canli: s.canli.confidence,
+        mac: Math.round(s.mac.prob * 100),
+        oran: Math.round(s.oran.prob * 100),
+        canli: Math.round(s.canli.prob * 100),
         odd: s.canli.odd ?? s.mac.odd,
         at: new Date(now).toISOString(),
       };
