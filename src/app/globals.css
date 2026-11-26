@@ -741,3 +741,4 @@ details.rest .oa-list, details.rest .match-list, details.rest .lc-list { opacity
 .uc-chk input { width: 18px; height: 18px; accent-color: var(--brand); }
 .uc-chk:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); }
 .share-box { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0 14px; border-color: rgba(56, 189, 248, 0.45); }
+.lc-share { margin-left: auto; } .lc-share .btn { padding: 4px 9px; }

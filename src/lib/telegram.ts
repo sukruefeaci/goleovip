@@ -382,3 +382,30 @@ export async function shareLivePicks(list: LiveShare[], budgetMs = 7000, now = D
   };
   return Promise.race([job(), new Promise<number>((res) => setTimeout(() => res(0), budgetMs).unref?.())]);
 }
+
+/** Admin: canlı tercihi eşik ve bekleme süresine bakmadan hemen paylaş (aynı tercih bir kez) */
+export async function shareLiveNow(s: LiveShare, now = Date.now()): Promise<{ ok: boolean; error?: string }> {
+  const cfg = telegramConfig();
+  const store = getStore();
+  if (!cfg) return { ok: false, error: "Telegram ayarlı değil" };
+  if (!store) return { ok: false, error: "Veritabanı bağlı değil" };
+  if (!(await store.setNX(recKey(s), new Date(now).toISOString()).catch(() => false))) return { ok: false, error: "Bu tercih zaten paylaşıldı" };
+  try {
+    const r = await sendPhoto(cfg.token, cfg.chat, await renderShareImage(s), shareCaption(s));
+    if (!r.ok) throw new Error(r.error);
+  } catch (e) {
+    await store.reset(recKey(s)).catch(() => {});
+    return { ok: false, error: (e as Error).message };
+  }
+  await addShared(s, now).catch(() => {});
+  return { ok: true };
+}
+
+/** Canlı tercihler kanalda paylaşıldı mı? (fotmobId|etiket → evet) */
+export async function liveSharedSet(ids: string[]): Promise<Set<string>> {
+  const store = getStore();
+  const out = new Set<string>();
+  if (!store || !ids.length) return out;
+  await Promise.all(ids.map(async (id) => ((await store.get(`tg:${id}`).catch(() => null)) ? out.add(id) : null)));
+  return out;
+}

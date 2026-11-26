@@ -9,6 +9,10 @@ import { confLevel, winLevel } from "@/components/WinConfidence";
 import { loadLiveDay, settleLive, type LiveRecord } from "@/lib/liveTracking";
 import { trDate } from "@/lib/tracking";
 import { getStore } from "@/lib/auth/store";
+import { currentUser } from "@/lib/auth/current";
+import { isAdmin } from "@/lib/admin";
+import { liveSharedSet, telegramConfig } from "@/lib/telegram";
+import { shareLiveToChannel } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +38,24 @@ function Stat({ label, v, fmt = (x: number) => String(x) }: { label: string; v?:
   );
 }
 
-function LiveCard({ it }: { it: LiveItem }) {
+type ShareCtx = { admin: boolean; shared: Set<string> } | null;
+
+/** Admin: tercihi kanalda hemen paylaş düğmesi */
+function ShareBtn({ it, label, share }: { it: LiveItem; label: string; share: ShareCtx }) {
+  if (!share?.admin) return null;
+  const done = share.shared.has(`${it.id}|${label}`);
+  return (
+    <form action={shareLiveToChannel} className="lc-share">
+      <input type="hidden" name="id" value={it.id} />
+      <input type="hidden" name="label" value={label} />
+      <button className="btn sm" disabled={done} title={done ? "Kanalda paylaşıldı" : "Kanalda paylaş"}>
+        {done ? "✓" : "📤"}
+      </button>
+    </form>
+  );
+}
+
+function LiveCard({ it, share = null }: { it: LiveItem; share?: ShareCtx }) {
   const m = it.model;
   const tempoCls = m.tempo.label === "Yüksek" ? "lv-high" : m.tempo.label === "Düşük" ? "lv-low" : "lv-mid";
   const phaseNote =
@@ -101,10 +122,10 @@ function LiveCard({ it }: { it: LiveItem }) {
           <span className="ai">AI</span> Canlı öneri
           {it.hasOdds && <span className="muted small">· iddaa canlı oranlarıyla</span>}
         </span>
-        {shownRecs(it).length ? (
-          shownRecs(it).map((r) => (
+        {(shownRecs(it).length ? shownRecs(it) : share?.admin ? it.recs : []).length ? (
+          (shownRecs(it).length ? shownRecs(it) : it.recs).map((r) => (
             <div key={r.label} className={`lc-rec ${r.ev !== undefined && r.ev > 0 ? "value" : ""}`}>
-              <span className={`tier tier-${tierOf(r.odd, r.prob)}`}>{TIER_LABEL[tierOf(r.odd, r.prob)!]}</span>
+              {tierOf(r.odd, r.prob) && <span className={`tier tier-${tierOf(r.odd, r.prob)}`}>{TIER_LABEL[tierOf(r.odd, r.prob)!]}</span>}
               <b>{r.label}</b>
               {r.odd ? <span className="oddpill">{r.odd.toFixed(2)}</span> : <span className="muted small">oran yok</span>}
               <span className={winLevel(r.prob).cls}>{pc(r.prob)}</span>
@@ -114,6 +135,7 @@ function LiveCard({ it }: { it: LiveItem }) {
                   getiri {r.ev >= 0 ? "+" : "−"}%{Math.abs(Math.round(r.ev * 100))}
                 </span>
               )}
+              <ShareBtn it={it} label={r.label} share={share} />
             </div>
           ))
         ) : (
@@ -187,8 +209,8 @@ function History({ recs, day }: { recs: LiveRecord[]; day: "bugun" | "dun" }) {
   );
 }
 
-export default async function LivePage({ searchParams }: { searchParams: Promise<{ gun?: string }> }) {
-  const { gun } = await searchParams;
+export default async function LivePage({ searchParams }: { searchParams: Promise<{ gun?: string; tg?: string }> }) {
+  const { gun, tg } = await searchParams;
   const histDay: "bugun" | "dun" = gun === "dun" ? "dun" : "bugun";
   const tracking = !!getStore();
   const now = Date.now();
@@ -204,11 +226,17 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
     pY = dayPnl(canliItems(ydayRecs));
   const totalC = tracking ? await totalPnl("canli", { [today]: pT, [yesterday]: pY }).catch(() => null) : null;
   const analyzed = items.filter((i) => i.pre);
+  // Admin: kanalda elle paylaşma düğmeleri
+  const admin = isAdmin(await currentUser()) && !!telegramConfig();
+  const share: ShareCtx = admin
+    ? { admin, shared: await liveSharedSet(analyzed.flatMap((it) => it.recs.concat(shownRecs(it)).map((r) => `${it.id}|${r.label}`))) }
+    : null;
   const withPicks = analyzed.filter((i) => shownRecs(i).length);
   const noPicks = analyzed.filter((i) => !shownRecs(i).length);
   const others = items.filter((i) => !i.pre);
   return (
     <div className="page-narrow">
+      {tg && <div className={`notice ${tg === "ok" ? "subtle" : ""}`}>{tg === "ok" ? "✓ Canlı tercih kanalda paylaşıldı." : `⚠ ${tg}`}</div>}
       <div className="page-head">
         <h1>
           <span className="live-dot big" aria-hidden /> Canlı maçlar
@@ -230,7 +258,7 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
       {analyzed.length > 0 && <h2 className="lc-h">Tercih olan maçlar</h2>}
       <div className="lc-list">
         {withPicks.map((it) => (
-          <LiveCard key={it.id} it={it} />
+          <LiveCard key={it.id} it={it} share={share} />
         ))}
         {analyzed.length > 0 && !withPicks.length && (
           <div className="card pad empty">
@@ -243,7 +271,7 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
           <summary>Şartı geçen tercihi olmayan analizli maçlar ({noPicks.length})</summary>
           <div className="lc-list">
             {noPicks.map((it) => (
-              <LiveCard key={it.id} it={it} />
+              <LiveCard key={it.id} it={it} share={share} />
             ))}
           </div>
         </details>
