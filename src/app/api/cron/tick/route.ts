@@ -9,6 +9,7 @@ import { computeOddsPicks } from "@/lib/oddsPicks";
 import { getCalibration } from "@/lib/calibration";
 import { getStore, setJSON } from "@/lib/auth/store";
 import { postSharedResults } from "@/lib/tgStats";
+import { syncDay } from "@/lib/providers/apiFootball";
 import { postPrematchResults, sharePrematchPicks } from "@/lib/tgPre";
 
 /**
@@ -100,7 +101,15 @@ async function run(): Promise<Record<string, unknown>> {
     return { paylasim: await sharePrematchPicks(analyses, Date.now()), sonuc: await postPrematchResults(Date.now()) };
   }, log);
   await save();
-  // 4) Oranlar tercihleri (geçmiş arşivi soğuk sunucuda uzun sürebilir: kalan süre kadar beklenir)
+  // 4) Yurt dışı oranlar (API-Football, kota sınırlı, her çalışmada birkaç sayfa)
+  await step("yurtdisi_oran", async () => {
+    if (left() < 15000) return "süre kalmadı";
+    const d0 = new Date().toISOString().slice(0, 10),
+      d1 = new Date(Date.now() + 86400_000).toISOString().slice(0, 10);
+    return { bugun: await syncDay(d0, 3).catch((e) => (e as Error).message), yarin: await syncDay(d1, 3).catch((e) => (e as Error).message) };
+  }, log);
+  await save();
+  // 5) Oranlar tercihleri (geçmiş arşivi soğuk sunucuda uzun sürebilir: kalan süre kadar beklenir)
   await step("oranlar", async () => {
     if (left() < 8000) return "süre kalmadı (sonraki çalışmada)";
     const { rows, loading } = await computeOddsPicks(Math.max(2000, left() - 6000));

@@ -229,3 +229,7 @@ Zamanlayıcı sırası (60 sn sınırı için): analizler + canlı tarama → so
 
 `src/lib/oddsGap.ts`: iddaa ile yurt dışı piyasa (Football-Data: Betfair Borsası / piyasa ortalaması, marjı atılmış) arasındaki fark. Doğrudan: Maç Sonucu ve 2.5 Alt/Üst; türetilmiş: diğer pazarlar yurt dışı 1X2 + 2.5 Alt/Üst'e oturtulan Poisson gol beklentisinden. Açık = iddaa oranı × yurt dışı ihtimali − 1. Çizgi açığı: iddaa'nın oranını yurt dışının vereceği en uç çizgi (`equivLine`) en az bir çizgi daha zorsa. Yalnız yurt dışı oranı olan (Football-Data) maçlar; Oranlar sekmesinde "Oran analizi / Oran açığı" geçişi. Taç/korner/kart gibi istatistik pazarları için ek oran kaynağı gerekir.
 
+### Oran açığı: API-Football (yurt dışı şirketler, korner ve kart)
+
+`src/lib/providers/apiFootball.ts`: Vercel'de `API_FOOTBALL_KEY` varsa zamanlayıcı her çalışmada bugün ve yarın (UTC) için fikstür listesini ve oran sayfalarını kademeli çeker (`syncDay`, `af:day:<gün>`; 16 saatte bir yeni tur; günlük en çok 90 istek, `af:req:<gün>`). Her pazar için öncelikli şirket: Pinnacle → Betfair → Bet365 → 1xBet → … Sadece .5 çizgileri. Maçlar ad benzerliği + başlama saatiyle eşleştirilir (`findAfOdds`). `gapsFor(a, af)`: 1X2 ve KG doğrudan; Alt/Üst, takım golleri, ilk yarı, korner (toplam/ev/deplasman) ve kart çizgileri birebir varsa doğrudan, yoksa yurt dışı çizgilerine oturtulan Poisson / negatif binom ortalamasından. Eşdeğer çizgi (çizgi açığı) bu ailelerin hepsinde. Taç pazarı API-Football'da yok.
+

@@ -1,4 +1,6 @@
-import { buildContext, describe, probability } from "./markets";
+import { buildContext, describe, DISPERSION, probability } from "./markets";
+import { negBinOver, poissonOver } from "./poisson";
+import type { AfOdds, Lines } from "./providers/apiFootball";
 import { fitLambdas } from "./model";
 import type { Analysis } from "./types";
 
@@ -39,11 +41,81 @@ export interface GapMatch {
 export const GAP_MIN_ODD = 1.3;
 const MIN_P = 0.25; // çok düşük ihtimalli (sürpriz) seçenekler listelenmez
 
-export function gapsFor(a: Analysis): GapMatch | null {
+const devig2 = (o: number, u: number) => 1 / o / (1 / o + 1 / u);
+const devig3 = (h: [number, number, number]): [number, number, number] => {
+  const s = 1 / h[0] + 1 / h[1] + 1 / h[2];
+  return [1 / h[0] / s, 1 / h[1] / s, 1 / h[2] / s];
+};
+
+/** Çizgili pazar aileleri: iddaa anahtarı öneki → yurt dışı pazarı, dağılım, aday çizgiler, açıklama */
+const FAMILIES: Record<string, { af: keyof AfOdds; dist: "pois" | number; max: number; what: (h: string, a: string) => string }> = {
+  ou: { af: "ou", dist: "pois", max: 8.5, what: () => "toplam gol" },
+  hou: { af: "homeGoals", dist: "pois", max: 6.5, what: (h) => `${h} golü` },
+  aou: { af: "awayGoals", dist: "pois", max: 6.5, what: (_, a) => `${a} golü` },
+  htou: { af: "ou1h", dist: "pois", max: 4.5, what: () => "ilk yarı golü" },
+  cor: { af: "corners", dist: DISPERSION.cornersTotal, max: 20.5, what: () => "toplam korner" },
+  hcor: { af: "homeCorners", dist: DISPERSION.cornersTeam, max: 13.5, what: (h) => `${h} kornerı` },
+  acor: { af: "awayCorners", dist: DISPERSION.cornersTeam, max: 13.5, what: (_, a) => `${a} kornerı` },
+  card: { af: "cards", dist: DISPERSION.cards, max: 12.5, what: () => "toplam kart" },
+};
+
+/** Yurt dışı çizgilerinden ortalamayı bul: ihtimali %50'ye en yakın çizgide dağılımı tutturan ortalama */
+function fitMean(lines: Lines, k: number | "pois"): number | null {
+  const pts = Object.entries(lines).map(([l, [o, u]]) => ({ L: Number(l), p: devig2(o, u) }));
+  if (!pts.length) return null;
+  const { L, p } = pts.sort((x, y) => Math.abs(x.p - 0.5) - Math.abs(y.p - 0.5))[0];
+  const over = (mu: number) => (k === "pois" ? poissonOver(L, mu) : negBinOver(L, mu, k));
+  let lo = 0.01,
+    hi = 40;
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (over(mid) < p) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+/**
+ * Bir maçın açıkları. af: API-Football yurt dışı oranları (varsa: Pinnacle/Betfair/Bet365…, korner ve kart dahil);
+ * yoksa Football-Data maçlarında yurt dışı 1X2 + 2.5 Alt/Üst.
+ */
+export function gapsFor(a: Analysis, af?: AfOdds | null): GapMatch | null {
   const m = a.match;
-  if (m.source && m.source !== "market") return null; // yurt dışı bahis oranı yalnız Football-Data maçlarında var
-  const lam = fitLambdas(a.euroFair, a.euroOver25);
-  const ctx = buildContext(lam.home, lam.away, 0, 0, 0, a.halfShare);
+  const fd = (m.source ?? "market") === "market";
+  if (!af && !fd) return null;
+
+  // Yurt dışı 1X2 ve 2.5 Alt/Üst (marjsız) → gol beklentisi
+  const p1x2 = af?.h2h ? devig3(af.h2h) : fd ? a.euroFair : null;
+  const o25 = af?.ou?.["2.5"];
+  const pO25 = o25 ? devig2(o25[0], o25[1]) : fd ? a.euroOver25 : null;
+  const lam = p1x2 && pO25 !== null ? fitLambdas(p1x2, pO25) : null;
+  const ctx = lam ? buildContext(lam.home, lam.away, 0, 0, 0, a.halfShare) : null;
+  const meanFor = (mk: string): number | null => {
+    const f = FAMILIES[mk];
+    const lines = af?.[f.af] as Lines | undefined;
+    if (lines && Object.keys(lines).length) return fitMean(lines, f.dist);
+    if (!lam) return null;
+    if (mk === "ou") return lam.home + lam.away;
+    if (mk === "hou") return lam.home;
+    if (mk === "aou") return lam.away;
+    if (mk === "htou") return lam.home * a.halfShare.home + lam.away * a.halfShare.away;
+    return null; // korner/kart: yurt dışı çizgisi yoksa yok
+  };
+  const means: Record<string, number | null> = {};
+  /** Yurt dışına göre "L çizgisinin üstü/altı" ihtimali; birebir çizgi varsa doğrudan */
+  const lineProb = (mk: string, L: number, over: boolean): { p: number; direct: boolean } | null => {
+    const f = FAMILIES[mk];
+    const exact = (af?.[f.af] as Lines | undefined)?.[L.toFixed(1)];
+    if (exact) {
+      const po = devig2(exact[0], exact[1]);
+      return { p: over ? po : 1 - po, direct: true };
+    }
+    const mu = (means[mk] ??= meanFor(mk));
+    if (mu === null) return null;
+    const po = f.dist === "pois" ? poissonOver(L, mu) : negBinOver(L, mu, f.dist);
+    return { p: over ? po : 1 - po, direct: false };
+  };
+
   const rows: GapRow[] = [];
   for (const l of m.iddaa) {
     if (l.odd < GAP_MIN_ODD) continue;
@@ -53,52 +125,41 @@ export function gapsFor(a: Analysis): GapMatch | null {
     } catch {
       continue;
     }
-    if (def.category === "Korner" || def.category === "Kart") continue;
     const [mk, a1, a2] = l.key.split(":");
-    let p: number;
+    let p: number | null = null;
     let direct = false;
-    if (mk === "1x2") {
-      p = a.euroFair[a1 === "1" ? 0 : a1 === "X" ? 1 : 2];
+    if (mk === "1x2" && p1x2) {
+      p = p1x2[a1 === "1" ? 0 : a1 === "X" ? 1 : 2];
       direct = true;
-    } else if (l.key === "ou:2.5:o" || l.key === "ou:2.5:u") {
-      p = a2 === "o" ? a.euroOver25 : 1 - a.euroOver25;
+    } else if (mk === "btts" && af?.btts) {
+      const py = devig2(af.btts[0], af.btts[1]);
+      p = a1 === "y" ? py : 1 - py;
       direct = true;
-    } else p = probability(def, ctx);
-    if (!(p >= MIN_P && p < 0.995)) continue;
+    } else if (FAMILIES[mk]) {
+      const r = lineProb(mk, Number(a1), a2 === "o");
+      if (r) ({ p, direct } = r);
+    } else if (ctx && def.category !== "Korner" && def.category !== "Kart") p = probability(def, ctx);
+    if (p === null || !(p >= MIN_P && p < 0.995)) continue;
     const row: GapRow = { key: l.key, market: def.market, selection: def.selection, odd: l.odd, pForeign: p, fairOdd: 1 / p, gap: l.odd * p - 1, direct };
-    // Alt/Üst çizgisi ve yurt dışının beklediği miktar
-    const lineNum = Number(a1);
-    if (["ou", "hou", "aou", "htou"].includes(mk) && Number.isFinite(lineNum)) {
-      const expected =
-        mk === "ou"
-          ? lam.home + lam.away
-          : mk === "hou"
-            ? lam.home
-            : mk === "aou"
-              ? lam.away
-              : lam.home * a.halfShare.home + lam.away * a.halfShare.away;
-      const what = mk === "ou" ? "toplam gol" : mk === "hou" ? `${m.home.name} golü` : mk === "aou" ? `${m.away.name} golü` : "ilk yarı golü";
+    if (FAMILIES[mk]) {
+      const f = FAMILIES[mk];
       const side = a2 === "o" ? "Üst" : "Alt";
-      // Eşdeğer çizgi: yurt dışı ihtimali ≥ iddaa'nın ima ettiği ihtimal (1/oran) olan en uç çizgi
+      // Eşdeğer çizgi: yurt dışının iddaa'nın bu oranını vereceği en uç çizgi
       const need = 1 / l.odd;
       let equivLine: number | null = null;
-      for (let L = 0.5; L <= 8.5; L += 1) {
-        let pl: number;
-        try {
-          pl = probability(describe(`${mk}:${L}:${a2}`, m.home.name, m.away.name), ctx);
-        } catch {
-          continue;
-        }
-        if (pl >= need) {
-          if (side === "Üst") equivLine = L; // Üst: en yüksek çizgi
-          else if (equivLine === null) equivLine = L; // Alt: en düşük çizgi
+      for (let L = 0.5; L <= f.max; L += 1) {
+        const r = lineProb(mk, L, side === "Üst");
+        if (r && r.p >= need) {
+          if (side === "Üst") equivLine = L;
+          else if (equivLine === null) equivLine = L;
         }
       }
-      row.line = { line: lineNum, expected, side, what, equivLine };
+      row.line = { line: Number(a1), expected: (means[mk] ??= meanFor(mk)) ?? NaN, side, what: f.what(m.home.name, m.away.name), equivLine };
     }
     rows.push(row);
   }
-  return { a, rows, reference: m.euro.reference, expectedGoals: lam.home + lam.away };
+  const reference = af ? [...new Set(Object.values(af.books))].slice(0, 3).join(", ") || "yurt dışı" : m.euro.reference;
+  return { a, rows, reference, expectedGoals: lam ? lam.home + lam.away : NaN };
 }
 
 /** Çizgi açığı: yurt dışı iddaa'nın bu oranını en az bir çizgi daha zor bir yerde veriyor */
@@ -107,11 +168,11 @@ export const lineGapSize = (r: GapRow) =>
 export const isLineGap = (r: GapRow) => lineGapSize(r) >= 1;
 
 /** Yaklaşan maçlarda açıkları tarar: açığı ≥ minGap olan seçenekler, en büyük açıktan */
-export function scanGaps(analyses: Analysis[], minGap = 0.03, now = Date.now()): GapMatch[] {
+export function scanGaps(analyses: Analysis[], minGap = 0.03, now = Date.now(), afFor?: (a: Analysis) => AfOdds | null): GapMatch[] {
   const out: GapMatch[] = [];
   for (const a of analyses) {
     if (new Date(a.match.kickoff).getTime() <= now) continue;
-    const g = gapsFor(a);
+    const g = gapsFor(a, afFor?.(a) ?? null);
     if (!g) continue;
     const rows = g.rows.filter((r) => r.gap >= minGap).sort((x, y) => y.gap - x.gap);
     if (rows.length) out.push({ ...g, rows });

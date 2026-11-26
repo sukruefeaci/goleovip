@@ -2,6 +2,7 @@ import Link from "next/link";
 import { loadAnalyses } from "@/lib/data";
 import { kickoffParts } from "@/lib/format";
 import { isLineGap, lineGapSize, scanGaps, type GapRow } from "@/lib/oddsGap";
+import { afKey, findAfOdds, loadAfDay } from "@/lib/providers/apiFootball";
 
 export const dynamic = "force-dynamic";
 
@@ -52,8 +53,13 @@ export default async function OddsGapPage({ searchParams }: { searchParams: Prom
   const min = MINS.includes(Number(q.min) as (typeof MINS)[number]) ? Number(q.min) : 3;
   const onlyLine = q.cizgi === "1";
   const { analyses, banner } = await loadAnalyses();
-  const withForeign = analyses.filter((a) => (a.match.source ?? "market") === "market" && new Date(a.match.kickoff).getTime() > Date.now()).length;
-  const all = scanGaps(analyses, min / 100);
+  // Yurt dışı oranlar: API-Football (bugün, yarın, öbür gün UTC) — varsa; yoksa Football-Data
+  const dates = [0, 1, 2].map((i) => new Date(Date.now() + i * 86400_000).toISOString().slice(0, 10));
+  const afDays = afKey() ? await Promise.all(dates.map((d) => loadAfDay(d))) : [];
+  const afFor = (a: (typeof analyses)[number]) => findAfOdds(afDays, { home: a.match.home.name, away: a.match.away.name, kickoff: a.match.kickoff })?.odds ?? null;
+  const upcoming = analyses.filter((a) => new Date(a.match.kickoff).getTime() > Date.now());
+  const withForeign = upcoming.filter((a) => (a.match.source ?? "market") === "market" || afFor(a)).length;
+  const all = scanGaps(analyses, min / 100, Date.now(), afFor);
   const matches = all
     .map((g) => ({ ...g, rows: onlyLine ? g.rows.filter(isLineGap) : g.rows }))
     .filter((g) => g.rows.length);
@@ -74,10 +80,10 @@ export default async function OddsGapPage({ searchParams }: { searchParams: Prom
         <span className="muted small">{withForeign} maçta yurt dışı oranı var</span>
       </div>
       <p className="muted small rule-note">
-        iddaa&apos;nın oranı ya da çizgisi ile yurt dışı piyasanın (Betfair Borsası / piyasa ortalaması, marjı atılmış) beklentisi arasındaki fark.{" "}
+        iddaa&apos;nın oranı ya da çizgisi ile yurt dışı bahis şirketlerinin (Pinnacle, Betfair, Bet365… marjı atılmış) beklentisi arasındaki fark.{" "}
         <b>Açık</b> = iddaa oranı × yurt dışı ihtimali − 1; artıysa iddaa yurt dışının adil oranından yüksek veriyor. <b>📏 Çizgi açığı</b>: iddaa aynı
-        oranı yurt dışının vereceğinden daha kolay bir çizgide veriyor. <b>Doğrudan</b>: Maç Sonucu ve 2.5 Alt/Üst (yurt dışı oranı birebir);{" "}
-        <b>türetilmiş</b>: diğer pazarlar yurt dışı oranlarına oturtulan gol beklentisinden.
+        oranı yurt dışının vereceğinden daha kolay bir çizgide veriyor. <b>Doğrudan</b>: yurt dışında aynı çizgi/seçenek birebir var;{" "}
+        <b>türetilmiş</b>: yurt dışının başka çizgilerinden hesaplandı (gol, korner, kart dağılımı).
       </p>
 
       <div className="daytabs gp-tabs" role="tablist">
@@ -110,7 +116,9 @@ export default async function OddsGapPage({ searchParams }: { searchParams: Prom
               <Link href={`/mac/${g.a.match.id}`} className="oa-match">
                 {g.a.match.home.name} <span className="vs">vs</span> {g.a.match.away.name}
               </Link>
-              <div className="muted small">Yurt dışına göre beklenen toplam gol {g.expectedGoals.toFixed(2).replace(".", ",")}</div>
+              {Number.isFinite(g.expectedGoals) && (
+                <div className="muted small">Yurt dışına göre beklenen toplam gol {g.expectedGoals.toFixed(2).replace(".", ",")}</div>
+              )}
               {g.rows.slice(0, 6).map((r) => (
                 <GapLine key={r.key} r={r} />
               ))}
@@ -120,13 +128,14 @@ export default async function OddsGapPage({ searchParams }: { searchParams: Prom
         {!matches.length && (
           <div className="card pad empty">
             {withForeign === 0
-              ? "Şu an yurt dışı oranı olan yaklaşan maç yok. Football-Data hafta sonu maçlarını genelde Perşembe–Cuma, hafta içi maçlarını Pazartesi ekler."
+              ? "Şu an yurt dışı oranı olan yaklaşan maç yok. Yurt dışı oranlar zamanlayıcıyla kademeli çekilir; biraz sonra tekrar bak."
               : "Bu ölçütte açık yok. Eşiği düşürmeyi dene."}
           </div>
         )}
       </div>
       <p className="muted small" style={{ marginTop: 16 }}>
-        Taç, korner, kart gibi istatistik pazarlarının yurt dışı çizgileri bu kaynakta yok; yeni bir oran kaynağı eklenince bu sekmeye eklenecek.
+        Kaynak: API-Football (gol, korner, kart) ve Football-Data. Taç pazarı yurt dışı kaynakta yok. Yurt dışı oranlar zamanlayıcıyla birkaç saatte bir
+        güncellenir (ücretsiz plan günlük istek sınırı).
       </p>
     </div>
   );
