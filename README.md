@@ -225,3 +225,7 @@ Canlı sekmesinde admin her canlı tercihin yanındaki 📤 düğmesiyle eşik v
 
 Zamanlayıcı sırası (60 sn sınırı için): analizler + canlı tarama → sonuçlandırma → Telegram sonuç mesajları ve maç önü paylaşımı → Oranlar tercihleri (kalan süre kadar) → karne; her adımdan sonra `cron:last` güncellenir. Sonuç mesajları ayrıca her canlı taramada da denenir; paylaşım kaydı gece yarısına denk gelirse önceki gün de aranır. Kanal istatistik görseli ve metninde para (100 TL) hesabı yok; yalnız admin panelinde.
 
+## Oran açığı (`/oran-acigi`)
+
+`src/lib/oddsGap.ts`: iddaa ile yurt dışı piyasa (Football-Data: Betfair Borsası / piyasa ortalaması, marjı atılmış) arasındaki fark. Doğrudan: Maç Sonucu ve 2.5 Alt/Üst; türetilmiş: diğer pazarlar yurt dışı 1X2 + 2.5 Alt/Üst'e oturtulan Poisson gol beklentisinden. Açık = iddaa oranı × yurt dışı ihtimali − 1. Çizgi açığı: iddaa'nın oranını yurt dışının vereceği en uç çizgi (`equivLine`) en az bir çizgi daha zorsa. Yalnız yurt dışı oranı olan (Football-Data) maçlar; Oranlar sekmesinde "Oran analizi / Oran açığı" geçişi. Taç/korner/kart gibi istatistik pazarları için ek oran kaynağı gerekir.
+

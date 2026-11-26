@@ -148,6 +148,12 @@ export default async function OddsAnalysisPage({ searchParams }: { searchParams:
   return (
     <div className="page-narrow">
       {banner && <div className="notice">⚠ {banner}</div>}
+      <div className="seg oa-switch">
+        <Link href="/oran-analizi" className="on">
+          📊 Oran analizi
+        </Link>
+        <Link href="/oran-acigi">🔍 Oran açığı</Link>
+      </div>
       <div className="page-head">
         <h1>Oran analizi</h1>
         <span className="muted small">{histCount.toLocaleString("tr-TR")} geçmiş maç</span>
