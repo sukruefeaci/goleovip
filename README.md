@@ -223,3 +223,5 @@ Admin panelinde **Paylaşım ayarları** (`tg:settings`): en az kazanma olasıl�
 
 Canlı sekmesinde admin her canlı tercihin yanındaki 📤 düğmesiyle eşik ve bekleme süresine bakmadan elle paylaşabilir (`shareLiveNow`; şartı geçen tercih yoksa sistemin kendi önerileri gösterilir). Aynı tercih bir kez; sonucu otomatik gider. "Canlı öneri takibi" listesinde de her satırda 📤: sonucu belliyse sonuç kartı (bir kez, `tg:res:`), bekliyorsa güncel canlı kart (`shareLiveRecord`).
 
+Zamanlayıcı sırası (60 sn sınırı için): analizler + canlı tarama → sonuçlandırma → Telegram sonuç mesajları ve maç önü paylaşımı → Oranlar tercihleri (kalan süre kadar) → karne; her adımdan sonra `cron:last` güncellenir. Sonuç mesajları ayrıca her canlı taramada da denenir; paylaşım kaydı gece yarısına denk gelirse önceki gün de aranır. Kanal istatistik görseli ve metninde para (100 TL) hesabı yok; yalnız admin panelinde.
+

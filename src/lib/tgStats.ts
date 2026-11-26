@@ -2,10 +2,10 @@ import { C, div, isTelegramEnabled, loadFonts, loadShared, sendPhoto, SHARED_KEY
 import { getStore, setJSON } from "./auth/store";
 import { loadPreShared, preSharedWithResults } from "./tgPre";
 import { loadLiveDay, settleLive } from "./liveTracking";
-import { dayPnl, STAKE, type DayPnl } from "./pnl";
+import { dayPnl, type DayPnl } from "./pnl";
 
 /**
- * Kanalda paylaşılan canlı tahminlerin karnesi: kaçta kaçı tuttu, tutanların oranları, 100 TL ile kâr/zarar.
+ * Kanalda paylaşılan tahminlerin karnesi: kaçta kaçı tuttu, tutanların oranları (kanal görselinde para hesabı yok).
  * Sonuçlar canlı takip kayıtlarından (live:YYYY-MM-DD) okunur.
  */
 
@@ -43,12 +43,12 @@ export async function sharedStats(scope: StatsScope, now = Date.now(), kind: Sta
   const picked = all.filter((p) =>
     scope === "bugun" ? p.date === today : scope === "dun" ? p.date === yesterday : scope === "7gun" ? p.date >= week : true,
   );
-  const dates = [...new Set(picked.map((p) => p.date))];
+  const dates = [...new Set(picked.flatMap((p) => [p.date, prevDay(p.date)]))];
   // Bitmiş maçları sonuçlandır (bugün ve dün için; daha eskiler zaten sonuçlanmıştır)
   await Promise.all(dates.filter((d) => d === today || d === yesterday).map((d) => settleLive(d, now, 3000).catch(() => 0)));
   const days = new Map(await Promise.all(dates.map(async (d) => [d, await loadLiveDay(d).catch(() => [])] as const)));
   const rows: StatsRow[] = picked.map((p) => {
-    const rec = days.get(p.date)?.find((r) => `${r.fotmobId}|${r.label}` === p.id);
+    const rec = days.get(p.date)?.find((r) => `${r.fotmobId}|${r.label}` === p.id) ?? days.get(prevDay(p.date))?.find((r) => `${r.fotmobId}|${r.label}` === p.id);
     return { ...p, won: rec?.result ? rec.result.won : undefined, fhg: rec?.result?.hg, fag: rec?.result?.ag, early: rec?.result?.early };
   });
   rows.sort((a, b) => b.at.localeCompare(a.at));
@@ -108,7 +108,6 @@ async function preStats(scope: StatsScope, now: number): Promise<SharedStats> {
 /* ------------------------------------------------------------ görsel */
 
 const fmtDate = (d: string) => d.split("-").reverse().join(".");
-const tl = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(Math.round(n)).toLocaleString("tr-TR")} TL`;
 
 function big(label: string, value: string, color: string = C.text) {
   return div(
@@ -167,7 +166,7 @@ export function statsCard(st: SharedStats) {
       big("Tuttu", `${p.hits}/${p.settled}`, C.good),
       big("İsabet", rate === null ? "—" : `%${rate}`, rate !== null && rate >= 50 ? C.good : "#ff5d6c"),
       big("Tutan ort. oran", st.avgWinOdd ? st.avgWinOdd.toFixed(2) : "—", C.gold),
-      big(`${STAKE} TL ile`, p.counted ? tl(p.profit) : "—", p.profit >= 0 ? C.good : "#ff5d6c"),
+      big("Paylaşılan", String(p.shared), C.text),
     ),
     div(
       { flexDirection: "column", marginTop: 28 },
@@ -196,7 +195,6 @@ export function statsCaption(st: SharedStats): string {
     `📊 <b>${st.kind === "mac" ? "Maç önü" : "Canlı"} tahmin karnesi · ${SCOPE_LABEL[st.scope]}</b>`,
     p.settled ? `✅ ${p.hits}/${p.settled} tuttu (%${rate})` : "Henüz sonuçlanan paylaşım yok.",
     st.avgWinOdd ? `Tutanların ortalama oranı: <b>${st.avgWinOdd.toFixed(2)}</b>` : "",
-    p.counted ? `Her tahmine ${STAKE} TL: <b>${tl(p.profit)}</b>` : "",
     ``,
     `<i>18+ · Bilgi amaçlıdır.</i>`,
   ]
@@ -287,6 +285,8 @@ export function resultCaption(r: ResultShare): string {
  * Paylaşım admin panelinden durdurulduysa ya da sonuç mesajları kapalıysa gönderilmez.
  */
 const RESULTS_PER_RUN = 3;
+const prevDay = (d: string) => new Date(Date.parse(`${d}T12:00:00Z`) - 86400_000).toISOString().slice(0, 10);
+
 
 export async function postSharedResults(now = Date.now(), budgetMs = 15000, force = false): Promise<number> {
   const cfg = telegramConfig();
@@ -297,14 +297,15 @@ export async function postSharedResults(now = Date.now(), budgetMs = 15000, forc
   const pending = list.filter((p) => !p.resultSentAt && now - Date.parse(p.at) < 24 * 3600_000);
   if (!pending.length) return 0;
   // Önce bu tahminlerin günlerini sonuçlandır (maç bitmiş ya da kesinleşmiş olabilir)
-  await Promise.all([...new Set(pending.map((p) => p.date))].map((d) => settleLive(d, now, 6000).catch(() => 0)));
-  const dates = [...new Set(pending.map((p) => p.date))];
+  await Promise.all([...new Set(pending.flatMap((p) => [p.date, prevDay(p.date)]))].map((d) => settleLive(d, now, 6000).catch(() => 0)));
+  // Kayıt, paylaşımdan önceki güne düşmüş olabilir (gece yarısı): iki güne de bakılır
+  const dates = [...new Set(pending.flatMap((p) => [p.date, prevDay(p.date)]))];
   const days = new Map(await Promise.all(dates.map(async (d) => [d, await loadLiveDay(d).catch(() => [])] as const)));
   const deadline = Date.now() + budgetMs;
   const sent: string[] = [];
   for (const p of pending.sort((a, b) => a.at.localeCompare(b.at))) {
     if (Date.now() > deadline || sent.length >= RESULTS_PER_RUN) break;
-    const rec = days.get(p.date)?.find((r) => `${r.fotmobId}|${r.label}` === p.id);
+    const rec = [p.date, prevDay(p.date)].map((d) => days.get(d)?.find((r) => `${r.fotmobId}|${r.label}` === p.id)).find(Boolean);
     const res = rec?.result;
     if (!res || typeof res.won !== "boolean") continue;
     const r: ResultShare = { pick: p, won: res.won, hg: res.hg, ag: res.ag, early: !!res.early };

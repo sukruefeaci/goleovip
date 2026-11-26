@@ -139,7 +139,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       <section className="card pad adm">
         <h2 className="card-title">Kanal istatistiği</h2>
         <p className="muted small" style={{ marginTop: 0 }}>
-          Kanalda paylaşılan canlı tahminlerin kaçta kaçının tuttuğu, tutanların oranları ve her tahmine 100 TL ile kâr/zarar. Dönemi seç, görseli
+          Kanalda paylaşılan tahminlerin kaçta kaçının tuttuğu ve tutanların oranları. (100 TL hesabı yalnız burada görünür, kanal görselinde yer almaz.) Dönemi seç, görseli
           kontrol et, sonra kanalda paylaş.
         </p>
         <div className="daytabs sk-tabs" role="tablist">

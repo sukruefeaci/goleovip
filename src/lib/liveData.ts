@@ -5,6 +5,7 @@ import { getStore } from "./auth/store";
 import { calibrateLive, liveModel, liveRecommendations, type LiveBet, type LiveOutput, type LiveState, type LiveStats } from "./liveModel";
 import { getLiveLearning, getLiveSituations, liveFactorFn, recordLive, type LiveCtx } from "./liveTracking";
 import { shareLivePicks } from "./telegram";
+import { postSharedResults } from "./tgStats";
 import { liveConsensus, recordConsensus, type ConsMatch } from "./consensus";
 import { inBackground } from "./background";
 import { mapperFor, segOfSpec } from "./calibration";
@@ -343,6 +344,8 @@ async function liveSideEffects(items: LiveItem[]): Promise<void> {
       })),
     ),
   ).catch(() => 0);
+  // Kanalda paylaşılan tahminlerden sonucu kesinleşenlerin "kazandı / kaybetti" mesajı
+  await postSharedResults(Date.now(), 8000).catch(() => 0);
   // Üçlü onay: aynı seçenek için Maçlar + Oranlar + Canlı güveni ≥ %65
   try {
     const c = await liveConsensus(items.filter((it) => it.pre));
