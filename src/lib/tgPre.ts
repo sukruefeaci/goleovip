@@ -161,18 +161,28 @@ export async function sharePrematchPicks(analyses: Analysis[], now = Date.now())
     return 0;
   }
   if (!(await store.setNX(sentKey(pick.a.match.id), new Date(now).toISOString()).catch(() => false))) return 0;
-  const { a, p } = pick;
-  const data = { label: `${p.market} · ${p.selection}`, odd: p.odd, prob: p.prob, confidence: p.confidence };
-  try {
-    const r = await sendPhoto(cfg.token, cfg.chat, await renderPreImage(a, data), preCaption(a, data));
-    if (!r.ok) throw new Error(r.error);
-  } catch (e) {
-    console.error("Maç önü paylaşımı gönderilemedi:", (e as Error).message);
-    await store.reset(sentKey(a.match.id)).catch(() => {});
+  const r = await sendPre(pick.a, pick.p, now);
+  if (!r.ok) {
+    await store.reset(sentKey(pick.a.match.id)).catch(() => {});
     await store.reset(COOLDOWN_KEY).catch(() => {});
     return 0;
   }
   await store.set(LAST_KEY, String(now));
+  return 1;
+}
+
+/** Kartı gönderir ve paylaşım kaydına ekler */
+async function sendPre(a: Analysis, p: NonNullable<ReturnType<typeof mainPick>>, now: number): Promise<{ ok: boolean; error?: string }> {
+  const cfg = telegramConfig();
+  if (!cfg) return { ok: false, error: "Telegram ayarlı değil" };
+  const data = { label: `${p.market} · ${p.selection}`, odd: p.odd, prob: p.prob, confidence: p.confidence };
+  try {
+    const r = await sendPhoto(cfg.token, cfg.chat, await renderPreImage(a, data), preCaption(a, data));
+    if (!r.ok) return r;
+  } catch (e) {
+    console.error("Maç önü paylaşımı gönderilemedi:", (e as Error).message);
+    return { ok: false, error: (e as Error).message };
+  }
   const list = await loadPreShared();
   list.push({
     id: a.match.id,
@@ -186,7 +196,26 @@ export async function sharePrematchPicks(analyses: Analysis[], now = Date.now())
     at: new Date(now).toISOString(),
   });
   await setJSON(PRE_SHARED_KEY, list.slice(-1000));
-  return 1;
+  return { ok: true };
+}
+
+/** Admin: seçilen maçın tercihini eşik ve bekleme süresine bakmadan hemen paylaş (maç başlamamış olmalı) */
+export async function sharePrematchNow(a: Analysis, now = Date.now()): Promise<{ ok: boolean; error?: string }> {
+  const store = getStore();
+  if (!store) return { ok: false, error: "Veritabanı bağlı değil" };
+  if (new Date(a.match.kickoff).getTime() <= now) return { ok: false, error: "Maç başlamış" };
+  const p = mainPick(a);
+  if (!p) return { ok: false, error: "Bu maçta oranı 1.50 ve üstü tercih yok" };
+  if (await store.get(sentKey(a.match.id)).catch(() => null)) return { ok: false, error: "Bu maç zaten paylaşıldı" };
+  await store.set(sentKey(a.match.id), new Date(now).toISOString());
+  const r = await sendPre(a, p, now);
+  if (!r.ok) await store.reset(sentKey(a.match.id)).catch(() => {});
+  return r;
+}
+
+/** Maç kanalda paylaşıldı mı? */
+export async function isPreShared(id: string): Promise<boolean> {
+  return !!(await getStore()?.get(sentKey(id)).catch(() => null));
 }
 
 /* ------------------------------------------------------------ sonuçlar */

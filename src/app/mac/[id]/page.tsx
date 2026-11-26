@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadAnalyses } from "@/lib/data";
-import { findSnapshot, type SnapEntry } from "@/lib/tracking";
+import { findSnapshot, mainPick, type SnapEntry } from "@/lib/tracking";
 import { kickoffParts, pct } from "@/lib/format";
 import type { TeamInput } from "@/lib/types";
 import BetTable from "@/components/BetTable";
@@ -9,6 +9,11 @@ import PickCard from "@/components/PickCard";
 import MatchSummary from "@/components/MatchSummary";
 import HtftCard from "@/components/HtftCard";
 import { choosePick } from "@/lib/pick";
+import { currentUser } from "@/lib/auth/current";
+import { isAdmin } from "@/lib/admin";
+import { telegramConfig } from "@/lib/telegram";
+import { isPreShared } from "@/lib/tgPre";
+import { shareMatchToChannel } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -106,8 +111,9 @@ function SnapshotView({ e }: { e: SnapEntry }) {
   );
 }
 
-export default async function MatchPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function MatchPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tg?: string }> }) {
   const { id } = await params;
+  const { tg } = await searchParams;
   const found = (await loadAnalyses()).analyses.find((x) => x.match.id === id);
   if (!found) {
     const snap = await findSnapshot(id).catch(() => null);
@@ -119,12 +125,35 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
   const { home, away } = match;
   const k = kickoffParts(match.kickoff);
   const pick = choosePick(a);
+  // Admin: kanalda paylaş düğmesi (maç başlamadıysa ve Telegram ayarlıysa)
+  const admin = isAdmin(await currentUser());
+  const canShare = admin && !!telegramConfig() && new Date(match.kickoff).getTime() > Date.now();
+  const shared = canShare ? await isPreShared(match.id) : false;
+  const main = canShare ? mainPick(a) : null;
 
   return (
     <>
       <Link href="/" className="back">
         ‹ Tüm maçlar
       </Link>
+      {tg && <div className={`notice ${tg === "ok" ? "subtle" : ""}`}>{tg === "ok" ? "✓ Maç önü tercihi kanalda paylaşıldı." : `⚠ ${tg}`}</div>}
+      {canShare && (
+        <form action={shareMatchToChannel} className="card pad share-box">
+          <input type="hidden" name="id" value={match.id} />
+          <div className="small">
+            {main ? (
+              <>
+                Kanala gidecek tercih: <b>{main.market} · {main.selection}</b> @ {main.odd.toFixed(2)} · kazanma %{Math.round(main.prob * 100)}
+              </>
+            ) : (
+              <span className="muted">Bu maçta oranı 1.50 ve üstü tercih yok.</span>
+            )}
+          </div>
+          <button className="btn primary" disabled={!main || shared}>
+            {shared ? "✓ Kanalda paylaşıldı" : "📤 Kanalda paylaş"}
+          </button>
+        </form>
+      )}
 
       <section className="board">
         <span className="chip">{match.league}</span>
