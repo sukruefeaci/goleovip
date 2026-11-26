@@ -31,3 +31,14 @@ test("üçlü onay: canlı tercih → maç öncesi pazar anahtarı", async () =>
   assert.equal(specKey({ t: "res", out: ["X", "2"] }), "dc:X2");
   assert.equal(specKey({ t: "next", home: true }), null);
 });
+
+test("her gün en az 10: şartı geçen azsa en olasılarla tamamlanır", async () => {
+  const { selectShown } = await import("../src/lib/showRule.ts");
+  const items = Array.from({ length: 15 }, (_, i) => ({ id: i, odd: i === 14 ? 1.3 : 1.6, prob: 0.4 + i * 0.02 }));
+  const s = selectShown(items, (x) => x);
+  assert.equal(s.shown.length, 10);
+  assert.ok(!s.shown.some((x) => x.id === 14), "oran 1.50 altı tamamlamaya da girmez");
+  assert.equal(s.tier(items[13]), "orta"); // 0.66
+  assert.equal(s.tier(items[4]), "aday");
+  assert.deepEqual(s.shown.map((x) => x.id), [...s.shown.map((x) => x.id)].sort((a, b) => a - b), "sıra korunur");
+});

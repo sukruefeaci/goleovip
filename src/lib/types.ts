@@ -74,7 +74,7 @@ export interface MatchInput {
   /** FotMob eşleşmesi (sakat/cezalı listesi buradan) */
   fotmob?: { matchId: number; predicted: boolean };
   /** Olasılık kaynağı: "market" = Avrupa bahis piyasası (varsayılan), "elo" = ClubElo güç puanı */
-  source?: "market" | "elo";
+  source?: "market" | "elo" | "iddaa";
   /** ClubElo maçlarında: ClubElo ile iddaa'nın marjsız 1/X/2 olasılıkları arasındaki en büyük fark (0–1); iddaa 1X2 yoksa null */
   eloDisagreement?: number | null;
   /** Ligin bu sezonki maç başı korner ortalaması (ev sahibi / deplasman) */

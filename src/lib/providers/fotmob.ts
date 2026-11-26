@@ -13,11 +13,15 @@ import { nameSimilarity } from "./teamNames";
 const BASE = "https://www.fotmob.com/api/data";
 const MIN = 60_000;
 
+/** Yalnız iddaa bülteninden gelen, ligi bilinmeyen maçların geçici lig adı */
+export const UNKNOWN_LEAGUE = "Diğer ligler";
+
 export interface FotmobMatch {
   id: number;
   kickoff: Date;
   home: string;
   away: string;
+  league?: string;
 }
 
 interface RawUnavailable {
@@ -27,7 +31,7 @@ interface RawUnavailable {
 
 export function parseFotmobMatches(json: unknown): FotmobMatch[] {
   const out: FotmobMatch[] = [];
-  const leagues = (json as { leagues?: { matches?: unknown[] }[] })?.leagues ?? [];
+  const leagues = (json as { leagues?: { name?: string; matches?: unknown[] }[] })?.leagues ?? [];
   for (const l of leagues)
     for (const m of (l.matches ?? []) as {
       id?: number;
@@ -37,7 +41,7 @@ export function parseFotmobMatches(json: unknown): FotmobMatch[] {
     }[]) {
       const t = m.status?.utcTime ? new Date(m.status.utcTime) : null;
       if (!m.id || !t || Number.isNaN(t.getTime()) || !m.home?.name || !m.away?.name || m.status?.cancelled) continue;
-      out.push({ id: m.id, kickoff: t, home: m.home.name, away: m.away.name });
+      out.push({ id: m.id, kickoff: t, home: m.home.name, away: m.away.name, league: l.name });
     }
   return out;
 }
@@ -122,6 +126,8 @@ export async function enrichWithFotmob(matches: MatchInput[], now = new Date(), 
   const all = lists.flat();
 
   const pairs = soon.map((m) => ({ m, f: findFotmob(m, all) })).filter((p): p is { m: MatchInput; f: FotmobMatch } => p.f !== null);
+  // Lig adı bilinmeyen (yalnız iddaa) maçlara FotMob'daki lig adını ver
+  for (const { m, f } of pairs) if (m.league === UNKNOWN_LEAGUE && f.league) m.league = f.league;
   let withData = 0;
   await poolWithBudget(
     pairs,

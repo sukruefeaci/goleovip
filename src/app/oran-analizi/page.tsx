@@ -1,12 +1,12 @@
 import { inBackground } from "@/lib/background";
 import Link from "next/link";
 import { ODDS_PICK_MIN } from "@/lib/oddsMatch";
-import { kickoffParts, signedPct } from "@/lib/format";
+import { kickoffParts } from "@/lib/format";
 import { getStore } from "@/lib/auth/store";
 import { loadDay, recordOddsPicks, settleDay, trDate, type SnapEntry } from "@/lib/tracking";
 import { dayPnl, oranItems, totalPnl } from "@/lib/pnl";
 import { computeOddsPicks } from "@/lib/oddsPicks";
-import { SHOW_MIN_ODD, SHOW_MIN_PROB, STRONG_PROB, tierOf, TIER_LABEL } from "@/lib/showRule";
+import { MIN_DAILY, selectShown, SHOW_LABEL, SHOW_MIN_ODD, SHOW_MIN_PROB, STRONG_PROB, type ShowTier } from "@/lib/showRule";
 import ProfitBoard from "@/components/ProfitBoard";
 
 export const dynamic = "force-dynamic";
@@ -26,18 +26,17 @@ type Row = {
   result?: { hg: number; ag: number; won: boolean | null | undefined };
 };
 
-function OddsRowCard({ r, now }: { r: Row; now: number }) {
+function OddsRowCard({ r, now, tier }: { r: Row; now: number; tier: ShowTier | null }) {
   const k = kickoffParts(r.kickoff);
   const started = new Date(r.kickoff).getTime() <= now;
   const st = r.result ? (r.result.won === true ? "won" : r.result.won === false ? "lost" : "void") : null;
-  const tier = r.pick ? tierOf(r.pick.odd, r.pick.win) : null;
   return (
     <Link href={r.href} className={`card oa-row${st ? ` oa-${st}` : ""}`}>
       <div className="oa-top">
         <span className="muted small">
           {k.date} · {k.time} · {r.league}
         </span>
-        {tier && <span className={`tier tier-${tier}`}>{TIER_LABEL[tier]}</span>}
+        {tier && <span className={`tier tier-${tier}`}>{SHOW_LABEL[tier]}</span>}
         {r.result ? (
           <b className="mrow-score">
             {r.result.hg} - {r.result.ag}
@@ -65,14 +64,7 @@ function OddsRowCard({ r, now }: { r: Row; now: number }) {
             <span>Kazanma</span>
             <b className={r.pick.win * 100 >= STRONG_PROB ? "pos" : ""}>%{Math.round(r.pick.win * 100)}</b>
           </div>
-          {st ? (
-            <span className={`mp-badge ${st}`}>{st === "won" ? "✓ Tuttu" : st === "lost" ? "✗ Tutmadı" : "—"}</span>
-          ) : (
-            <div className="oa-pick-stat">
-              <span>Getiri</span>
-              <b className={(r.pick.roi ?? 0) >= 0 ? "pos" : "neg"}>{signedPct(r.pick.roi ?? 0)}</b>
-            </div>
-          )}
+          {st && <span className={`mp-badge ${st}`}>{st === "won" ? "✓ Tuttu" : st === "lost" ? "✗ Tutmadı" : "—"}</span>}
         </div>
       ) : (
         <div className="muted small">{ODDS_PICK_MIN.toFixed(2)} üstünde yeterli geçmiş veriye sahip tercih yok.</div>
@@ -149,25 +141,17 @@ export default async function OddsAnalysisPage({ searchParams }: { searchParams:
     });
   }
   const rows = [...byId.values()].sort((x, y) => x.kickoff.localeCompare(y.kickoff));
-  const shown = rows.filter((r) => r.pick && tierOf(r.pick.odd, r.pick.win));
-  const rest = rows.filter((r) => !shown.includes(r));
+  const { shown, rest, tier } = selectShown(rows, (r) => r.pick && { odd: r.pick.odd, prob: r.pick.win });
   const decided = shown.filter((r) => r.result && (r.result.won === true || r.result.won === false));
   const hits = decided.filter((r) => r.result!.won).length;
 
   return (
     <div className="page-narrow">
       {banner && <div className="notice">⚠ {banner}</div>}
-      {board && <ProfitBoard title="Oran tahminleri · 100 TL ile kâr/zarar" today={board.t} yesterday={board.y} total={board.total} />}
       <div className="page-head">
         <h1>Oran analizi</h1>
         <span className="muted small">{histCount.toLocaleString("tr-TR")} geçmiş maç</span>
       </div>
-      <p className="muted small" style={{ marginTop: 4 }}>
-        Her maç için, geçmişte aynı oranla oynanmış maçlarda en güvenilir sonucu veren tek tercih. Gösterilen: oran {SHOW_MIN_ODD.toFixed(2)} ve üstü, kazanma olasılığı
-        %{SHOW_MIN_PROB} ve üstü (%{STRONG_PROB}+ Güçlü). Kazanma: geçmişteki tutma oranı, bu sistemin kendi sonuçlarına göre düzeltilmiş hali.
-      </p>
-
-      {loading && <div className="notice subtle">Geçmiş maç arşivi yükleniyor; birkaç saniye sonra sayfayı yenile.</div>}
 
       <div className="daytabs" role="tablist">
         {(Object.keys(DAYS) as DayKey[]).map((k) => (
@@ -178,30 +162,37 @@ export default async function OddsAnalysisPage({ searchParams }: { searchParams:
         ))}
       </div>
 
+      {board && <ProfitBoard title="100 TL ile kâr/zarar" today={board.t} yesterday={board.y} total={board.total} />}
+      {loading && <div className="notice subtle">Geçmiş maç arşivi yükleniyor; birkaç saniye sonra sayfayı yenile.</div>}
+
       {decided.length > 0 && (
         <div className="daystat card">
           <span>
-            Tercihler: <b>{hits}</b> / {decided.length} tuttu
+            Gösterilenler: <b>{hits}</b> / {decided.length} tuttu
           </span>
           <b className={hits / decided.length >= 0.5 ? "pos" : "neg"}>%{Math.round((hits / decided.length) * 100)}</b>
         </div>
       )}
 
+      <p className="muted small rule-note">
+        Geçmişte aynı oranla oynanmış maçlarda en çok tutan tercih. Oran {SHOW_MIN_ODD.toFixed(2)}+ ve kazanma olasılığı %{SHOW_MIN_PROB}+ (%{STRONG_PROB}+{" "}
+        <b>Güçlü</b>); günde en az {MIN_DAILY} maç, azsa en olasılarla tamamlanır (<b>Aday</b>). Kazanma: geçmiş tutma oranı, bu sistemin kendi sonuçlarıyla
+        düzeltilmiş hali.
+      </p>
+
       <div className="oa-list">
         {shown.map((r) => (
-          <OddsRowCard key={r.id} r={r} now={now} />
+          <OddsRowCard key={r.id} r={r} now={now} tier={tier(r)} />
         ))}
-        {!shown.length && <div className="card pad empty">Bu gün için şartı geçen tercih yok.</div>}
+        {!rows.length && <div className="card pad empty">Bu gün için maç yok.</div>}
       </div>
 
       {rest.length > 0 && (
         <details className="rest">
-          <summary>
-            Şartı geçmeyen maçlar ({rest.length}) — oran {SHOW_MIN_ODD.toFixed(2)} altı ya da olasılık %{SHOW_MIN_PROB} altı
-          </summary>
+          <summary>Diğer maçlar ({rest.length})</summary>
           <div className="oa-list">
             {rest.map((r) => (
-              <OddsRowCard key={r.id} r={r} now={now} />
+              <OddsRowCard key={r.id} r={r} now={now} tier={null} />
             ))}
           </div>
         </details>

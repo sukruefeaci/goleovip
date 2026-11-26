@@ -60,7 +60,7 @@ export const priorOf = (a: Analysis): LivePrior => ({
   shareA: a.halfShare.away,
   homeSH: a.match.home.secondHalf,
   awaySH: a.match.away.secondHalf,
-  source: a.match.source ?? "market",
+  source: a.match.source === "elo" || a.match.source === "iddaa" ? "elo" : "market",
 });
 
 export interface SnapEntry {
@@ -93,16 +93,16 @@ const snapKey = (date: string) => `snap:${date}`;
 
 // ---------------------------------------------------------------- ana tercih
 
+/** Ana tercih için en düşük oran */
+export const MAIN_MIN_ODD = 1.5;
+
 /**
- * Maçlar sayfasındaki tek tercih: tutma olasılığı yüksek ve makul oranlı.
- * Oran ≥ 1.40, kazanma olasılığı ≥ %55; belirsizlik düşülmüş beklenen dönüşü en yüksek olan.
- * Böyle seçenek yoksa oranı ≥ 1.40 olanlar içinde olasılığı en yüksek olan.
+ * Maçlar sayfasındaki tek tercih: oranı ≥ 1.50 olan seçenekler içinde kazanma olasılığı en yüksek olan
+ * (eşitlikte beklenen dönüşü yüksek olan). Korner/kart hariç.
  */
 export function mainPick(a: Analysis): BetRow | null {
-  const pool = a.rows.filter((r) => TRACK_CATEGORIES.includes(r.category) && r.odd >= 1.4);
-  const strong = pool.filter((r) => r.prob >= 0.55).sort((x, y) => (y.prob - y.sigma) * y.odd - (x.prob - x.sigma) * x.odd);
-  if (strong.length) return strong[0];
-  return [...pool].sort((x, y) => y.prob - x.prob)[0] ?? null;
+  const pool = a.rows.filter((r) => TRACK_CATEGORIES.includes(r.category) && r.odd >= MAIN_MIN_ODD);
+  return [...pool].sort((x, y) => y.prob - x.prob || y.ev - x.ev)[0] ?? null;
 }
 
 function toEntry(a: Analysis): SnapEntry {

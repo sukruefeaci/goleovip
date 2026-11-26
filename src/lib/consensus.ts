@@ -1,10 +1,11 @@
 import { getJSON, getStore, setJSON } from "./auth/store";
 import { cachedFetch } from "./providers/cache";
 import { loadAnalyses } from "./data";
-import { historyIfReady, loadHistory, TOLERANCE } from "./history";
-import { matchAllSelections, type SelectionMatch } from "./oddsMatch";
-import { oddsConfidence } from "./oddsPicks";
+import { historyIfReady, loadHistory } from "./history";
+import { type SelectionMatch } from "./oddsMatch";
+import { oddsConfidence, selectionsFor } from "./oddsPicks";
 import { mapperFor } from "./calibration";
+import { inBackground } from "./background";
 import { parseFotmobResults, parseHalfTime, trDate } from "./tracking";
 import { earlyWon, liveWon, parseGoals } from "./liveTracking";
 import type { LiveBet, LiveSpec } from "./liveModel";
@@ -70,16 +71,9 @@ export interface ConsMatch {
 
 /* ---------------------------------------------------- Oranlar: tüm seçenekler (maç başına önbellek) */
 
-let oddsCache: { hist: unknown; byMatch: Map<string, SelectionMatch[]> } | null = null;
 async function oddsSelections(a: Analysis): Promise<SelectionMatch[]> {
   const hist = await loadHistory();
-  if (!oddsCache || oddsCache.hist !== hist.matches) oddsCache = { hist: hist.matches, byMatch: new Map() };
-  let s = oddsCache.byMatch.get(a.match.id);
-  if (!s) {
-    s = matchAllSelections(a.match.iddaa, hist.matches, TOLERANCE.normal, a.match.home.name, a.match.away.name, 1.01);
-    oddsCache.byMatch.set(a.match.id, s);
-  }
-  return s;
+  return selectionsFor(a, hist.matches);
 }
 
 const oranScore = (s: SelectionMatch | undefined, winOf: (r: number) => number) =>
@@ -131,7 +125,7 @@ export async function liveConsensus(items: LiveItem[], min = CONS_MIN): Promise<
 }
 
 /** Başlamamış maçlarda Maçlar + Oranlar'ın ≥ %65 verdiği seçenekler (canlı onayını bekleyenler) */
-export async function waitingConsensus(min = CONS_MIN, now = Date.now()) {
+async function computeWaiting(min: number, now: number) {
   if (!(await historyIfReady())) return []; // arşiv yükleniyor; sayfa beklemesin
   const { analyses } = await loadAnalyses();
   const today = trDate(now);
@@ -140,6 +134,7 @@ export async function waitingConsensus(min = CONS_MIN, now = Date.now()) {
     const t = new Date(a.match.kickoff).getTime();
     if (t <= now || trDate(t) !== today) continue;
     const pre = await preScores(a);
+    await new Promise<void>((r) => setImmediate(r)); // olay döngüsüne nefes
     const sels = [...pre.entries()]
       .filter(([, p]) => p.mac.prob * 100 >= min && p.oran.prob * 100 >= min)
       .map(([key, p]) => {
@@ -149,6 +144,28 @@ export async function waitingConsensus(min = CONS_MIN, now = Date.now()) {
     if (sels.length) out.push({ a, sels });
   }
   return out.sort((x, y) => x.a.match.kickoff.localeCompare(y.a.match.kickoff));
+}
+
+type Waiting = Awaited<ReturnType<typeof computeWaiting>>;
+let waitMemo: { at: number; data: Waiting } | null = null;
+let waitJob: Promise<Waiting> | null = null;
+
+/** Canlı onayını bekleyenler: 5 dk önbellek; hesap uzun sürerse sayfa en fazla 2 sn bekler, gerisi arka planda */
+export async function waitingConsensus(min = CONS_MIN, now = Date.now()): Promise<Waiting> {
+  if (waitMemo && now - waitMemo.at < 5 * 60_000) return waitMemo.data;
+  waitJob ??= computeWaiting(min, now)
+    .then((d) => {
+      waitMemo = { at: Date.now(), data: d };
+      return d;
+    })
+    .finally(() => {
+      waitJob = null;
+    });
+  const job = waitJob;
+  const r = await Promise.race([job, new Promise<null>((res) => setTimeout(() => res(null), 2000).unref?.())]);
+  if (r) return r;
+  inBackground(() => job);
+  return waitMemo?.data ?? [];
 }
 
 /* ---------------------------------------------------- kayıt ve sonuç */

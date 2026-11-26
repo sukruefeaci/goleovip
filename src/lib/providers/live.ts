@@ -18,7 +18,7 @@ import {
 } from "./footballData";
 import { nameSimilarity, normName, shortName } from "./teamNames";
 import { CLUBELO_FIXTURES_URL, parseClubEloFixtures, type EloFixture } from "./clubelo";
-import { enrichWithFotmob } from "./fotmob";
+import { enrichWithFotmob, UNKNOWN_LEAGUE } from "./fotmob";
 import type { TeamInput } from "../types";
 
 const MIN = 60_000;
@@ -180,7 +180,17 @@ async function buildAll(): Promise<MatchInput[]> {
     } satisfies MatchInput;
   });
 
-  const all = [...marketMatches, ...eloMatches];
+  // Kalan iddaa maçları (Avrupa oranı ve ClubElo yok): iddaa'nın kendi marjsız oranlarıyla
+  const iddaaMatches: MatchInput[] = [];
+  for (const ev of events) {
+    if (used.has(ev)) continue;
+    const t = ev.kickoff.getTime();
+    if (t <= now.getTime() || t >= horizon) continue;
+    const m = iddaaMatch(ev, updatedAt, oddsSource);
+    if (m) iddaaMatches.push(m);
+  }
+
+  const all = [...marketMatches, ...eloMatches, ...iddaaMatches];
   // Sakat/cezalı: FotMob (hata olursa sessizce atlanır)
   try {
     await enrichWithFotmob(all, now);
@@ -204,6 +214,42 @@ function competitionName(c: string) {
 /** Takım istatistiği olmayan (ClubElo) maçlar için boş takım */
 function emptyTeam(name: string): TeamInput {
   return { name, short: shortName(name), rank: 0, points: 0, form: [], goalsFor10: [], goalsAgainst10: [], cornersFor: 0, cornersAgainst: 0, cards: 0, missing: [] };
+}
+
+/**
+ * Yalnız iddaa bülteninde olan maç: 1/X/2 ve Alt/Üst 2.5 olasılıkları iddaa'nın kendi oranlarından (marjı atılarak).
+ * Avrupa referansı olmadığı için model piyasadan "avantaj" bulamaz; olasılıklar kalibrasyonla düzeltilir.
+ */
+export function iddaaMatch(ev: NesineEvent, updatedAt: string, oddsSource: string): MatchInput | null {
+  const odd = (k: string) => ev.lines.find((l) => l.key === k)?.odd;
+  const i1 = odd("1x2:1"),
+    iX = odd("1x2:X"),
+    i2 = odd("1x2:2"),
+    o = odd("ou:2.5:o"),
+    u = odd("ou:2.5:u");
+  if (!i1 || !iX || !i2 || !o || !u) return null;
+  const inv = [1 / i1, 1 / iX, 1 / i2];
+  const sum = inv[0] + inv[1] + inv[2];
+  const s = 1 / o + 1 / u;
+  const warnings = [
+    "Avrupa piyasa oranı ve ClubElo yok: olasılıklar iddaa'nın marjı atılmış oranlarından",
+    "Takım istatistiği yok: korner ve kart tahmini gösterilmiyor; güven puanı daha düşük",
+  ];
+  if (ev.unmapped) warnings.push(`${oddsSource} bülteninde modelin hesaplamadığı ${ev.unmapped} pazar atlandı`);
+  return {
+    id: `id-${slug(normName(ev.home))}-${slug(normName(ev.away))}-${ev.kickoff.toISOString().slice(0, 10)}`,
+    league: ev.league || UNKNOWN_LEAGUE,
+    kickoff: ev.kickoff.toISOString(),
+    home: emptyTeam(ev.home),
+    away: emptyTeam(ev.away),
+    headToHead: [],
+    euro: { bookmakers: 0, reference: "iddaa", h2h: [sum / inv[0], sum / inv[1], sum / inv[2]], ou25: [s * o, s * u] },
+    eloDisagreement: null,
+    iddaa: ev.lines.filter((l) => !/^(cor|hcor|acor|card):/.test(l.key)),
+    updatedAt,
+    warnings,
+    source: "iddaa",
+  };
 }
 
 /** ClubElo olasılıkları + iddaa'nın kendi Alt/Üst 2.5 oranı (marjı atılmış) ile maç girdisi */

@@ -23,7 +23,7 @@ export interface CouponCandidate {
 
 export interface CouponMatch {
   id: string;
-  source?: "market" | "elo";
+  source?: "market" | "elo" | "iddaa";
   home: string;
   away: string;
   league: string;
@@ -122,7 +122,7 @@ export function couponText(c: Coupon, stake: number): string {
 
 /** Banko için yalnız Avrupa piyasasıyla doğrulanan pazarlar (korner/kart yalnız istatistik, İY/MS çok belirsiz) */
 export const BANKO_CATEGORIES = ["Sonuç", "Gol", "İlk Yarı"];
-export const BANKO_MIN_ODD = 1.25;
+export const BANKO_MIN_ODD = 1.5; // sitenin genel kuralı: oran ≥ 1.50
 
 /**
  * Banko: tüm yaklaşan maçlar içinden en güvenilir iki tercih (farklı maçlardan).
@@ -130,7 +130,7 @@ export const BANKO_MIN_ODD = 1.25;
  */
 export function bankoPicks(matches: CouponMatch[], count = 2, now = Date.now()): CouponResult {
   // Banko yalnız Avrupa piyasasıyla doğrulanan maçlardan (ClubElo maçları hariç)
-  const filtered = matches.filter((m) => m.source !== "elo").map((m) => ({
+  const filtered = matches.filter((m) => m.source !== "elo" && m.source !== "iddaa").map((m) => ({
     ...m,
     options: m.options.filter((o) => BANKO_CATEGORIES.includes(o.category)),
   }));

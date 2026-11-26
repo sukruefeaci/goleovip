@@ -4,16 +4,16 @@ import { loadLive, type LiveItem } from "@/lib/liveData";
 import AutoRefresh from "@/components/AutoRefresh";
 import ProfitBoard from "@/components/ProfitBoard";
 import { SHOW_MIN_ODD, SHOW_MIN_PROB, STRONG_PROB, tierOf, TIER_LABEL } from "@/lib/showRule";
-
-/** Gösterim kuralı: gerçek iddaa canlı oranı ≥ 1.50 ve kazanma olasılığı ≥ %60 (sistemin önerisi ve takibi değişmez) */
-const shownRecs = (it: LiveItem) => it.recs.filter((r) => tierOf(r.odd, r.prob));
 import { analyzedRec, canliItems, dayPnl, totalPnl } from "@/lib/pnl";
 import { confLevel, winLevel } from "@/components/WinConfidence";
-import { getLiveLearning, getLiveSituations, liveFactors, loadLiveDay, settleLive, situationRows, type LiveLearning, type LiveRecord, type LiveSituations } from "@/lib/liveTracking";
+import { loadLiveDay, settleLive, type LiveRecord } from "@/lib/liveTracking";
 import { trDate } from "@/lib/tracking";
 import { getStore } from "@/lib/auth/store";
 
 export const dynamic = "force-dynamic";
+
+/** Gösterim kuralı: gerçek iddaa canlı oranı ≥ 1.50 ve kazanma olasılığı ≥ %60 (sistemin önerisi ve takibi değişmez) */
+const shownRecs = (it: LiveItem) => it.recs.filter((r) => tierOf(r.odd, r.prob));
 
 const pc = (x: number) => `%${Math.round(x * 100)}`;
 
@@ -187,56 +187,6 @@ function History({ recs, day }: { recs: LiveRecord[]; day: "bugun" | "dun" }) {
   );
 }
 
-function Learn({ l, s }: { l: LiveLearning; s: LiveSituations }) {
-  const f = liveFactors(l);
-  const sit = situationRows(l, s);
-  const rows = Object.entries(l) as [keyof LiveLearning, { n: number; hits: number; pred: number }][];
-  if (!rows.length) return null;
-  return (
-    <section className="card pad learn">
-      <h3 className="card-title">Canlı model ne öğrendi?</h3>
-      <p className="muted small" style={{ marginTop: 0 }}>
-        Her canlı öneri maç bitince değerlendirilir. Bir öneri türü beklenenden sık tutuyorsa olasılıkları biraz yükseltilir, seyrek tutuyorsa
-        düşürülür (az veriyle küçük, en fazla ±%15).
-      </p>
-      {rows.map(([k, v]) => (
-        <div key={k} className="learn-row">
-          <b>{k}</b>
-          <span className="small">
-            {v.hits}/{v.n} tuttu (%{Math.round((v.hits / Math.max(1, v.n)) * 100)}) · beklenen %{Math.round((v.pred / Math.max(1, v.n)) * 100)}
-          </span>
-          <span className="small">
-            düzeltme <b>×{(f[k] ?? 1).toFixed(2)}</b>
-          </span>
-        </div>
-      ))}
-      <h3 className="card-title" style={{ marginTop: 18 }}>
-        Duruma göre ne öğrendi?
-      </h3>
-      <p className="muted small" style={{ marginTop: 0 }}>
-        Her öneri yapıldığı andaki durumla kaydedilir: dakika, skor farkı, tempo, canlı veri ve maç öncesi analiz. Bir tercih türü belli bir durumda
-        türün genelinden daha iyi ya da kötü tutuyorsa o durumda olasılık ayrıca ayarlanır (her durum en fazla ±%10, toplam ±%15). En az 8 sonuçlanmış
-        öneri olan durumlar gösterilir.
-      </p>
-      {sit.length === 0 && <p className="small muted">Henüz yeterli örnek yok; öneriler sonuçlandıkça burada görünecek.</p>}
-      {sit.slice(0, 14).map((r) => (
-        <div key={`${r.kind}|${r.dim}|${r.val}`} className="learn-row">
-          <b>
-            {r.kind} · {r.dim}: {r.val}
-          </b>
-          <span className="small">
-            {r.hits}/{r.n} tuttu (%{Math.round((r.hits / r.n) * 100)}) · beklenen %{Math.round((r.pred / r.n) * 100)}
-          </span>
-          <span className="small">
-            ek düzeltme{" "}
-            <b className={r.adj > 1.005 ? "pos" : r.adj < 0.995 ? "neg" : undefined}>×{r.adj.toFixed(2)}</b>
-          </span>
-        </div>
-      ))}
-    </section>
-  );
-}
-
 export default async function LivePage({ searchParams }: { searchParams: Promise<{ gun?: string }> }) {
   const { gun } = await searchParams;
   const histDay: "bugun" | "dun" = gun === "dun" ? "dun" : "bugun";
@@ -244,17 +194,11 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
   const now = Date.now();
   const today = trDate(now),
     yesterday = trDate(now - 86400_000);
-  const histDate = histDay === "dun" ? yesterday : today;
   if (tracking) inBackground(() => Promise.all([settleLive(today, now, 8000), settleLive(yesterday, now, 8000)]));
   // Önce canlı öneriler hesaplanıp kaydedilir, sonra geçmiş okunur
   const { items, total, at } = await loadLive();
   const loadRecs = (d: string) => (tracking ? loadLiveDay(d).catch(() => [] as LiveRecord[]) : Promise.resolve([] as LiveRecord[]));
-  const [todayRecs, ydayRecs, learning, situations] = await Promise.all([
-    loadRecs(today),
-    loadRecs(yesterday),
-    tracking ? getLiveLearning() : Promise.resolve({} as LiveLearning),
-    tracking ? getLiveSituations() : Promise.resolve({ v: 1, b: {} } as LiveSituations),
-  ]);
+  const [todayRecs, ydayRecs] = await Promise.all([loadRecs(today), loadRecs(yesterday)]);
   const hist = (histDay === "dun" ? ydayRecs : todayRecs).filter((r) => analyzedRec(r) && tierOf(r.odd, r.prob));
   const pT = dayPnl(canliItems(todayRecs)),
     pY = dayPnl(canliItems(ydayRecs));
@@ -265,7 +209,6 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
   const others = items.filter((i) => !i.pre);
   return (
     <div className="page-narrow">
-      {tracking && <ProfitBoard title="Canlı tahminler · 100 TL ile kâr/zarar" today={pT} yesterday={pY} total={totalC} />}
       <div className="page-head">
         <h1>
           <span className="live-dot big" aria-hidden /> Canlı maçlar
@@ -273,12 +216,15 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
         <AutoRefresh seconds={60} />
       </div>
       <p className="muted small" style={{ marginTop: 4 }}>
-        {total} maç oynanıyor · {analyzed.length} tanesi maç öncesi analiz edildi · son güncelleme{" "}
-        {new Date(at).toLocaleTimeString("tr-TR", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit" })}. Öneriler kalan süre, tempo,
-        skor durumu ve maç öncesi analize göre olasılık tahminidir. Yalnız oranı 1.45 ve üstü olan tercihler önerilir (iddaa canlı oranı; yoksa olasılıktan
-        hesaplanan adil oran). Oranı olan önerilerde getiri (olasılık × oran − 1) de gösterilir; yeşil kenarlı öneriler artı getirili. Canlı tercih
-        yalnız maç öncesi analiz ettiğimiz maçlara verilir; takip ve öğrenme de yalnız bunlardan yapılır. Gösterilen: iddaa canlı oranı{" "}
-        {SHOW_MIN_ODD.toFixed(2)}+ ve kazanma olasılığı %{SHOW_MIN_PROB}+ tercihler (%{STRONG_PROB}+ Güçlü).
+        {total} maç oynanıyor · {analyzed.length} tanesini analiz ettik · son güncelleme{" "}
+        {new Date(at).toLocaleTimeString("tr-TR", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit" })}
+      </p>
+
+      {tracking && <ProfitBoard title="100 TL ile kâr/zarar" today={pT} yesterday={pY} total={totalC} />}
+
+      <p className="muted small rule-note">
+        Kalan süre, tempo, skor ve maç öncesi analize göre. Gösterilen: iddaa canlı oranı {SHOW_MIN_ODD.toFixed(2)}+ ve kazanma olasılığı %{SHOW_MIN_PROB}+
+        (%{STRONG_PROB}+ <b>Güçlü</b>). Yeşil kenarlı öneriler artı getirili (olasılık × oran &gt; 1).
       </p>
 
       {analyzed.length > 0 && <h2 className="lc-h">Tercih olan maçlar</h2>}
@@ -314,7 +260,9 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
       {tracking ? (
         <>
           <History recs={hist} day={histDay} />
-          <Learn l={learning} s={situations} />
+          <p className="muted small" style={{ marginTop: 12 }}>
+            Canlı sistemin ne öğrendiğini <a href="/ai">🧠 Yapay zeka</a> sekmesinde görebilirsin.
+          </p>
         </>
       ) : (
         <div className="notice subtle" style={{ marginTop: 16 }}>

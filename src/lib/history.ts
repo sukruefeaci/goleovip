@@ -85,7 +85,7 @@ export async function loadHistory(now = new Date()): Promise<{ matches: HistMatc
  * Arşiv hazırsa hemen, değilse en fazla budgetMs bekler; yetişmezse null döner (yükleme arka planda sürer).
  * Sayfaların arşiv yüklenirken uzun süre beklememesi için.
  */
-export async function historyIfReady(budgetMs = 2500): Promise<{ matches: HistMatch[]; files: number } | null> {
+export async function historyIfReady(budgetMs = 1500): Promise<{ matches: HistMatch[]; files: number } | null> {
   if (memo) return loadHistory();
   const job = loadHistory();
   const r = await Promise.race([job, new Promise<null>((res) => setTimeout(() => res(null), budgetMs).unref?.())]);

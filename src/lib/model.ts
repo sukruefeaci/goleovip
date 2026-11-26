@@ -195,7 +195,9 @@ export function analyze(match: MatchInput): Analysis {
   const lambdaMarket = fitLambdas(euroFair, euroOver25);
   // Takım geçmişi yoksa (ClubElo maçları) istatistik modeli yok sayılır, yalnız referans olasılıklar kullanılır
   const hasHistory = home.goalsFor10.length >= 3 && away.goalsFor10.length >= 3;
-  const elo = match.source === "elo";
+  // ClubElo ve yalnız-iddaa maçlarında Avrupa piyasası yok: referans olasılıklar tek kaynaktan, belirsizlik daha yüksek
+  const elo = match.source === "elo" || match.source === "iddaa";
+  const iddaaOnly = match.source === "iddaa";
   const st = hasHistory ? statLambdas(home, away) : { ...lambdaMarket, attackPenalty: { home: 0, away: 0 } };
   const lambdaStats = { home: st.home, away: st.away };
   const w = hasHistory ? CONFIG.marketWeight : 1;
@@ -255,7 +257,7 @@ export function analyze(match: MatchInput): Analysis {
   const gStr = (t: TeamInput) => `${avg(t.goalsFor10).toFixed(1)}/${avg(t.goalsAgainst10).toFixed(1)}`;
   const missingAtk = [...home.missing, ...away.missing].filter((m) => m.role === "hücum").map((m) => m.name);
   const missingCount = home.missing.length + away.missing.length;
-  const ref = elo ? "ClubElo" : "Avrupa";
+  const ref = iddaaOnly ? "iddaa (marjsız)" : elo ? "ClubElo" : "Avrupa";
   const goalBasis =
     `${elo ? "iddaa Ü2.5 (marjsız)" : "Avrupa Ü2.5"} ${pct(euroOver25)} · λ ${f2(lambda.home)}–${f2(lambda.away)}` +
     (hasHistory ? ` · Son10 gol ${home.short} ${gStr(home)} · ${away.short} ${gStr(away)}` : "");
@@ -301,7 +303,7 @@ export function analyze(match: MatchInput): Analysis {
     const p = usesMarket ? w * pM + (1 - w) * pS : pM; // korner/kart: ctxMarket zaten harman λ kullanıyor
     // ClubElo olasılıkları piyasa kadar keskin değil (sakatlık, kadro bilgisi yok): daha geniş belirsizlik
     //    ClubElo ile iddaa ayrıştıkça belirsizlik büyür; iddaa 1X2 yoksa sabit geniş pay.
-    const eloSigma = !elo ? 0 : match.eloDisagreement == null ? 0.08 : CONFIG.eloExtraSigma + 0.6 * match.eloDisagreement;
+    const eloSigma = !elo ? 0 : iddaaOnly ? 0.06 : match.eloDisagreement == null ? 0.08 : CONFIG.eloExtraSigma + 0.6 * match.eloDisagreement;
     const sigma = sigmaFor(def, pM, pS, cornerLambdaMarket !== null) + eloSigma;
     const required = 1 / line.odd;
     const ev = p * line.odd - 1;
@@ -425,7 +427,7 @@ export function applyCalibration(a: Analysis, factors: Partial<Record<string, nu
     r.evConservative = Math.max(0, r.prob - r.sigma) * r.odd - 1;
     r.edgeChance = normCdf((r.prob - r.required) / r.sigma);
     let rating: Rating = r.evConservative > 0 ? "Avantajlı" : r.ev > 0 ? "Sınırda" : "Dezavantajlı";
-    if (a.match.source === "elo" && a.match.eloDisagreement == null && rating === "Avantajlı") rating = "Sınırda";
+    if ((a.match.source === "elo" || a.match.source === "iddaa") && a.match.eloDisagreement == null && rating === "Avantajlı") rating = "Sınırda";
     r.rating = rating;
   }
   a.calibration = used;

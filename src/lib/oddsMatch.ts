@@ -210,12 +210,10 @@ export function matchAllSelections(
   return out;
 }
 
-export const ODDS_PICK_MIN = 1.6;
+export const ODDS_PICK_MIN = 1.5;
 
-/** Oran sayfası için tek tercih: oran ≥ 1.60, en az 150 benzer maç, en az %40 kazanmış; beklenen getirisi en yüksek */
+/** Oran sayfası için tek tercih: oran ≥ 1.50, en az 150 benzer maç; geçmişte tutma oranı en yüksek (eşitlikte getirisi yüksek) */
 export function bestOddsPick(sel: SelectionMatch[]): SelectionMatch | null {
   const pool = sel.filter((s) => s.supported && s.odd >= ODDS_PICK_MIN && s.n >= 150);
-  const reliable = pool.filter((s) => s.rate >= 0.4).sort((a, b) => (b.roi ?? -1) - (a.roi ?? -1));
-  if (reliable.length) return reliable[0];
-  return pool.sort((a, b) => b.rate - a.rate)[0] ?? null;
+  return pool.sort((a, b) => b.rate - a.rate || (b.roi ?? -1) - (a.roi ?? -1))[0] ?? null;
 }

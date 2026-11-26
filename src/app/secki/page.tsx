@@ -7,7 +7,7 @@ import { loadDay, mainPick, settleDay, trDate, type SnapEntry } from "@/lib/trac
 import { loadLiveDay, settleLive, type LiveRecord } from "@/lib/liveTracking";
 import { analyzedRec } from "@/lib/pnl";
 import { computeOddsPicks } from "@/lib/oddsPicks";
-import { SHOW_MIN_ODD, SHOW_MIN_PROB, STRONG_PROB, tierOf, TIER_LABEL, type Tier } from "@/lib/showRule";
+import { selectShown, SHOW_LABEL, SHOW_MIN_ODD, SHOW_MIN_PROB, STRONG_PROB, tierOf, type ShowTier } from "@/lib/showRule";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +28,7 @@ type Pick = {
   prob: number; // kazanma olasılığı (0–1)
   extra?: string; // ör. canlıda öneri anındaki dakika ve skor
   result?: { hg: number; ag: number; won: boolean | null | undefined };
-  tier: Tier;
+  tier: ShowTier | null;
 };
 
 const DAYS = { dun: -1, bugun: 0 } as const;
@@ -44,7 +44,7 @@ function PickRow({ p, now }: { p: Pick; now: number }) {
         <span className="muted small">
           {k.time} · {p.league}
         </span>
-        <span className={`tier tier-${p.tier}`}>{TIER_LABEL[p.tier]}</span>
+        {p.tier && <span className={`tier tier-${p.tier}`}>{SHOW_LABEL[p.tier]}</span>}
       </div>
       <div className="sk-teams">
         {p.home} <span className="vs">vs</span> {p.away}
@@ -66,11 +66,17 @@ function PickRow({ p, now }: { p: Pick; now: number }) {
   );
 }
 
-function Section({ title, sub, picks, now }: { title: string; sub: string; picks: Pick[]; now: number }) {
+const SECTION_MIN = 5;
+
+function Section({ title, sub, picks: all, now }: { title: string; sub: string; picks: Pick[]; now: number }) {
+  // Şartı geçenler; azsa sistemin en olası tercihleriyle en az 5'e tamamlanır (Aday)
+  const sel = selectShown(all, (p) => ({ odd: p.odd, prob: p.prob }), SECTION_MIN);
+  const picks = sel.shown.map((p) => ({ ...p, tier: sel.tier(p) }));
   const decided = picks.filter((p) => p.result && (p.result.won === true || p.result.won === false));
   const hits = decided.filter((p) => p.result!.won).length;
   const strong = picks.filter((p) => p.tier === "guclu");
   const mid = picks.filter((p) => p.tier === "orta");
+  const cand = picks.filter((p) => p.tier === "aday");
   return (
     <section className="sk-sec">
       <div className="sk-head">
@@ -87,7 +93,7 @@ function Section({ title, sub, picks, now }: { title: string; sub: string; picks
       <p className="muted small" style={{ marginTop: 0 }}>
         {sub}
       </p>
-      {!picks.length && <div className="card pad empty small">Şartı geçen tercih yok.</div>}
+      {!picks.length && <div className="card pad empty small">Bu gün için tercih yok.</div>}
       {strong.length > 0 && <h3 className="sk-tier">Güçlü · kazanma %{STRONG_PROB}+</h3>}
       <div className="sk-list">
         {strong.map((p) => (
@@ -101,6 +107,12 @@ function Section({ title, sub, picks, now }: { title: string; sub: string; picks
       )}
       <div className="sk-list">
         {mid.map((p) => (
+          <PickRow key={p.key} p={p} now={now} />
+        ))}
+      </div>
+      {cand.length > 0 && <h3 className="sk-tier">Aday · şartın altında ama bu sistemin en olası tercihleri</h3>}
+      <div className="sk-list">
+        {cand.map((p) => (
           <PickRow key={p.key} p={p} now={now} />
         ))}
       </div>
@@ -130,8 +142,8 @@ export default async function SeckiPage({ searchParams }: { searchParams: Promis
   // ---- Maçlar sistemi: maç başına tek tercih (başlamışsa kayıttaki)
   const mac = new Map<string, Pick>();
   const addMac = (id: string, e: { kickoff: string; league: string; home: string; away: string }, p: { market: string; selection: string; odd: number; prob: number } | null, result?: SnapEntry["result"]) => {
-    const tier = p && tierOf(p.odd, p.prob);
-    if (!p || !tier) return;
+    if (!p || p.odd < SHOW_MIN_ODD) return;
+    const tier = tierOf(p.odd, p.prob);
     mac.set(id, {
       key: `m-${id}`,
       href: `/mac/${id}`,
@@ -153,8 +165,8 @@ export default async function SeckiPage({ searchParams }: { searchParams: Promis
   const oran = new Map<string, Pick>();
   for (const s of snaps) {
     const o = s.oddsPick;
-    const tier = o && tierOf(o.odd, odds.winOf(o.rate));
-    if (!o || !tier) continue;
+    if (!o || o.odd < SHOW_MIN_ODD) continue;
+    const tier = tierOf(o.odd, odds.winOf(o.rate));
     if (new Date(s.kickoff).getTime() > now && odds.rows.some((r) => r.a.match.id === s.id)) continue; // başlamamışsa güncel hesap
     oran.set(s.id, {
       key: `o-${s.id}`,
@@ -172,8 +184,8 @@ export default async function SeckiPage({ searchParams }: { searchParams: Promis
   }
   for (const { a, pick } of odds.rows) {
     if (trDate(new Date(a.match.kickoff).getTime()) !== date || oran.has(a.match.id)) continue;
-    const tier = pick && tierOf(pick.odd, odds.winOf(pick.rate));
-    if (!pick || !tier) continue;
+    if (!pick || pick.odd < SHOW_MIN_ODD) continue;
+    const tier = tierOf(pick.odd, odds.winOf(pick.rate));
     oran.set(a.match.id, {
       key: `o-${a.match.id}`,
       href: `/oran-analizi/${a.match.id}`,
@@ -191,8 +203,8 @@ export default async function SeckiPage({ searchParams }: { searchParams: Promis
   // ---- Canlı sistemi: o gün yapılan canlı öneriler (öneri anındaki oran ve güvenle)
   const canli: Pick[] = [];
   for (const r of liveRecs) {
+    if (!analyzedRec(r) || !r.odd || r.odd < SHOW_MIN_ODD) continue;
     const tier = tierOf(r.odd, r.prob);
-    if (!analyzedRec(r) || !tier) continue;
     canli.push({
       key: `c-${r.fotmobId}-${r.label}`,
       href: "/canli",

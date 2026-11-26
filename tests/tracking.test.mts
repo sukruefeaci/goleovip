@@ -25,12 +25,12 @@ const analysis = (id: string, kickoff: string, rows: any[]) =>
     halfShare: { home: 0.45, away: 0.45 },
   }) as any;
 
-test("ana tercih: oran >= 1.40, olasılık >= %55, korner hariç", () => {
+test("ana tercih: oran >= 1.50 içinde en olası, korner hariç", () => {
   const a = analysis("x", "2026-11-28T15:00:00Z", [
     row("1x2:1", "Sonuç", 1.3, 0.75),
-    row("ou:1.5:o", "Gol", 1.45, 0.72),
+    row("ou:1.5:o", "Gol", 1.52, 0.66),
     row("btts:y", "Gol", 1.8, 0.56),
-    row("cor:9.5:o", "Korner", 1.9, 0.6),
+    row("cor:9.5:o", "Korner", 1.6, 0.7),
   ]);
   assert.equal(T.mainPick(a)!.key, "ou:1.5:o");
 });
