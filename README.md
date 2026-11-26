@@ -191,3 +191,11 @@ Gösterim filtreleri artık **kazanma olasılığına** göre: oran ≥ 1.50, ol
 
 `/ai` (üst çubukta 🧠): günlük not (dünün sonuçları, karnede değişen düzeltmeler), her sistemin "dediği ↔ tuttuğu" tablosu, kendini geliştirme önerileri (iyimser/temkinli aralıklar, kötü ligler, veri azlığı; `src/lib/aiInsights.ts`), tür/durum/lig öğrenmeleri. Admin "Karneyi şimdi yeniden hesapla" düğmesi.
 
+## Kapsam ve gösterim (26.11.2026)
+
+- **Yalnız iddaa maçları:** Football-Data ve ClubElo ile eşleşmeyen iddaa bülteni maçları da analiz edilir (`iddaaMatch`, `source: "iddaa"`): 1X2 ve Alt/Üst 2.5 olasılıkları iddaa'nın marjı atılmış oranlarından; belirsizlik payı daha yüksek, "Avantajlı" verilmez, Banko'ya girmez. Lig adı FotMob'dan (yoksa "Diğer ligler"). Günlük kapsam ~20–40'tan ~80+'ya çıktı.
+- **Ana tercih (Maçlar):** oran ≥ 1.50 seçenekler içinde kazanma olasılığı en yüksek (`mainPick`). Oranlar tercihi: oran ≥ 1.50, en az 150 benzer maç, geçmiş tutma oranı en yüksek (`bestOddsPick`). Banko en az oran 1.50.
+- **Günde en az 10 maç:** `selectShown` — şartı geçenler (Güçlü %70+, Orta %60–69) azsa oranı ≥ 1.50 olanlardan en olasılarla "Aday" olarak tamamlanır (Maçlar ve Oranlar 10, Seçki bölümleri 5).
+- **Sayfa düzeni:** "Günün seçkisi" kaldırıldı; kâr/zarar panosu tek satırlık katlanır özet; Canlı'daki öğrenme tabloları AI sekmesine taşındı; maç sayfasında tüm seçenekler katlanır; Bilgi sayfası güncellendi.
+- **Hız:** Oran eşleştirmesi maç başına önbellekli ve Oranlar/Üçlü arasında paylaşımlı (`selectionsFor`); ilk hesap olay döngüsünü bloklamadan parça parça, sayfa en fazla ~2 sn bekler.
+
