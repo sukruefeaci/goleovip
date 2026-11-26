@@ -3,7 +3,7 @@ import { adminEmails, isAdmin } from "@/lib/admin";
 import { getStore } from "@/lib/auth/store";
 import { isTelegramEnabled, telegramConfig, telegramSettings } from "@/lib/telegram";
 import { KIND_LABEL, SCOPE_LABEL, sharedStats, type StatsKind, type StatsScope } from "@/lib/tgStats";
-import { savePreSettings, saveSettings, sendResultsNow, shareStats, toggleTelegram } from "./actions";
+import { savePreSettings, saveSettings, sendPreResultsNow, sendResultsNow, shareStats, toggleTelegram } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -93,7 +93,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               </p>
             </form>
             <form action={sendResultsNow} style={{ marginTop: 10 }}>
-              <button className="btn block">📨 Bekleyen sonuçları şimdi gönder</button>
+              <button className="btn block">📨 Bekleyen canlı sonuçları şimdi gönder</button>
             </form>
           </>
         )}
@@ -132,6 +132,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               <span>Maç bitince sonucu (✅ kazandı / ❌ kaybetti) görsel ve metinle gönder</span>
             </label>
             <button className="btn primary block">💾 Maç önü ayarlarını kaydet</button>
+          </form>
+          <form action={sendPreResultsNow} style={{ marginTop: 10 }}>
+            <button className="btn block">📨 Bekleyen maç önü sonuçlarını şimdi gönder</button>
           </form>
         </section>
       )}

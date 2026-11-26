@@ -44,10 +44,24 @@ export async function saveSettings(formData: FormData) {
   back(`Ayarlar kaydedildi: olasılık ≥ %${minProb}, oran ≥ ${minOdd.toFixed(2)}, bekleme ${cooldownMin} dk.`);
 }
 
+/** Canlı paylaşımların bekleyen sonuçları */
 export async function sendResultsNow() {
   await requireAdmin();
-  const n = (await postSharedResults(Date.now(), 20_000, true)) + (await postPrematchResults(Date.now(), true));
-  back(n ? `${n} sonuç mesajı kanala gönderildi.` : "Gönderilecek sonuç yok: son 24 saatte paylaşılan ve sonucu kesinleşmiş, henüz gönderilmemiş tahmin bulunamadı.", n > 0);
+  const n = await postSharedResults(Date.now(), 20_000, true);
+  back(
+    n ? `${n} canlı sonuç mesajı kanala gönderildi.` : "Gönderilecek canlı sonuç yok: son 24 saatte paylaşılan ve sonucu kesinleşmiş, henüz gönderilmemiş canlı tahmin bulunamadı.",
+    n > 0,
+  );
+}
+
+/** Maç önü paylaşımların bekleyen sonuçları */
+export async function sendPreResultsNow() {
+  await requireAdmin();
+  const n = await postPrematchResults(Date.now(), true);
+  back(
+    n ? `${n} maç önü sonuç mesajı kanala gönderildi.` : "Gönderilecek maç önü sonucu yok: son 48 saatte paylaşılan, maçı bitmiş ve sonucu henüz gönderilmemiş tahmin bulunamadı.",
+    n > 0,
+  );
 }
 
 export async function savePreSettings(formData: FormData) {
