@@ -52,7 +52,7 @@ export async function sharedStats(scope: StatsScope, now = Date.now(), kind: Sta
     return { ...p, won: rec?.result ? rec.result.won : undefined, fhg: rec?.result?.hg, fag: rec?.result?.ag, early: rec?.result?.early };
   });
   rows.sort((a, b) => b.at.localeCompare(a.at));
-  const wins = rows.filter((r) => r.won === true);
+  const wins = rows.filter((r) => r.won === true && r.odd > 1); // oransız (elle paylaşılan) kayıtlar ortalamaya girmez
   return {
     scope,
     rows,
@@ -93,7 +93,7 @@ async function preStats(scope: StatsScope, now: number): Promise<SharedStats> {
     fag: p.ag,
   }));
   rows.sort((a, b) => b.at.localeCompare(a.at));
-  const wins = rows.filter((r) => r.won === true);
+  const wins = rows.filter((r) => r.won === true && r.odd > 1); // oransız (elle paylaşılan) kayıtlar ortalamaya girmez
   return {
     scope,
     kind: "mac",
@@ -145,7 +145,7 @@ export function statsCard(st: SharedStats) {
       ),
       div({ flex: 1, marginLeft: 18, color: C.text, overflow: "hidden" }, `${r.home} – ${r.away}`),
       div({ width: 250, color: C.muted, justifyContent: "flex-end" }, r.label),
-      div({ width: 110, justifyContent: "flex-end", fontWeight: 700, color: r.won ? C.gold : C.muted }, r.odd.toFixed(2)),
+      div({ width: 110, justifyContent: "flex-end", fontWeight: 700, color: r.won ? C.gold : C.muted }, r.odd ? r.odd.toFixed(2) : "—"),
     );
 
   return div(
@@ -251,7 +251,7 @@ export function resultCard(r: ResultShare) {
         { flexDirection: "column" },
         div({ fontSize: 26, color: C.muted }, `Tercih · ${p.minute} ${p.hg}-${p.ag} iken`),
         div({ fontSize: 56, fontWeight: 700, marginTop: 4 }, p.label),
-        div({ fontSize: 26, color: C.muted, marginTop: 6 }, `oran ${p.odd.toFixed(2)} · kazanma %${Math.round(p.prob * 100)}`),
+        div({ fontSize: 26, color: C.muted, marginTop: 6 }, `${p.odd ? `oran ${p.odd.toFixed(2)} · ` : ""}kazanma %${Math.round(p.prob * 100)}`),
       ),
       div({ fontSize: 58, fontWeight: 700, color }, r.won ? "KAZANDI" : "KAYBETTİ"),
     ),
@@ -275,7 +275,7 @@ const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 export function resultCaption(r: ResultShare): string {
   const p = r.pick;
   return [
-    `${r.won ? "✅ <b>KAZANDI</b>" : "❌ <b>KAYBETTİ</b>"} · ${esc(p.label)} @ ${p.odd.toFixed(2)}`,
+    `${r.won ? "✅ <b>KAZANDI</b>" : "❌ <b>KAYBETTİ</b>"} · ${esc(p.label)}${p.odd ? ` @ ${p.odd.toFixed(2)}` : ""}`,
     `${esc(p.home)} <b>${r.hg}-${r.ag}</b> ${esc(p.away)}${r.early ? " (maç sürüyor)" : ""}`,
     `<i>${esc(p.league)} · ${esc(p.minute)} ${p.hg}-${p.ag} iken paylaşılmıştı</i>`,
   ].join("\n");

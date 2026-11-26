@@ -254,7 +254,7 @@ async function addShared(s: LiveShare, now: number) {
     home: s.home,
     away: s.away,
     label: s.rec.label,
-    odd: s.rec.odd!,
+    odd: s.rec.odd ?? 0, // elle paylaşılan oransız tercihte 0 (gösterimde "—")
     prob: s.rec.prob,
     confidence: s.rec.confidence,
     minute: s.minute,

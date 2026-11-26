@@ -37,7 +37,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const scope: StatsScope = d && d in SCOPE_LABEL ? (d as StatsScope) : "bugun";
   const cfg = telegramConfig();
   const tracking = !!getStore();
-  const [enabled, st, set] = await Promise.all([isTelegramEnabled(), tracking ? sharedStats(scope, Date.now(), kind) : Promise.resolve(null), telegramSettings()]);
+  const [enabled, st, set] = await Promise.all([isTelegramEnabled(), tracking ? sharedStats(scope, Date.now(), kind).catch((e) => (console.error("Admin istatistik:", e), null)) : Promise.resolve(null), telegramSettings()]);
   const p = st?.pnl;
 
   return (
@@ -210,7 +210,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                       {r.home} – {r.away} · {r.minute} {r.hg}-{r.ag}
                     </span>
                     <span className="small">
-                      <b>{r.label}</b> @ {r.odd.toFixed(2)}
+                      <b>{r.label}</b> @ {r.odd ? r.odd.toFixed(2) : "oransız"}
                       {r.fhg !== undefined ? ` · ${r.early ? "maç sürüyor" : "son"} ${r.fhg}-${r.fag}` : ""}
                     </span>
                   </div>
