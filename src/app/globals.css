@@ -730,3 +730,13 @@ details.rest .oa-list, details.rest .match-list, details.rest .lc-list { opacity
 .adm-form input[type="number"] { width: 100%; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-2); color: var(--text); font-size: 16px; font-weight: 700; text-align: right; }
 .adm-form .adm-check { grid-template-columns: 22px 1fr; }
 .adm-form .adm-check input { width: 20px; height: 20px; accent-color: var(--brand); }
+
+/* Üçlü arama formu */
+.uc-form { display: grid; gap: 12px; margin-bottom: 14px; }
+.uc-p { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-weight: 700; font-size: 14px; }
+.uc-num { display: inline-flex; align-items: center; gap: 4px; font-weight: 800; }
+.uc-num input { width: 84px; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-2); color: var(--text); font-size: 17px; font-weight: 800; text-align: right; }
+.uc-sys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.uc-chk { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 6px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); font-weight: 700; font-size: 13.5px; cursor: pointer; }
+.uc-chk input { width: 18px; height: 18px; accent-color: var(--brand); }
+.uc-chk:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); }

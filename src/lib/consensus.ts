@@ -298,3 +298,159 @@ export async function settleConsensus(date: string, now = Date.now(), budgetMs =
   }
   return changed;
 }
+
+/* ---------------------------------------------------- arama: istenen sistemler ve olasılık */
+
+export type SysSel = "mac" | "oran" | "canli";
+export const SYS_LABEL: Record<SysSel, string> = { mac: "Maçlar", oran: "Oranlar", canli: "Canlı" };
+
+interface PreRow {
+  label: string;
+  odd: number;
+  mac: SysScore;
+  oran: (SysScore & { rate: number; n: number }) | null;
+}
+
+export interface SearchHit {
+  key: string;
+  label: string;
+  odd?: number;
+  mac?: SysScore;
+  oran?: SysScore;
+  canli?: SysScore;
+}
+export interface SearchMatch {
+  id: string;
+  href: string;
+  league: string;
+  home: string;
+  away: string;
+  kickoff: string;
+  live: boolean;
+  minute?: string;
+  hg?: number;
+  ag?: number;
+  hits: SearchHit[];
+}
+
+/** Bir maçın maç öncesi tablosu: her seçenek için Maçlar olasılığı ve (varsa) Oranlar olasılığı */
+async function preTable(a: Analysis): Promise<Map<string, PreRow>> {
+  const [sel, winOf] = await Promise.all([oddsSelections(a), mapperFor("oran").catch((): Mapper => (p) => p)]);
+  const out = new Map<string, PreRow>();
+  for (const r of a.rows) {
+    if (r.category === "Korner" || r.category === "Kart") continue;
+    out.set(r.key, {
+      label: `${r.market} · ${r.selection}`,
+      odd: r.odd,
+      mac: { prob: r.prob, confidence: r.confidence, odd: r.odd },
+      oran: oranScore(sel.find((x) => x.key === r.key), winOf, a),
+    });
+  }
+  return out;
+}
+
+type PreAll = { a: Analysis; table: Map<string, PreRow> }[];
+let preMemo: { at: number; key: unknown; data: PreAll } | null = null;
+let preJob: Promise<PreAll> | null = null;
+
+/** Önümüzdeki 36 saatin maçları için tablolar (5 dk önbellek; ilk hesap arka planda, sayfa en fazla ~2.5 sn bekler) */
+async function preAll(now = Date.now()): Promise<{ data: PreAll; loading: boolean }> {
+  const { analyses } = await loadAnalyses();
+  if (preMemo && preMemo.key === analyses && now - preMemo.at < 5 * 60_000) return { data: preMemo.data, loading: false };
+  if (!(await historyIfReady())) return { data: preMemo?.data ?? [], loading: true };
+  preJob ??= (async () => {
+    const out: PreAll = [];
+    for (const a of analyses) {
+      const t = new Date(a.match.kickoff).getTime();
+      if (t <= now || t > now + 36 * 3600_000) continue;
+      out.push({ a, table: await preTable(a) });
+      await new Promise<void>((r) => setImmediate(r));
+    }
+    preMemo = { at: Date.now(), key: analyses, data: out };
+    return out;
+  })().finally(() => {
+    preJob = null;
+  });
+  const job = preJob;
+  const r = await Promise.race([job, new Promise<null>((res) => setTimeout(() => res(null), 2500).unref?.())]);
+  if (r) return { data: r, loading: false };
+  inBackground(() => job);
+  return { data: preMemo?.data ?? [], loading: !preMemo };
+}
+
+const ok = (s: SysScore | null | undefined, min: number) => !!s && Math.round(s.prob * 100) >= min;
+const minOf = (h: SearchHit) => Math.min(...[h.mac, h.oran, h.canli].filter((x): x is SysScore => !!x).map((x) => x.prob));
+
+/**
+ * Arama: seçilen her sistemin olasılığı ≥ min ve oran ≥ minOdd olan tercihler.
+ * Canlı seçiliyse oynanan maçlar (canlı olasılıkla), değilse önümüzdeki 36 saatin başlamamış maçları.
+ */
+export async function searchConsensus(
+  sys: SysSel[],
+  min: number,
+  minOdd: number,
+  items: LiveItem[],
+): Promise<{ matches: SearchMatch[]; loading: boolean }> {
+  const want = new Set(sys);
+  if (!want.size) return { matches: [], loading: false };
+  const out: SearchMatch[] = [];
+
+  if (want.has("canli")) {
+    const { analyses } = await loadAnalyses();
+    for (const it of items) {
+      if (!it.pre) continue;
+      const a = it.pre.matchId ? analyses.find((x) => x.match.id === it.pre!.matchId) : undefined;
+      const table = a && (want.has("mac") || want.has("oran")) ? await preTable(a) : null;
+      const hits: SearchHit[] = [];
+      for (const b of it.model.probs) {
+        const canli: SysScore = { prob: b.prob, confidence: b.confidence, odd: b.odd };
+        if (!ok(canli, min)) continue;
+        const key = specKey(b.spec) ?? `next:${b.label}`;
+        const pre = table?.get(key);
+        if (want.has("mac") && !ok(pre?.mac, min)) continue;
+        if (want.has("oran") && !ok(pre?.oran, min)) continue;
+        const odd = b.odd ?? pre?.odd;
+        if (!odd || odd < minOdd) continue;
+        hits.push({ key, label: b.label, odd, canli, mac: want.has("mac") ? pre!.mac : undefined, oran: want.has("oran") ? pre!.oran! : undefined });
+      }
+      if (hits.length)
+        out.push({
+          id: String(it.id),
+          href: "/canli",
+          league: it.league,
+          home: it.home,
+          away: it.away,
+          kickoff: it.kickoff,
+          live: true,
+          minute: it.minuteLabel,
+          hg: it.hg,
+          ag: it.ag,
+          hits: hits.sort((x, y) => minOf(y) - minOf(x)),
+        });
+    }
+    return { matches: out.sort((x, y) => minOf(y.hits[0]) - minOf(x.hits[0])), loading: false };
+  }
+
+  const { data, loading } = await preAll();
+  for (const { a, table } of data) {
+    const hits: SearchHit[] = [];
+    for (const [key, r] of table) {
+      if (r.odd < minOdd) continue;
+      if (want.has("mac") && !ok(r.mac, min)) continue;
+      if (want.has("oran") && !ok(r.oran, min)) continue;
+      hits.push({ key, label: r.label, odd: r.odd, mac: want.has("mac") ? r.mac : undefined, oran: want.has("oran") ? r.oran! : undefined });
+    }
+    if (hits.length)
+      out.push({
+        id: a.match.id,
+        href: `/mac/${a.match.id}`,
+        league: a.match.league,
+        home: a.match.home.name,
+        away: a.match.away.name,
+        kickoff: a.match.kickoff,
+        live: false,
+        hits: hits.sort((x, y) => minOf(y) - minOf(x)),
+      });
+  }
+  return { matches: out.sort((x, y) => x.kickoff.localeCompare(y.kickoff)), loading };
+}

@@ -213,3 +213,7 @@ Kalibrasyon karnesi (`calib:v1`) her sistem için ayrıca dört boyutta tutulur 
 
 Admin panelinde **Paylaşım ayarları** (`tg:settings`): en az kazanma olasılığı (%), en düşük canlı oran, iki paylaşım arası bekleme (dk) ve sonuç mesajları aç/kapa. Ortam değişkenleri yalnız varsayılan. **Sonuç mesajları** (`postSharedResults`, zamanlayıcıda her 5 dk): kanalda paylaşılan tahmin kesinleşince (maç sırasında ya da sonunda) "✅ KAZANDI / ❌ KAYBETTİ" görsel kart + metin, her tahmin için bir kez (`resultSentAt`); son 24 saatin paylaşımları, bir çalışmada en fazla 3 mesaj; admin panelinde "Bekleyen sonuçları şimdi gönder"; paylaşım durdurulduysa gönderilmez.
 
+## Üçlü sekmesinde arama
+
+`/uclu?ara=1&p=65&s=mac&s=oran&s=canli&o=1.50`: olasılık eşiği (%), sistem kutucukları (Maçlar, Oranlar, Canlı) ve en düşük oran. İşaretlenen **her** sistemin kazanma olasılığı eşiği geçen tercihler listelenir (`searchConsensus`). Canlı işaretliyse oynanan analizli maçlar (canlı olasılık + aynı seçeneğin maç öncesi Maçlar/Oranlar olasılıkları), değilse önümüzdeki 36 saatin başlamamış maçları (tüm seçenekler; Oranlar en az 150 benzer geçmiş maç). Maç öncesi tablolar 5 dk önbellekte, ilk hesap arka planda. Otomatik kayıt (üç sistem %65+) ayrıca sürer.
+
