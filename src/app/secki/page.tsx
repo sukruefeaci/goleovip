@@ -6,7 +6,7 @@ import { getStore } from "@/lib/auth/store";
 import { loadDay, mainPick, settleDay, trDate, type SnapEntry } from "@/lib/tracking";
 import { loadLiveDay, settleLive, type LiveRecord } from "@/lib/liveTracking";
 import { analyzedRec } from "@/lib/pnl";
-import { computeOddsPicks } from "@/lib/oddsPicks";
+import { computeOddsPicks, oddsAttrs } from "@/lib/oddsPicks";
 import { selectShown, SHOW_LABEL, SHOW_MIN_ODD, SHOW_MIN_PROB, STRONG_PROB, tierOf, type ShowTier } from "@/lib/showRule";
 
 export const dynamic = "force-dynamic";
@@ -166,7 +166,8 @@ export default async function SeckiPage({ searchParams }: { searchParams: Promis
   for (const s of snaps) {
     const o = s.oddsPick;
     if (!o || o.odd < SHOW_MIN_ODD) continue;
-    const tier = tierOf(o.odd, odds.winOf(o.rate));
+    const win = odds.winOf(o.rate, oddsAttrs(o, s));
+    const tier = tierOf(o.odd, win);
     if (new Date(s.kickoff).getTime() > now && odds.rows.some((r) => r.a.match.id === s.id)) continue; // başlamamışsa güncel hesap
     oran.set(s.id, {
       key: `o-${s.id}`,
@@ -177,7 +178,7 @@ export default async function SeckiPage({ searchParams }: { searchParams: Promis
       away: s.away,
       label: `${o.market} · ${o.selection}`,
       odd: o.odd,
-      prob: odds.winOf(o.rate),
+      prob: win,
       result: s.result ? { hg: s.result.hg, ag: s.result.ag, won: s.result.oddsWon } : undefined,
       tier,
     });
@@ -185,7 +186,8 @@ export default async function SeckiPage({ searchParams }: { searchParams: Promis
   for (const { a, pick } of odds.rows) {
     if (trDate(new Date(a.match.kickoff).getTime()) !== date || oran.has(a.match.id)) continue;
     if (!pick || pick.odd < SHOW_MIN_ODD) continue;
-    const tier = tierOf(pick.odd, odds.winOf(pick.rate));
+    const win = odds.winOf(pick.rate, oddsAttrs(pick, { id: a.match.id, league: a.match.league }));
+    const tier = tierOf(pick.odd, win);
     oran.set(a.match.id, {
       key: `o-${a.match.id}`,
       href: `/oran-analizi/${a.match.id}`,
@@ -195,7 +197,7 @@ export default async function SeckiPage({ searchParams }: { searchParams: Promis
       away: a.match.away.name,
       label: `${pick.market} · ${pick.selection}`,
       odd: pick.odd,
-      prob: odds.winOf(pick.rate),
+      prob: win,
       tier,
     });
   }

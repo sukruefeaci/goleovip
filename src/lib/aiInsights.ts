@@ -1,4 +1,4 @@
-import { reliability, SYSTEMS, type Bin, type Calibration, type SystemKey } from "./calibration";
+import { dimFactor, reliability, SYSTEMS, type Bin, type Calibration, type DimKey, type SystemKey } from "./calibration";
 
 /**
  * AI sekmesi: kayıtlardan çıkarılan karne, günlük not ve geliştirme önerileri (kurallarla, ücretsiz).
@@ -136,4 +136,75 @@ export function leagueRows(c: Calibration | null) {
     .filter(([, b]) => b.n >= 5)
     .map(([name, b]) => ({ name, n: b.n, hits: b.hits, said: b.pred / b.n, actual: b.hits / b.n }))
     .sort((a, b) => b.actual - b.said - (a.actual - a.said));
+}
+
+/* ---------------------------------------------------------------- boyut karneleri */
+
+export interface DimRow {
+  value: string;
+  n: number;
+  hits: number;
+  said: number;
+  actual: number;
+  roi: number | null; // 1 birimle getiri (oranı belli olanlarda)
+  factor: number; // uygulanan düzeltme
+}
+
+export function dimRows(c: Calibration | null, sys: SystemKey, dim: DimKey, minN = 5): DimRow[] {
+  const m = c?.dims?.[sys]?.[dim] ?? {};
+  return Object.entries(m)
+    .filter(([, v]) => v.n >= minN)
+    .map(([value, v]) => ({
+      value,
+      n: v.n,
+      hits: v.hits,
+      said: v.pred / v.n,
+      actual: v.hits / v.n,
+      roi: v.staked ? v.ret / v.staked - 1 : null,
+      factor: dimFactor(c?.sys[sys], v),
+    }))
+    .sort((a, b) => b.n - a.n);
+}
+
+/** Alt mı üst mü? Her sistem için Üst ve Alt (ve İY Üst/Alt) karşılaştırması */
+export function overUnder(c: Calibration | null) {
+  return (Object.keys(SYSTEMS) as SystemKey[]).map((sys) => {
+    const rows = dimRows(c, sys, "Yön", 1);
+    const pick = (v: string) => rows.find((r) => r.value === v) ?? null;
+    return { sys, name: SYSTEMS[sys], over: pick("Üst"), under: pick("Alt"), htOver: pick("İY Üst"), htUnder: pick("İY Alt") };
+  });
+}
+
+/** Boyutlardan çıkan öneriler (yeterli veri olanlar) */
+export function dimSuggestions(c: Calibration | null): Suggestion[] {
+  const out: Suggestion[] = [];
+  for (const sys of Object.keys(SYSTEMS) as SystemKey[]) {
+    const ou = overUnder(c).find((x) => x.sys === sys)!;
+    if (ou.over && ou.under && ou.over.n >= 30 && ou.under.n >= 30) {
+      const dOver = ou.over.actual - ou.over.said,
+        dUnder = ou.under.actual - ou.under.said;
+      const better = dOver > dUnder ? "Üst" : "Alt";
+      const gap = Math.abs(dOver - dUnder) * 100;
+      if (gap >= 5)
+        out.push({
+          level: "bilgi",
+          text: `${SYSTEMS[sys]}: ${better} tercihleri beklentisine göre ${gap.toFixed(0)} puan daha iyi gidiyor (Üst %${Math.round(ou.over.actual * 100)} / Alt %${Math.round(ou.under.actual * 100)} tuttu). Olasılıklar buna göre ayarlanıyor.`,
+        });
+    }
+    for (const dim of ["Lig", "Oran", "Kaynak"] as DimKey[])
+      for (const r of dimRows(c, sys, dim, 30)) {
+        const d = (r.actual - r.said) * 100;
+        if (d <= -10)
+          out.push({
+            level: "dikkat",
+            text: `${SYSTEMS[sys]} · ${dim}: ${r.value} — %${Math.round(r.said * 100)} deyip %${Math.round(r.actual * 100)} tutturuyor (${r.n} tercih); ×${r.factor.toFixed(2)} ile düşürülüyor.`,
+          });
+        else if (d >= 10)
+          out.push({
+            level: "iyi",
+            text: `${SYSTEMS[sys]} · ${dim}: ${r.value} — beklenenden iyi (%${Math.round(r.said * 100)} deyip %${Math.round(r.actual * 100)}, ${r.n} tercih); ×${r.factor.toFixed(2)} ile yükseltiliyor.`,
+          });
+      }
+  }
+  return out;
 }

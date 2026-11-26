@@ -5,7 +5,7 @@ import { kickoffParts } from "@/lib/format";
 import { getStore } from "@/lib/auth/store";
 import { loadDay, recordOddsPicks, settleDay, trDate, type SnapEntry } from "@/lib/tracking";
 import { dayPnl, oranItems, totalPnl } from "@/lib/pnl";
-import { computeOddsPicks } from "@/lib/oddsPicks";
+import { computeOddsPicks, oddsAttrs } from "@/lib/oddsPicks";
 import { MIN_DAILY, selectShown, SHOW_LABEL, SHOW_MIN_ODD, SHOW_MIN_PROB, STRONG_PROB, type ShowTier } from "@/lib/showRule";
 import ProfitBoard from "@/components/ProfitBoard";
 
@@ -121,7 +121,7 @@ export default async function OddsAnalysisPage({ searchParams }: { searchParams:
       home: e.home,
       away: e.away,
       href: `/mac/${e.id}`,
-      pick: { market: o.market, selection: o.selection, odd: o.odd, rate: o.rate, n: o.n, roi: o.rate * o.odd - 1, confidence: o.confidence, win: winOf(o.rate) },
+      pick: { market: o.market, selection: o.selection, odd: o.odd, rate: o.rate, n: o.n, roi: o.rate * o.odd - 1, confidence: o.confidence, win: winOf(o.rate, oddsAttrs(o, e)) },
       result: e.result ? { hg: e.result.hg, ag: e.result.ag, won: e.result.oddsWon } : undefined,
     });
   }
@@ -136,7 +136,7 @@ export default async function OddsAnalysisPage({ searchParams }: { searchParams:
       home: a.match.home.name,
       away: a.match.away.name,
       href: `/oran-analizi/${a.match.id}`,
-      pick: pick && { market: pick.market, selection: pick.selection, odd: pick.odd, rate: pick.rate, n: pick.n, roi: pick.roi, confidence: pick.confidence, win: winOf(pick.rate) },
+      pick: pick && { market: pick.market, selection: pick.selection, odd: pick.odd, rate: pick.rate, n: pick.n, roi: pick.roi, confidence: pick.confidence, win: winOf(pick.rate, oddsAttrs(pick, { id: a.match.id, league: a.match.league })) },
       result: byId.get(a.match.id)?.result,
     });
   }

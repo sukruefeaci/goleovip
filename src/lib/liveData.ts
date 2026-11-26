@@ -7,7 +7,7 @@ import { getLiveLearning, getLiveSituations, liveFactorFn, recordLive, type Live
 import { shareLivePicks } from "./telegram";
 import { liveConsensus, recordConsensus, type ConsMatch } from "./consensus";
 import { inBackground } from "./background";
-import { mapperFor } from "./calibration";
+import { mapperFor, segOfSpec } from "./calibration";
 import { fetchLiveOdds, fetchLiveProgram, matchIddaaLive } from "./providers/iddaaLive";
 import { loadDay, parseHalfTime, priorOf, trDate, type LivePrior, type SnapEntry } from "./tracking";
 
@@ -244,7 +244,8 @@ async function computeLive(): Promise<{ items: LiveItem[]; total: number }> {
     // Yüzde aralığı düzeltmesi ("%70 diyorsa %70"): tür/durum düzeltmesinden sonra
     for (const b of model.probs) {
       b.preBand = b.prob;
-      b.prob = band(b.prob);
+      // yön, lig ve kaynak boyutları (canlı oran bu aşamada henüz yok)
+      b.prob = band(b.prob, { Yön: segOfSpec(b.spec), Lig: r.league, Kaynak: prior ? (prior.source === "market" ? "Avrupa" : "ClubElo / iddaa") : undefined });
     }
     return {
       id: r.id,

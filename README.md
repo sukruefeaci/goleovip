@@ -205,3 +205,7 @@ Kimse siteye bakmasa da öğrenmenin sürmesi için. `CRON_SECRET` (≥ 16 karak
 Adımlar: maç öncesi analizleri yeniler ve tercihleri kaydeder · canlı maçları tarar (öneri kaydı, Telegram, üçlü onay) · Oranlar tercihlerini kaydeder · bugün/dün biten maçları sonuçlandırır (maç öncesi, Oranlar, canlı, üçlü) · kalibrasyon karnesini gerekirse yeniler. Son çalışma `cron:last` anahtarında, /kurulum sayfasında görünür (20 dk'dan eskiyse uyarı).
 Yük sınırları: yalnız-iddaa maçları 48 saat ileriye kadar analiz edilir; tahmin kaydı 36 saat içindeki maçlar için; Oranlar hesabı dün–yarın arası maçlar için.
 
+## Boyutlara göre öğrenme: yön, lig, oran aralığı, kaynak
+
+Kalibrasyon karnesi (`calib:v1`) her sistem için ayrıca dört boyutta tutulur (`fitDims`): **Yön** (Üst, Alt, İY Üst/Alt, KG Var/Yok, Ev/Beraberlik/Deplasman, Çifte şans…; `segOfKey`, `segOfSpec`), **Lig**, **Oran** aralığı (1.50–1.69, 1.70–1.99, 2.00+), **Kaynak** (Avrupa, ClubElo, iddaa). Her değer için adet, tutan, söylenen ve 1 birimle getiri saklanır. Düzeltme: o değerdeki (tutan + 30)/(söylenen + 30) oranının sistemin genel oranına bölümü, her boyut ±%8, toplam ±%15; aralık düzeltmesinden sonra uygulanır (`makeMapper`). Canlıda oran boyutu kullanılmaz (öneri anında oran henüz eklenmemiş). AI sekmesinde "Alt mı, üst mü?" kartı ve sistem başına boyut karneleri; öneriler `dimSuggestions`.
+

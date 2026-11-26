@@ -410,7 +410,11 @@ export function analyze(match: MatchInput): Analysis {
  * Öğrenilmiş düzeltmeyi uygular (tracking.ts → calibrationFactors): tercih türü başına olasılık çarpanı.
  * Getiri, güvenli getiri, avantaj ihtimali ve etiket yeniden hesaplanır.
  */
-export function applyCalibration(a: Analysis, factors: Partial<Record<string, number>>, band?: (p: number) => number): Analysis {
+export function applyCalibration(
+  a: Analysis,
+  factors: Partial<Record<string, number>>,
+  band?: (p: number, row: { key: string; odd: number }) => number,
+): Analysis {
   const used: Record<string, number> = {};
   for (const r of a.rows) {
     r.probModel ??= r.prob;
@@ -420,7 +424,7 @@ export function applyCalibration(a: Analysis, factors: Partial<Record<string, nu
     // 1) tür düzeltmesi (ham model olasılığı üzerinden), 2) yüzde aralığı düzeltmesi
     const afterKind = Math.min(0.99, Math.max(0.01, r.probModel * (hasF ? f! : 1)));
     r.probPreBand = afterKind;
-    const next = band ? band(afterKind) : afterKind;
+    const next = band ? band(afterKind, r) : afterKind;
     if (Math.abs(next - r.prob) < 1e-9) continue;
     r.prob = next;
     r.ev = r.prob * r.odd - 1;

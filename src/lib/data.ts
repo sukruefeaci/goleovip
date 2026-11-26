@@ -2,7 +2,7 @@ import { getProvider } from "./providers";
 import { analyze, applyCalibration } from "./model";
 import { calibrationFactors, getLearning, recordSnapshots } from "./tracking";
 import type { Analysis } from "./types";
-import { mapperFor } from "./calibration";
+import { mapperFor, oddBand, segOfKey, sourceOfId } from "./calibration";
 import type { CouponMatch } from "./coupon";
 
 type Loaded = { analyses: Analysis[]; source: string; banner?: string };
@@ -18,7 +18,11 @@ async function compute(): Promise<Loaded> {
   const [learning, band] = await Promise.all([getLearning().catch(() => ({})), mapperFor("mac").catch(() => (p: number) => p)]);
   const factors = calibrationFactors(learning);
   const analyses = matches
-    .map((m) => applyCalibration(analyze(m), factors, band))
+    .map((m) =>
+      applyCalibration(analyze(m), factors, (p, r) =>
+        band(p, { Yön: segOfKey(r.key), Lig: m.league, Oran: oddBand(r.odd), Kaynak: sourceOfId(m.id) }),
+      ),
+    )
     .sort((a, b) => a.match.kickoff.localeCompare(b.match.kickoff));
   // Başlamamış maçların tercihlerini günlük kayda yaz (sonra tuttu/tutmadı değerlendirmesi için)
   await recordSnapshots(analyses).catch(() => {});

@@ -2,7 +2,7 @@ import { loadAnalyses } from "./data";
 import { historyIfReady, TOLERANCE } from "./history";
 import { bestOddsPick, matchAllSelections, ODDS_PICK_MIN, type SelectionMatch } from "./oddsMatch";
 import type { Analysis } from "./types";
-import { mapperFor } from "./calibration";
+import { mapperFor, oddBand, segOfKey, sourceOfId, type Attrs, type Mapper } from "./calibration";
 import { inBackground } from "./background";
 
 /**
@@ -61,9 +61,9 @@ export async function computeOddsPicks(waitMs = 2000): Promise<{
   histCount: number;
   loading: boolean;
   /** Oranlar sisteminin kazanma olasılığı: geçmişteki tutma oranı, kendi sonuçlarına göre aralık düzeltmesiyle */
-  winOf: (rate: number) => number;
+  winOf: Mapper;
 }> {
-  const [{ analyses, banner }, hist, winOf] = await Promise.all([loadAnalyses(), historyIfReady(), mapperFor("oran").catch(() => (p: number) => p)]);
+  const [{ analyses, banner }, hist, winOf] = await Promise.all([loadAnalyses(), historyIfReady(), mapperFor("oran").catch((): Mapper => (p) => p)]);
   // Arşiv henüz yüklenmediyse sayfa beklemez: önceki sonuç (varsa) ya da boş liste, "yükleniyor" işaretiyle
   if (!hist) return { rows: cache?.rows ?? [], banner: banner ?? null, histCount: 0, loading: true, winOf };
   if (cache && cache.key === analyses && cache.hist === hist.matches)
@@ -90,3 +90,11 @@ export async function computeOddsPicks(waitMs = 2000): Promise<{
   inBackground(() => running);
   return { rows: cache?.rows ?? [], banner: banner ?? null, histCount: hist.matches.length, loading: !cache, winOf };
 }
+
+/** Oranlar tercihinin boyutları (kalibrasyon için) */
+export const oddsAttrs = (o: { key: string; odd: number }, m: { id: string; league: string }): Attrs => ({
+  Yön: segOfKey(o.key),
+  Lig: m.league,
+  Oran: oddBand(o.odd),
+  Kaynak: sourceOfId(m.id),
+});

@@ -32,12 +32,75 @@ export interface Bin {
 export interface Sample {
   pred: number;
   won: boolean;
+  /** Boyutlar (tercih yönü, lig, oran aralığı, veri kaynağı) ve oran (kâr hesabı için) */
+  attrs?: Attrs;
+  odd?: number;
 }
+
+/* ---------------------------------------------------------------- boyutlar */
+
+export type DimKey = "Yön" | "Lig" | "Oran" | "Kaynak";
+export const DIMS: DimKey[] = ["Yön", "Lig", "Oran", "Kaynak"];
+export type Attrs = Partial<Record<DimKey, string>>;
+export interface SegStat extends Bin {
+  staked: number; // oranı belli olanlarda 1 birim yatırım toplamı
+  ret: number; // dönen
+}
+
+/** Maç öncesi pazar anahtarından tercih yönü (ör. ou:2.5:o → Üst) */
+export function segOfKey(key: string): string {
+  const [m, a, b] = key.split(":");
+  switch (m) {
+    case "ou":
+      return b === "o" ? "Üst" : "Alt";
+    case "htou":
+      return b === "o" ? "İY Üst" : "İY Alt";
+    case "hou":
+    case "aou":
+      return b === "o" ? "Takım Üst" : "Takım Alt";
+    case "btts":
+      return a === "y" ? "KG Var" : "KG Yok";
+    case "1x2":
+      return a === "1" ? "Ev" : a === "X" ? "Beraberlik" : "Deplasman";
+    case "dc":
+      return "Çifte şans";
+    case "ht1x2":
+      return "İY Sonuç";
+    case "htft":
+      return "İY/MS";
+    default:
+      return "Kombine";
+  }
+}
+
+/** Canlı tercih tanımından yön */
+export function segOfSpec(spec: { t: string; over?: boolean; yes?: boolean; out?: string[] }): string {
+  switch (spec.t) {
+    case "ouFT":
+      return spec.over ? "Üst" : "Alt";
+    case "ou1H":
+      return spec.over ? "İY Üst" : "İY Alt";
+    case "btts":
+      return spec.yes ? "KG Var" : "KG Yok";
+    case "res":
+      return spec.out && spec.out.length === 1 ? (spec.out[0] === "1" ? "Ev" : spec.out[0] === "X" ? "Beraberlik" : "Deplasman") : "Çifte şans";
+    default:
+      return "Sıradaki gol";
+  }
+}
+
+export const oddBand = (odd?: number | null) =>
+  !odd ? "oransız" : odd < 1.5 ? "1.50 altı" : odd < 1.7 ? "1.50–1.69" : odd < 2 ? "1.70–1.99" : "2.00+";
+
+/** Maç kimliğinden veri kaynağı (id- = yalnız iddaa, elo- = ClubElo, diğerleri Avrupa piyasası) */
+export const sourceOfId = (id: string) => (id.startsWith("id-") ? "iddaa" : id.startsWith("elo-") ? "ClubElo" : "Avrupa");
 export interface Calibration {
   v: 1;
   builtAt: string;
   day: string; // kurulduğu Türkiye günü
   sys: Record<SystemKey, Bin[]>;
+  /** Boyut karneleri: sistem → boyut → değer → istatistik */
+  dims?: Record<SystemKey, Partial<Record<DimKey, Record<string, SegStat>>>>;
   /** Maçlar sistemi lig karnesi (gösterilen olasılıkla): lig → adet, tutan, söylenen toplamı */
   leagues?: Record<string, Bin>;
   prev?: { day: string; sys: Record<SystemKey, Bin[]> }; // bir önceki günün karnesi (değişimi göstermek için)
@@ -99,26 +162,93 @@ export function bandMapper(bins: Bin[] | undefined): (p: number) => number {
 /* ---------------------------------------------------------------- kayıtlardan kurma */
 
 type SnapLike = {
-  pick?: { prob: number; preBand?: number } | null;
-  oddsPick?: { rate: number } | null;
+  id?: string;
+  pick?: { key?: string; prob: number; preBand?: number; odd?: number } | null;
+  oddsPick?: { key?: string; rate: number; odd?: number } | null;
   league?: string;
   result?: { pickWon?: boolean | null; oddsWon?: boolean | null };
 };
-type LiveLike = { prob: number; preBand?: number; analyzed?: boolean; ctx?: { prior?: string }; result?: { won: boolean | null } };
+type LiveLike = {
+  prob: number;
+  preBand?: number;
+  odd?: number;
+  league?: string;
+  spec?: { t: string; over?: boolean; yes?: boolean; out?: string[] };
+  analyzed?: boolean;
+  ctx?: { prior?: string };
+  result?: { won: boolean | null };
+};
 
 export function samplesFromSnaps(list: SnapLike[]) {
   const mac: Sample[] = [],
     oran: Sample[] = [];
   for (const e of list) {
-    if (e.pick && typeof e.result?.pickWon === "boolean") mac.push({ pred: e.pick.preBand ?? e.pick.prob, won: e.result.pickWon });
-    if (e.oddsPick && typeof e.result?.oddsWon === "boolean") oran.push({ pred: e.oddsPick.rate, won: e.result.oddsWon });
+    const src = e.id ? sourceOfId(e.id) : undefined;
+    if (e.pick && typeof e.result?.pickWon === "boolean")
+      mac.push({
+        pred: e.pick.preBand ?? e.pick.prob,
+        won: e.result.pickWon,
+        odd: e.pick.odd,
+        attrs: { Yön: e.pick.key ? segOfKey(e.pick.key) : undefined, Lig: e.league, Oran: oddBand(e.pick.odd), Kaynak: src },
+      });
+    if (e.oddsPick && typeof e.result?.oddsWon === "boolean")
+      oran.push({
+        pred: e.oddsPick.rate,
+        won: e.result.oddsWon,
+        odd: e.oddsPick.odd,
+        attrs: { Yön: e.oddsPick.key ? segOfKey(e.oddsPick.key) : undefined, Lig: e.league, Oran: oddBand(e.oddsPick.odd), Kaynak: src },
+      });
   }
   return { mac, oran };
 }
 export function samplesFromLive(list: LiveLike[]): Sample[] {
   return list
     .filter((r) => r.analyzed !== false && r.ctx?.prior !== "yok" && typeof r.result?.won === "boolean")
-    .map((r) => ({ pred: r.preBand ?? r.prob, won: r.result!.won as boolean }));
+    .map((r) => ({
+      pred: r.preBand ?? r.prob,
+      won: r.result!.won as boolean,
+      odd: r.odd,
+      attrs: {
+        Yön: r.spec ? segOfSpec(r.spec) : undefined,
+        Lig: r.league,
+        Oran: oddBand(r.odd),
+        Kaynak: r.ctx?.prior === "market" ? "Avrupa" : r.ctx?.prior === "elo" ? "ClubElo / iddaa" : undefined,
+      },
+    }));
+}
+
+/** Boyut karnesi: her boyut değeri için adet, tutan, söylenen toplamı, 1 birimle yatırılan ve dönen */
+export function fitDims(samples: Sample[]): Partial<Record<DimKey, Record<string, SegStat>>> {
+  const out: Partial<Record<DimKey, Record<string, SegStat>>> = {};
+  for (const s of samples)
+    for (const d of DIMS) {
+      const v = s.attrs?.[d];
+      if (!v) continue;
+      const m = (out[d] ??= {});
+      const c = (m[v] ??= { n: 0, hits: 0, pred: 0, staked: 0, ret: 0 });
+      c.n++;
+      c.hits += s.won ? 1 : 0;
+      c.pred += s.pred;
+      if (s.odd && s.odd > 1) {
+        c.staked++;
+        if (s.won) c.ret += s.odd;
+      }
+    }
+  return out;
+}
+
+const DIM_PRIOR = 30; // az veriyle düzeltme küçük kalır
+const DIM_MAX = 0.08; // her boyut en fazla ±%8
+const DIM_TOTAL = 0.15; // toplam en fazla ±%15
+
+/** Bir boyut değerinin düzeltme çarpanı: o değerdeki isabet / sistemin genel isabeti (söylenene göre) */
+export function dimFactor(all: Bin[] | undefined, stat: Bin | undefined): number {
+  if (!stat || !all) return 1;
+  const H = all.reduce((s, b) => s + b.hits, 0),
+    P = all.reduce((s, b) => s + b.pred, 0);
+  const base = (H + DIM_PRIOR) / (P + DIM_PRIOR);
+  const f = (stat.hits + DIM_PRIOR) / (stat.pred + DIM_PRIOR) / base;
+  return Math.min(1 + DIM_MAX, Math.max(1 - DIM_MAX, f));
 }
 
 async function rebuild(now = Date.now()): Promise<Calibration> {
@@ -155,6 +285,7 @@ async function rebuild(now = Date.now()): Promise<Calibration> {
     builtAt: new Date(now).toISOString(),
     day: today,
     sys: { mac: fitBins(mac), canli: fitBins(canli), oran: fitBins(oran) },
+    dims: { mac: fitDims(mac), canli: fitDims(canli), oran: fitDims(oran) },
     leagues,
     // gün değiştiyse önceki günün karnesini sakla, değişmediyse eskisini koru
     prev: old?.v === 1 ? (old.day !== today ? { day: old.day, sys: old.sys } : old.prev) : undefined,
@@ -190,10 +321,31 @@ export async function getCalibration(): Promise<Calibration | null> {
   return data;
 }
 
+export type Mapper = (p: number, attrs?: Attrs) => number;
+
+/** Aralık düzeltmesi + boyut düzeltmesi (yön, lig, oran aralığı, kaynak) */
+export function makeMapper(c: Calibration | null | undefined, sys: SystemKey): Mapper {
+  const band = bandMapper(c?.sys[sys]);
+  const dims = c?.dims?.[sys];
+  const all = c?.sys[sys];
+  return (p, attrs) => {
+    let q = band(p);
+    if (attrs && dims) {
+      let f = 1;
+      for (const d of DIMS) {
+        const v = attrs[d];
+        if (v) f *= dimFactor(all, dims[d]?.[v]);
+      }
+      q *= Math.min(1 + DIM_TOTAL, Math.max(1 - DIM_TOTAL, f));
+    }
+    return Math.min(0.99, Math.max(0.01, q));
+  };
+}
+
 /** Bir sistemin düzeltme fonksiyonu */
-export async function mapperFor(sys: SystemKey): Promise<(p: number) => number> {
+export async function mapperFor(sys: SystemKey): Promise<Mapper> {
   const c = await getCalibration().catch(() => null);
-  return bandMapper(c?.sys[sys]);
+  return makeMapper(c, sys);
 }
 
 /** Admin / AI sayfası: hemen yeniden kur */

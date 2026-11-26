@@ -3,8 +3,8 @@ import { cachedFetch } from "./providers/cache";
 import { loadAnalyses } from "./data";
 import { historyIfReady, loadHistory } from "./history";
 import { type SelectionMatch } from "./oddsMatch";
-import { oddsConfidence, selectionsFor } from "./oddsPicks";
-import { mapperFor } from "./calibration";
+import { oddsAttrs, oddsConfidence, selectionsFor } from "./oddsPicks";
+import { mapperFor, type Mapper } from "./calibration";
 import { inBackground } from "./background";
 import { parseFotmobResults, parseHalfTime, trDate } from "./tracking";
 import { earlyWon, liveWon, parseGoals } from "./liveTracking";
@@ -76,15 +76,15 @@ async function oddsSelections(a: Analysis): Promise<SelectionMatch[]> {
   return selectionsFor(a, hist.matches);
 }
 
-const oranScore = (s: SelectionMatch | undefined, winOf: (r: number) => number) =>
-  s && s.supported && s.n >= 150 ? { prob: winOf(s.rate), confidence: oddsConfidence(s), odd: s.odd, rate: s.rate, n: s.n } : null;
+const oranScore = (s: SelectionMatch | undefined, winOf: Mapper, a: Analysis) =>
+  s && s.supported && s.n >= 150 ? { prob: winOf(s.rate, oddsAttrs(s, { id: a.match.id, league: a.match.league })), confidence: oddsConfidence(s), odd: s.odd, rate: s.rate, n: s.n } : null;
 
 /** Maç öncesi iki sistem (Maçlar + Oranlar): her seçenek için güvenler */
 export async function preScores(a: Analysis): Promise<Map<string, { mac: SysScore; oran: SysScore & { rate: number; n: number } }>> {
-  const [sel, winOf] = await Promise.all([oddsSelections(a), mapperFor("oran").catch(() => (p: number) => p)]);
+  const [sel, winOf] = await Promise.all([oddsSelections(a), mapperFor("oran").catch((): Mapper => (p) => p)]);
   const out = new Map<string, { mac: SysScore; oran: SysScore & { rate: number; n: number } }>();
   for (const r of a.rows) {
-    const o = oranScore(sel.find((x) => x.key === r.key), winOf);
+    const o = oranScore(sel.find((x) => x.key === r.key), winOf, a);
     if (!o) continue;
     out.set(r.key, { mac: { confidence: r.confidence, odd: r.odd, prob: r.prob }, oran: o });
   }

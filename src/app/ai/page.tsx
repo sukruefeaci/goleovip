@@ -1,8 +1,8 @@
 import { getStore } from "@/lib/auth/store";
 import { currentUser } from "@/lib/auth/current";
 import { isAdmin } from "@/lib/admin";
-import { bandMapper, getCalibration, SYSTEMS, type SystemKey } from "@/lib/calibration";
-import { dailyNote, leagueRows, suggestions, summarize, type DayResult } from "@/lib/aiInsights";
+import { bandMapper, getCalibration, SYSTEMS, type DimKey, type SystemKey } from "@/lib/calibration";
+import { dailyNote, dimRows, dimSuggestions, leagueRows, overUnder, suggestions, summarize, type DayResult, type DimRow } from "@/lib/aiInsights";
 import { calibrationFactors, getLearning, loadDay, trDate } from "@/lib/tracking";
 import { getLiveLearning, getLiveSituations, liveFactors, loadLiveDay, situationRows } from "@/lib/liveTracking";
 import { analyzedRec } from "@/lib/pnl";
@@ -12,6 +12,55 @@ import { rebuildCalibration } from "./actions";
 export const dynamic = "force-dynamic";
 
 const pc = (x: number | null) => (x === null ? "—" : `%${Math.round(x * 100)}`);
+const roiTxt = (r: number | null) => (r === null ? "—" : `${r >= 0 ? "+" : "−"}%${Math.abs(Math.round(r * 100))}`);
+
+function OuCell({ label, r }: { label: string; r: DimRow | null }) {
+  return (
+    <div className="ou-cell">
+      <span className="muted small">{label}</span>
+      {r ? (
+        <>
+          <b className={r.actual >= r.said - 0.03 ? "pos" : "neg"}>{pc(r.actual)}</b>
+          <small className="muted">
+            {r.hits}/{r.n} · dediği {pc(r.said)}
+          </small>
+          <small className={r.roi === null ? "muted" : r.roi >= 0 ? "pos" : "neg"}>100 TL: {roiTxt(r.roi)}</small>
+        </>
+      ) : (
+        <small className="muted">veri yok</small>
+      )}
+    </div>
+  );
+}
+
+function DimTable({ title, rows }: { title: string; rows: DimRow[] }) {
+  if (!rows.length) return null;
+  return (
+    <>
+      <h3 className="sk-tier">{title}</h3>
+      <div className="ai-dim">
+        <div className="ai-dim-row ai-rel-hd">
+          <span />
+          <span>Adet</span>
+          <span>Dediği</span>
+          <span>Tuttu</span>
+          <span>100 TL</span>
+          <span>Düz.</span>
+        </div>
+        {rows.slice(0, 12).map((r) => (
+          <div key={r.value} className="ai-dim-row">
+            <b className="ai-dim-name">{r.value}</b>
+            <span className="muted">{r.n}</span>
+            <span>{pc(r.said)}</span>
+            <b className={r.actual >= r.said - 0.03 ? "pos" : "neg"}>{pc(r.actual)}</b>
+            <span className={r.roi === null ? "muted" : r.roi >= 0 ? "pos" : "neg"}>{roiTxt(r.roi)}</span>
+            <span className={r.factor < 0.995 ? "neg" : r.factor > 1.005 ? "pos" : "muted"}>×{r.factor.toFixed(2)}</span>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
 
 export default async function AiPage({ searchParams }: { searchParams: Promise<{ ok?: string }> }) {
   const { ok } = await searchParams;
@@ -41,7 +90,14 @@ export default async function AiPage({ searchParams }: { searchParams: Promise<{
     dr("Üçlü onay", yUclu.map((r) => ({ said: Math.min(r.mac, r.oran, r.canli) / 100, won: r.result?.won }))),
   ];
   const note = dailyNote(c, yRes);
-  const sugg = suggestions(c, systems);
+  const sugg = [...suggestions(c, systems), ...dimSuggestions(c)];
+  const ou = overUnder(c);
+  const DIM_TITLES: [DimKey, string][] = [
+    ["Yön", "Tercih yönüne göre (Alt / Üst / KG / Sonuç…)"],
+    ["Oran", "Oran aralığına göre"],
+    ["Kaynak", "Veri kaynağına göre"],
+    ["Lig", "Lige göre"],
+  ];
   const leagues = leagueRows(c);
   const macF = calibrationFactors(macL);
   const liveF = liveFactors(liveL);
@@ -70,6 +126,23 @@ export default async function AiPage({ searchParams }: { searchParams: Promise<{
             <li key={i}>{l}</li>
           ))}
         </ul>
+      </section>
+
+      <h2 className="lc-h">Alt mı, üst mü?</h2>
+      <section className="card pad">
+        <p className="muted small" style={{ marginTop: 0 }}>
+          Her sistemin Alt ve Üst tercihleri ayrı ayrı: gerçekte tutma oranı, söylediği olasılık ve her tercihe 100 TL ile getiri. Sistem iki yönü
+          ayrı öğrenir; hangi yön beklentisinden iyi gidiyorsa onun olasılıklarını biraz yükseltir.
+        </p>
+        {ou.map((x) => (
+          <div key={x.sys} className="ou-row">
+            <b className="ou-name">{x.name}</b>
+            <OuCell label="Üst" r={x.over} />
+            <OuCell label="Alt" r={x.under} />
+            <OuCell label="İY Üst" r={x.htOver} />
+            <OuCell label="İY Alt" r={x.htUnder} />
+          </div>
+        ))}
       </section>
 
       <h2 className="lc-h">Ne kadar dürüst? (dediği ↔ tuttuğu)</h2>
@@ -132,6 +205,25 @@ export default async function AiPage({ searchParams }: { searchParams: Promise<{
           Olasılık düzeltmeleri kendiliğinden uygulanır. Lig çıkarma, yeni veri kaynağı gibi kod değişikliği gerektiren öneriler senin kararınla yapılır.
         </p>
       </section>
+
+      {(Object.keys(SYSTEMS) as SystemKey[]).map((sys) => {
+        const has = DIM_TITLES.some(([d]) => dimRows(c, sys, d).length);
+        if (!has) return null;
+        return (
+          <details key={sys} className="card pad ai-dims">
+            <summary>
+              <b>{SYSTEMS[sys]}</b> · yön, oran, kaynak ve lige göre karne
+            </summary>
+            <p className="muted small">
+              Her boyutta sistemin söylediği ile gerçekte tutan karşılaştırılır; sistemin genelinden iyi/kötü giden değerlerde olasılık her boyut için en
+              fazla ±%8, toplamda ±%15 düzeltilir (en az birkaç düzine sonuçla belirginleşir).
+            </p>
+            {DIM_TITLES.map(([d, t]) => (
+              <DimTable key={d} title={t} rows={dimRows(c, sys, d)} />
+            ))}
+          </details>
+        );
+      })}
 
       <section className="card pad">
         <h2 className="card-title">Tercih türüne göre öğrendikleri</h2>
