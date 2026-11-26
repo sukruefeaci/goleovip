@@ -55,7 +55,7 @@ let job: Promise<OddsRow[]> | null = null;
  * Tüm analizler için Oran analizi tercihi. İlk hesap (geçmiş arşivden olasılık tabloları) uzun sürebilir:
  * sayfa en fazla ~3 sn bekler, yetişmezse önceki sonuç (ya da "yükleniyor") gösterilir, hesap arka planda biter.
  */
-export async function computeOddsPicks(): Promise<{
+export async function computeOddsPicks(waitMs = 2000): Promise<{
   rows: OddsRow[];
   banner: string | null;
   histCount: number;
@@ -68,9 +68,14 @@ export async function computeOddsPicks(): Promise<{
   if (!hist) return { rows: cache?.rows ?? [], banner: banner ?? null, histCount: 0, loading: true, winOf };
   if (cache && cache.key === analyses && cache.hist === hist.matches)
     return { rows: cache.rows, banner: banner ?? null, histCount: hist.matches.length, loading: false, winOf };
+  // Yalnız dün–yarın arası maçlar (sayfalar bu günleri gösterir; ağır hesap küçük kalır)
+  const near = analyses.filter((a) => {
+    const t = new Date(a.match.kickoff).getTime();
+    return t > Date.now() - 36 * 3600_000 && t < Date.now() + 54 * 3600_000;
+  });
   job ??= (async () => {
-    const sel = await selectionsForAll(analyses, hist.matches);
-    const rows = analyses.map((a) => {
+    const sel = await selectionsForAll(near, hist.matches);
+    const rows = near.map((a) => {
       const p = bestOddsPick(sel.get(a.match.id) ?? []);
       return { a, pick: p && { ...p, confidence: oddsConfidence(p) } };
     });
@@ -80,7 +85,7 @@ export async function computeOddsPicks(): Promise<{
     job = null;
   });
   const running = job;
-  const rows = await Promise.race([running, new Promise<null>((r) => setTimeout(() => r(null), 2000).unref?.())]);
+  const rows = await Promise.race([running, new Promise<null>((r) => setTimeout(() => r(null), waitMs).unref?.())]);
   if (rows) return { rows, banner: banner ?? null, histCount: hist.matches.length, loading: false, winOf };
   inBackground(() => running);
   return { rows: cache?.rows ?? [], banner: banner ?? null, histCount: hist.matches.length, loading: !cache, winOf };

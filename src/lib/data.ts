@@ -37,6 +37,11 @@ function refresh(): Promise<Loaded> {
   return inflight;
 }
 
+/** Zamanlayıcı için: analizleri hemen yeniden hesapla (ve tercihleri kaydet), bitmesini bekle */
+export function refreshAnalyses(): Promise<Loaded> {
+  return refresh();
+}
+
 /**
  * Sayfaların ortak kullandığı: tüm maçların analizi (başlama saatine göre sıralı).
  * Bellekte tutulur; süresi geçmiş ama çok eski olmayan sonuç beklemeden döner ve arka planda yenilenir.

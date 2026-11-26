@@ -1,5 +1,5 @@
 import { authSecret } from "@/lib/auth/session";
-import { getStore, upstashCredentials } from "@/lib/auth/store";
+import { getJSON, getStore, upstashCredentials } from "@/lib/auth/store";
 import { telegramConfig } from "@/lib/telegram";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +48,8 @@ export default async function SetupPage() {
       tgErr = (e as Error).message;
     }
   }
+  // Zamanlayıcının son çalışma zamanı (yalnız zaman gösterilir)
+  const cronLast = storeOk ? ((await getJSON<{ zaman?: string }>("cron:last").catch(() => null))?.zaman ?? null) : null;
   const names = Object.keys(process.env)
     .filter((n) => /KV|REDIS|UPSTASH|REST_API|STORAGE/i.test(n))
     .sort();
@@ -72,6 +74,18 @@ export default async function SetupPage() {
           />
           {creds && <Row ok={pingOk} label="Veritabanına erişim" hint={pingOk ? undefined : `Bağlanılamadı: ${pingError}`} />}
           <Row ok={storeOk && secretOk && pingOk !== false} label="Kayıt / giriş kullanılabilir" />
+          <Row
+            ok={(process.env.CRON_SECRET ?? "").length >= 16}
+            label="CRON_SECRET (otomatik zamanlayıcı)"
+            hint={(process.env.CRON_SECRET ?? "").length >= 16 ? undefined : "Kimse bakmasa da öğrenmenin sürmesi için gerekli (en az 16 karakter)."}
+          />
+          {cronLast && (
+            <Row
+              ok={Date.now() - Date.parse(cronLast) < 20 * 60_000}
+              label={`Zamanlayıcı son çalışma: ${new Date(cronLast).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`}
+              hint={Date.now() - Date.parse(cronLast) < 20 * 60_000 ? undefined : "20 dakikadır çalışmamış; cron-job.org ayarını kontrol et."}
+            />
+          )}
         </ul>
         <h3 style={{ marginBottom: 4 }}>Telegram (isteğe bağlı)</h3>
         <ul style={{ listStyle: "none", padding: 0, marginTop: 0 }}>

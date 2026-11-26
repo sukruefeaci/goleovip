@@ -199,3 +199,9 @@ Gösterim filtreleri artık **kazanma olasılığına** göre: oran ≥ 1.50, ol
 - **Sayfa düzeni:** "Günün seçkisi" kaldırıldı; kâr/zarar panosu tek satırlık katlanır özet; Canlı'daki öğrenme tabloları AI sekmesine taşındı; maç sayfasında tüm seçenekler katlanır; Bilgi sayfası güncellendi.
 - **Hız:** Oran eşleştirmesi maç başına önbellekli ve Oranlar/Üçlü arasında paylaşımlı (`selectionsFor`); ilk hesap olay döngüsünü bloklamadan parça parça, sayfa en fazla ~2 sn bekler.
 
+## Otomatik zamanlayıcı (`/api/cron/tick`)
+
+Kimse siteye bakmasa da öğrenmenin sürmesi için. `CRON_SECRET` (≥ 16 karakter) ile korunur: `https://SITE/api/cron/tick?key=CRON_SECRET` (ya da `Authorization: Bearer`). cron-job.org gibi bir servisle **her 5 dakikada** çağrılır. Hemen `{"ok":true}` döner, iş arka planda (`after`, en çok 60 sn) biter; `?bekle=1` ile sonuç beklenir.
+Adımlar: maç öncesi analizleri yeniler ve tercihleri kaydeder · canlı maçları tarar (öneri kaydı, Telegram, üçlü onay) · Oranlar tercihlerini kaydeder · bugün/dün biten maçları sonuçlandırır (maç öncesi, Oranlar, canlı, üçlü) · kalibrasyon karnesini gerekirse yeniler. Son çalışma `cron:last` anahtarında, /kurulum sayfasında görünür (20 dk'dan eskiyse uyarı).
+Yük sınırları: yalnız-iddaa maçları 48 saat ileriye kadar analiz edilir; tahmin kaydı 36 saat içindeki maçlar için; Oranlar hesabı dün–yarın arası maçlar için.
+

@@ -138,6 +138,7 @@ function toEntry(a: Analysis): SnapEntry {
 // ---------------------------------------------------------------- kayıt
 
 const lastWritten = new Map<string, string>();
+const RECORD_AHEAD_MS = 36 * 60 * MIN;
 
 /** Başlamamış maçların güncel tercihini günlük kayda yazar (değişmediyse yazmaz) */
 export async function recordSnapshots(analyses: Analysis[], now = Date.now()): Promise<void> {
@@ -145,7 +146,8 @@ export async function recordSnapshots(analyses: Analysis[], now = Date.now()): P
   const byDate = new Map<string, Analysis[]>();
   for (const a of analyses) {
     const t = new Date(a.match.kickoff).getTime();
-    if (t <= now) continue;
+    // Yalnız 36 saat içinde başlayacak maçlar (daha uzaktakiler zaten sonra kaydedilir; kayıt boyutu küçük kalır)
+    if (t <= now || t > now + RECORD_AHEAD_MS) continue;
     const d = trDate(t);
     byDate.set(d, [...(byDate.get(d) ?? []), a]);
   }
@@ -173,7 +175,7 @@ export async function recordOddsPicks(rows: { id: string; kickoff: string; pick:
   const byDate = new Map<string, typeof rows>();
   for (const r of rows) {
     const t = new Date(r.kickoff).getTime();
-    if (t <= now || !r.pick) continue;
+    if (t <= now || t > now + RECORD_AHEAD_MS || !r.pick) continue;
     const d = trDate(t);
     byDate.set(d, [...(byDate.get(d) ?? []), r]);
   }

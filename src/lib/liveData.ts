@@ -164,6 +164,11 @@ export async function loadLive(): Promise<LiveMemo> {
   return refreshLive(false);
 }
 
+/** Zamanlayıcı için: canlı maçları hemen tara; kayıt, Telegram ve üçlü onay bitene kadar bekle */
+export function refreshLiveNow(): Promise<LiveMemo> {
+  return refreshLive(true);
+}
+
 function refreshLive(background: boolean): Promise<LiveMemo> {
   if (inflight) return inflight;
   inflight = (async () => {

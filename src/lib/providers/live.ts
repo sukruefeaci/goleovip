@@ -24,6 +24,7 @@ import type { TeamInput } from "../types";
 const MIN = 60_000;
 const MATCH_THRESHOLD = 0.72;
 const DAYS_AHEAD = 7;
+const IDDAA_ONLY_HOURS = 48;
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
@@ -185,7 +186,8 @@ async function buildAll(): Promise<MatchInput[]> {
   for (const ev of events) {
     if (used.has(ev)) continue;
     const t = ev.kickoff.getTime();
-    if (t <= now.getTime() || t >= horizon) continue;
+    // Yalnız iddaa maçları önümüzdeki 48 saat için (bülten haftalık yüzlerce maç içerir; kayıt ve hesap yükü)
+    if (t <= now.getTime() || t >= Math.min(horizon, now.getTime() + IDDAA_ONLY_HOURS * 60 * MIN)) continue;
     const m = iddaaMatch(ev, updatedAt, oddsSource);
     if (m) iddaaMatches.push(m);
   }
