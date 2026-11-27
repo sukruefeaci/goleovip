@@ -29,6 +29,38 @@ export interface Bin {
   hits: number;
   pred: number; // söylenen olasılıkların toplamı
 }
+export interface ScoreStats {
+  n: number; // sonucu belli maç
+  exact: number; // skor birebir tuttu
+  outcome: number; // tahmini skorun yönü (1/X/2) tuttu
+  totalGoals: number; // toplam gol sayısı tuttu
+  goalDiffOne: number; // her iki takımın golünde en fazla 1 fark
+  recent: { date: string; home: string; away: string; pred: string; real: string }[]; // son birebir tutanlar
+}
+
+/** Kayıtlardan skor tahmini karnesi */
+export function scoreStats(list: { id?: string; home?: string; away?: string; kickoff?: string; summary?: { topScore?: string }; result?: { hg: number; ag: number } }[]): ScoreStats {
+  const st: ScoreStats = { n: 0, exact: 0, outcome: 0, totalGoals: 0, goalDiffOne: 0, recent: [] };
+  const sign = (x: number) => (x > 0 ? 1 : x < 0 ? -1 : 0);
+  for (const e of list) {
+    const m = /^(\d+)-(\d+)$/.exec(e.summary?.topScore ?? "");
+    if (!m || !e.result) continue;
+    const ph = Number(m[1]),
+      pa = Number(m[2]),
+      { hg, ag } = e.result;
+    st.n++;
+    if (ph === hg && pa === ag) {
+      st.exact++;
+      st.recent.push({ date: (e.kickoff ?? "").slice(0, 10), home: e.home ?? "", away: e.away ?? "", pred: `${ph}-${pa}`, real: `${hg}-${ag}` });
+    }
+    if (sign(ph - pa) === sign(hg - ag)) st.outcome++;
+    if (ph + pa === hg + ag) st.totalGoals++;
+    if (Math.abs(ph - hg) <= 1 && Math.abs(pa - ag) <= 1) st.goalDiffOne++;
+  }
+  st.recent = st.recent.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8);
+  return st;
+}
+
 export interface Sample {
   pred: number;
   won: boolean;
@@ -103,6 +135,8 @@ export interface Calibration {
   dims?: Record<SystemKey, Partial<Record<DimKey, Record<string, SegStat>>>>;
   /** Maçlar sistemi lig karnesi (gösterilen olasılıkla): lig → adet, tutan, söylenen toplamı */
   leagues?: Record<string, Bin>;
+  /** Maç önü skor tahmini karnesi (en olası skor ↔ gerçek skor) */
+  scores?: ScoreStats;
   prev?: { day: string; sys: Record<SystemKey, Bin[]> }; // bir önceki günün karnesi (değişimi göstermek için)
 }
 
@@ -256,6 +290,7 @@ async function rebuild(now = Date.now()): Promise<Calibration> {
     oran: Sample[] = [],
     canli: Sample[] = [];
   const leagues: Record<string, Bin> = {};
+  const allSnaps: Parameters<typeof scoreStats>[0] = [];
   const days = Array.from({ length: SNAP_DAYS }, (_, i) => trDay(now - i * 86400_000));
   await Promise.all(
     days.map(async (d, i) => {
@@ -267,6 +302,7 @@ async function rebuild(now = Date.now()): Promise<Calibration> {
         const s = samplesFromSnaps(Object.values(snap));
         mac.push(...s.mac);
         oran.push(...s.oran);
+        allSnaps.push(...(Object.values(snap) as Parameters<typeof scoreStats>[0]));
         for (const e of Object.values(snap))
           if (e.pick && typeof e.result?.pickWon === "boolean" && e.league) {
             const l = (leagues[e.league] ??= { n: 0, hits: 0, pred: 0 });
@@ -287,6 +323,7 @@ async function rebuild(now = Date.now()): Promise<Calibration> {
     sys: { mac: fitBins(mac), canli: fitBins(canli), oran: fitBins(oran) },
     dims: { mac: fitDims(mac), canli: fitDims(canli), oran: fitDims(oran) },
     leagues,
+    scores: scoreStats(allSnaps),
     // gün değiştiyse önceki günün karnesini sakla, değişmediyse eskisini koru
     prev: old?.v === 1 ? (old.day !== today ? { day: old.day, sys: old.sys } : old.prev) : undefined,
   };

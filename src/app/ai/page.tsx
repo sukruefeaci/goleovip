@@ -225,6 +225,63 @@ export default async function AiPage({ searchParams }: { searchParams: Promise<{
         );
       })}
 
+      <section className="card pad ai-score">
+        <h2 className="card-title">🎯 Skor tahmini karnesi (maç önü)</h2>
+        {c?.scores && c.scores.n > 0 ? (
+          (() => {
+            const sc = c.scores;
+            const pct = (x: number) => `%${Math.round((x / sc.n) * 100)}`;
+            return (
+              <>
+                <div className="learn-row">
+                  <span>Tam skor tuttu</span>
+                  <b>
+                    {sc.exact} / {sc.n} · {pct(sc.exact)}
+                  </b>
+                </div>
+                <div className="learn-row">
+                  <span>Kazanan / beraberlik doğru</span>
+                  <b>
+                    {sc.outcome} / {sc.n} · {pct(sc.outcome)}
+                  </b>
+                </div>
+                <div className="learn-row">
+                  <span>Toplam gol sayısı doğru</span>
+                  <b>
+                    {sc.totalGoals} / {sc.n} · {pct(sc.totalGoals)}
+                  </b>
+                </div>
+                <div className="learn-row">
+                  <span>İki takımda da en çok 1 gol fark</span>
+                  <b>
+                    {sc.goalDiffOne} / {sc.n} · {pct(sc.goalDiffOne)}
+                  </b>
+                </div>
+                {sc.recent.length > 0 && (
+                  <details>
+                    <summary className="small">Tam tutan son skorlar</summary>
+                    {sc.recent.map((r, i) => (
+                      <div key={i} className="learn-row small">
+                        <span>
+                          {r.date} · {r.home} – {r.away}
+                        </span>
+                        <b className="pos">{r.real}</b>
+                      </div>
+                    ))}
+                  </details>
+                )}
+                <p className="muted small">
+                  Son 60 günde sonuçlanan maçlar; tahmin, maç sayfasındaki en olası skor. Tam skor zor bir pazardır: iyi modellerde bile genelde %10–13 civarı
+                  tutar.
+                </p>
+              </>
+            );
+          })()
+        ) : (
+          <p className="muted small">Henüz hesaplanmadı. Karne her 6 saatte yenilenir; admin isen aşağıdaki &quot;yeniden hesapla&quot; ile hemen görebilirsin.</p>
+        )}
+      </section>
+
       <section className="card pad">
         <h2 className="card-title">Tercih türüne göre öğrendikleri</h2>
         <h3 className="sk-tier">⚽ Maçlar</h3>
