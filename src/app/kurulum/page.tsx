@@ -1,6 +1,7 @@
 import { authSecret } from "@/lib/auth/session";
 import { getJSON, getStore, upstashCredentials } from "@/lib/auth/store";
 import { telegramConfig } from "@/lib/telegram";
+import { opKey, opUsage } from "@/lib/providers/oddsPapi";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +87,18 @@ export default async function SetupPage() {
               hint={Date.now() - Date.parse(cronLast) < 20 * 60_000 ? undefined : "20 dakikadır çalışmamış; cron-job.org ayarını kontrol et."}
             />
           )}
+        </ul>
+        <h3 style={{ marginBottom: 4 }}>Oran açığı (isteğe bağlı)</h3>
+        <ul style={{ listStyle: "none", padding: 0, marginTop: 0 }}>
+          <Row
+            ok={!!opKey()}
+            label="ODDSPAPI_KEY (yurt dışı oranlar: Pinnacle)"
+            hint={
+              opKey()
+                ? `Bu ay ${(await opUsage().catch(() => ({ month: 0, day: 0 }))).month} / 240 istek kullanıldı (ücretsiz plan 250). Oranlar zamanlayıcıyla çekilir.`
+                : "oddspapi.io hesabındaki anahtarı Vercel'de bu adla ekleyip Redeploy yapın."
+            }
+          />
         </ul>
         <h3 style={{ marginBottom: 4 }}>Telegram (isteğe bağlı)</h3>
         <ul style={{ listStyle: "none", padding: 0, marginTop: 0 }}>

@@ -3,6 +3,7 @@ import { loadAnalyses } from "@/lib/data";
 import { kickoffParts } from "@/lib/format";
 import { isLineGap, lineGapSize, scanGaps, type GapRow } from "@/lib/oddsGap";
 import { afKey, findAfOdds, loadAfDay } from "@/lib/providers/apiFootball";
+import { loadOpDay } from "@/lib/providers/oddsPapi";
 
 export const dynamic = "force-dynamic";
 
@@ -55,8 +56,12 @@ export default async function OddsGapPage({ searchParams }: { searchParams: Prom
   const { analyses, banner } = await loadAnalyses();
   // Yurt dışı oranlar: API-Football (bugün, yarın, öbür gün UTC) — varsa; yoksa Football-Data
   const dates = [0, 1, 2].map((i) => new Date(Date.now() + i * 86400_000).toISOString().slice(0, 10));
-  const afDays = afKey() ? await Promise.all(dates.map((d) => loadAfDay(d))) : [];
-  const afFor = (a: (typeof analyses)[number]) => findAfOdds(afDays, { home: a.match.home.name, away: a.match.away.name, kickoff: a.match.kickoff })?.odds ?? null;
+  // Önce OddsPapi (Pinnacle), sonra API-Football
+  const [opDay, afDays] = await Promise.all([loadOpDay(), afKey() ? Promise.all(dates.map((d) => loadAfDay(d))) : Promise.resolve([])]);
+  const afFor = (a: (typeof analyses)[number]) => {
+    const m = { home: a.match.home.name, away: a.match.away.name, kickoff: a.match.kickoff };
+    return findAfOdds([opDay], m)?.odds ?? findAfOdds(afDays, m)?.odds ?? null;
+  };
   const upcoming = analyses.filter((a) => new Date(a.match.kickoff).getTime() > Date.now());
   const withForeign = upcoming.filter((a) => (a.match.source ?? "market") === "market" || afFor(a)).length;
   const all = scanGaps(analyses, min / 100, Date.now(), afFor);
@@ -64,6 +69,12 @@ export default async function OddsGapPage({ searchParams }: { searchParams: Prom
     .map((g) => ({ ...g, rows: onlyLine ? g.rows.filter(isLineGap) : g.rows }))
     .filter((g) => g.rows.length);
   const lineCount = all.reduce((n, g) => n + g.rows.filter(isLineGap).length, 0);
+  // Açık yoksa: iddaa'nın yurt dışına en yakın (en az marjlı) verdiği seçenekler
+  const nearest = matches.length
+    ? []
+    : scanGaps(analyses, -0.08, Date.now(), afFor)
+        .map((g) => ({ ...g, rows: g.rows.slice(0, 2) }))
+        .slice(0, 10);
   const href = (m: number, c: boolean) => `/oran-acigi?min=${m}${c ? "&cizgi=1" : ""}`;
 
   return (
@@ -125,7 +136,34 @@ export default async function OddsGapPage({ searchParams }: { searchParams: Prom
             </section>
           );
         })}
-        {!matches.length && (
+        {nearest.length > 0 && (
+          <>
+            <div className="notice subtle">
+              Şu an bu eşikte açık yok: iddaa yurt dışından düşük oran veriyor (marjı genelde %10–15). Aşağıda iddaa&apos;nın yurt dışına <b>en yakın</b>{" "}
+              verdiği seçenekler var; bunlar artı değil, sadece en az kayıplı olanlar.
+            </div>
+            {nearest.map((g) => {
+              const k = kickoffParts(g.a.match.kickoff);
+              return (
+                <section key={g.a.match.id} className="card oa-row">
+                  <div className="oa-top">
+                    <span className="muted small">
+                      {k.date} · {k.time} · {g.a.match.league}
+                    </span>
+                    <span className="muted small">{g.reference}</span>
+                  </div>
+                  <Link href={`/mac/${g.a.match.id}`} className="oa-match">
+                    {g.a.match.home.name} <span className="vs">vs</span> {g.a.match.away.name}
+                  </Link>
+                  {g.rows.map((r) => (
+                    <GapLine key={r.key} r={r} />
+                  ))}
+                </section>
+              );
+            })}
+          </>
+        )}
+        {!matches.length && !nearest.length && (
           <div className="card pad empty">
             {withForeign === 0
               ? "Şu an yurt dışı oranı olan yaklaşan maç yok. Yurt dışı oranlar zamanlayıcıyla kademeli çekilir; biraz sonra tekrar bak."
@@ -134,7 +172,7 @@ export default async function OddsGapPage({ searchParams }: { searchParams: Prom
         )}
       </div>
       <p className="muted small" style={{ marginTop: 16 }}>
-        Kaynak: API-Football (gol, korner, kart) ve Football-Data. Taç pazarı yurt dışı kaynakta yok. Yurt dışı oranlar zamanlayıcıyla birkaç saatte bir
+        Kaynak: OddsPapi (Pinnacle: gol, ilk yarı, takım golleri, korner), API-Football ve Football-Data. Taç pazarı yurt dışı kaynakta yok. Yurt dışı oranlar zamanlayıcıyla birkaç saatte bir
         güncellenir (ücretsiz plan günlük istek sınırı).
       </p>
     </div>

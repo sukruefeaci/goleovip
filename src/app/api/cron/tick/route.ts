@@ -9,7 +9,8 @@ import { computeOddsPicks } from "@/lib/oddsPicks";
 import { getCalibration } from "@/lib/calibration";
 import { getStore, setJSON } from "@/lib/auth/store";
 import { postSharedResults } from "@/lib/tgStats";
-import { syncDay } from "@/lib/providers/apiFootball";
+import { afKey, syncDay } from "@/lib/providers/apiFootball";
+import { opKey, syncOddsPapi } from "@/lib/providers/oddsPapi";
 import { postPrematchResults, sharePrematchPicks } from "@/lib/tgPre";
 import { recordDonus, settleDonus } from "@/lib/donus";
 
@@ -111,7 +112,9 @@ async function run(): Promise<Record<string, unknown>> {
     if (left() < 15000) return "süre kalmadı";
     const d0 = new Date().toISOString().slice(0, 10),
       d1 = new Date(Date.now() + 86400_000).toISOString().slice(0, 10);
-    return { bugun: await syncDay(d0, 3).catch((e) => (e as Error).message), yarin: await syncDay(d1, 3).catch((e) => (e as Error).message) };
+    const op = opKey() ? await syncOddsPapi((await loadAnalyses()).analyses, Date.now()).catch((e) => (e as Error).message) : "anahtar yok";
+    if (!afKey()) return { oddspapi: op };
+    return { oddspapi: op, bugun: await syncDay(d0, 3).catch((e) => (e as Error).message), yarin: await syncDay(d1, 3).catch((e) => (e as Error).message) };
   }, log);
   await save();
   // 5) Oranlar tercihleri (geçmiş arşivi soğuk sunucuda uzun sürebilir: kalan süre kadar beklenir)
