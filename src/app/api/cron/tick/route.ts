@@ -82,6 +82,9 @@ async function run(): Promise<Record<string, unknown>> {
     }, log),
   ]);
   await save();
+  // 1b) yurt dışı oranlar: OddsPapi (Pinnacle), kısa sürer, kota korumalı
+  if (opKey()) await step("oddspapi", async () => syncOddsPapi((await loadAnalyses()).analyses, Date.now()), log);
+  await save();
   // 2) biten maçları sonuçlandır
   await step("sonuclar", async () => {
     const b = Math.max(3000, Math.min(10000, left() - 30000));
@@ -112,9 +115,8 @@ async function run(): Promise<Record<string, unknown>> {
     if (left() < 15000) return "süre kalmadı";
     const d0 = new Date().toISOString().slice(0, 10),
       d1 = new Date(Date.now() + 86400_000).toISOString().slice(0, 10);
-    const op = opKey() ? await syncOddsPapi((await loadAnalyses()).analyses, Date.now()).catch((e) => (e as Error).message) : "anahtar yok";
-    if (!afKey()) return { oddspapi: op };
-    return { oddspapi: op, bugun: await syncDay(d0, 3).catch((e) => (e as Error).message), yarin: await syncDay(d1, 3).catch((e) => (e as Error).message) };
+    if (!afKey()) return "API-Football anahtarı yok";
+    return { bugun: await syncDay(d0, 3).catch((e) => (e as Error).message), yarin: await syncDay(d1, 3).catch((e) => (e as Error).message) };
   }, log);
   await save();
   // 5) Oranlar tercihleri (geçmiş arşivi soğuk sunucuda uzun sürebilir: kalan süre kadar beklenir)

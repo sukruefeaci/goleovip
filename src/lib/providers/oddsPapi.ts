@@ -151,6 +151,31 @@ function matchFixture(list: OpFixture[], m: { home: string; away: string; kickof
  */
 export async function syncOddsPapi(analyses: Analysis[], now = Date.now(), maxCalls = 2) {
   if (!opKey() || !getStore()) return { requests: 0, note: "anahtar yok" };
+  await setJSON(LAST_KEY, { at: new Date(now).toISOString(), running: true }).catch(() => {});
+  try {
+    const r = await syncInner(analyses, now, maxCalls);
+    await setJSON(LAST_KEY, { at: new Date(now).toISOString(), ok: true, r }).catch(() => {});
+    memo = null;
+    return r;
+  } catch (e) {
+    await setJSON(LAST_KEY, { at: new Date(now).toISOString(), ok: false, error: (e as Error).message }).catch(() => {});
+    throw e;
+  }
+}
+
+const LAST_KEY = "op:last";
+export type OpLast = { at: string; running?: boolean; ok?: boolean; error?: string; r?: Record<string, unknown> };
+export const opLast = () => getJSON<OpLast>(LAST_KEY).catch(() => null);
+
+/** Sayfadan: veri yoksa ya da fikstür eskiyse (son denemeden 3 dk geçtiyse) arka planda senkron */
+export async function needsOpSync(now = Date.now()): Promise<boolean> {
+  if (!opKey() || !getStore()) return false;
+  const [last, fx] = await Promise.all([opLast(), loadFx()]);
+  if (last && now - Date.parse(last.at) < 3 * 60_000) return false;
+  return !fx || now - Date.parse(fx.at) > FX_REFRESH_MS;
+}
+
+async function syncInner(analyses: Analysis[], now: number, maxCalls: number) {
   const { st, requests: r0 } = await refreshFx(now);
   let requests = r0;
   if (!st) return { requests, note: "fikstür alınamadı (kota?)" };

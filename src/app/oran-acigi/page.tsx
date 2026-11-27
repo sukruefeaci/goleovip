@@ -3,7 +3,8 @@ import { loadAnalyses } from "@/lib/data";
 import { kickoffParts } from "@/lib/format";
 import { isLineGap, lineGapSize, scanGaps, type GapRow } from "@/lib/oddsGap";
 import { afKey, findAfOdds, loadAfDay } from "@/lib/providers/apiFootball";
-import { loadOpDay } from "@/lib/providers/oddsPapi";
+import { loadOpDay, needsOpSync, opKey, syncOddsPapi } from "@/lib/providers/oddsPapi";
+import { inBackground } from "@/lib/background";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,8 @@ export default async function OddsGapPage({ searchParams }: { searchParams: Prom
   const { analyses, banner } = await loadAnalyses();
   // Yurt dışı oranlar: API-Football (bugün, yarın, öbür gün UTC) — varsa; yoksa Football-Data
   const dates = [0, 1, 2].map((i) => new Date(Date.now() + i * 86400_000).toISOString().slice(0, 10));
+  // Yurt dışı oranlar hiç çekilmemişse ya da eskiyse: arka planda çek (kota korumalı)
+  if (opKey() && (await needsOpSync().catch(() => false))) inBackground(() => syncOddsPapi(analyses).catch(() => null));
   // Önce OddsPapi (Pinnacle), sonra API-Football
   const [opDay, afDays] = await Promise.all([loadOpDay(), afKey() ? Promise.all(dates.map((d) => loadAfDay(d))) : Promise.resolve([])]);
   const afFor = (a: (typeof analyses)[number]) => {
