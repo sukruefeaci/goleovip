@@ -167,6 +167,9 @@ export function gapsFor(a: Analysis, af?: AfOdds | null): GapMatch | null {
 export const lineGapSize = (r: GapRow) =>
   !r.line || r.line.equivLine === null ? 0 : r.line.side === "Üst" ? r.line.equivLine - r.line.line : r.line.line - r.line.equivLine;
 export const isLineGap = (r: GapRow) => lineGapSize(r) >= 1;
+/** Çok büyük açık: çoğu zaman son dakika haberi, saha değişikliği ya da veri / oran hatası; kontrol edilmeli */
+export const SUSPECT_GAP = 0.4;
+export const isSuspectGap = (r: GapRow) => r.gap >= SUSPECT_GAP;
 
 /** Yaklaşan maçlarda açıkları tarar: açığı ≥ minGap olan seçenekler, en büyük açıktan */
 export function scanGaps(analyses: Analysis[], minGap = 0.03, now = Date.now(), afFor?: (a: Analysis) => AfOdds | null): GapMatch[] {

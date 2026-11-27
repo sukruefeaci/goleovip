@@ -1,6 +1,6 @@
 import { getJSON, getStore, setJSON } from "./auth/store";
 import { foreignOddsLookup } from "./foreignOdds";
-import { isLineGap, lineGapSize, scanGaps, type GapMatch, type GapRow } from "./oddsGap";
+import { isLineGap, isSuspectGap, lineGapSize, scanGaps, type GapMatch, type GapRow } from "./oddsGap";
 import { C, div, isTelegramEnabled, loadFonts, sendPhoto, telegramConfig, telegramSettings } from "./telegram";
 import type { Analysis } from "./types";
 
@@ -109,6 +109,8 @@ function gapCaption(g: GapMatch, r: GapRow): string {
     ``,
     `🎯 <b>${esc(r.market)} · ${esc(r.selection)}</b> @ <b>${r.odd.toFixed(2)}</b>`,
     `Yurt dışı adil oran ${r.fairOdd.toFixed(2)} · Açık <b>${sign(r.gap)}</b>`,
+    `Yurt dışına göre tutma ihtimali %${Math.round(r.pForeign * 100)}`,
+    isSuspectGap(r) ? `⚠️ Çok büyük açık: son dakika kadro/saha haberi ya da oran hatası olabilir, oynamadan önce kontrol et.` : "",
     isLineGap(r) && r.line ? `📏 Yurt dışı bu oranı ${fmtLine(r.line.equivLine!)} ${r.line.side}'te verirdi (${lineGapSize(r)} çizgi fark)` : "",
     ``,
     `<i>18+ · Bilgi amaçlıdır.</i>`,

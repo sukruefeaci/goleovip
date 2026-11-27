@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { loadAnalyses } from "@/lib/data";
 import { kickoffParts } from "@/lib/format";
-import { isLineGap, lineGapSize, scanGaps, type GapRow } from "@/lib/oddsGap";
+import { isLineGap, isSuspectGap, lineGapSize, scanGaps, type GapRow } from "@/lib/oddsGap";
 import { afKey, findAfOdds, loadAfDay } from "@/lib/providers/apiFootball";
 import { loadOpDay, needsOpSync, opKey, syncOddsPapi } from "@/lib/providers/oddsPapi";
 import { inBackground } from "@/lib/background";
@@ -47,6 +47,9 @@ function GapLine({ r }: { r: GapRow }) {
         </div>
       </div>
       <div className="muted small">Yurt dışına göre tutma ihtimali {pc(r.pForeign)}</div>
+      {isSuspectGap(r) && (
+        <div className="small gp-warn">⚠ Çok büyük açık: son dakika kadro / saha haberi ya da oran hatası olabilir. Oynamadan önce kontrol et.</div>
+      )}
     </div>
   );
 }

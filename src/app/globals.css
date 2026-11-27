@@ -764,3 +764,4 @@ details.rest .oa-list, details.rest .match-list, details.rest .lc-list { opacity
 .dn-why { margin: 2px 0 0; padding-left: 16px; display: grid; gap: 2px; }
 .dn-group { margin-bottom: 18px; }
 .dn-total { margin-bottom: 14px; display: grid; gap: 6px; }
+.gp-warn { margin-top: 6px; padding: 8px 12px; border-radius: 10px; background: rgba(245,197,66,.12); border: 1px solid rgba(245,197,66,.45); color: var(--gold); }
