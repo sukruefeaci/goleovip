@@ -25,8 +25,7 @@ export default function HowItWorks() {
           <b>📊 Oranlar:</b> geçmişte aynı oranlarla oynanmış binlerce maçta en çok tutan tercih.
         </li>
         <li>
-          <b>🎟️ Kupon / 🎯 Banko:</b> yüksek olasılıklı tercihlerden kupon ve günün en sağlam iki tercihi.
-        </li>
+          <b>🎟️ Kupon:</b> yüksek olasılıklı tercihlerden kupon. <b>🔄 Dönüş:</b> her gün İY/MS 1/2 · 2/1 olma ihtimali en yüksek 5 maç ve 1/X · 2/X olma ihtimali en yüksek 5 maç (yüksek oranlı, sonuçları gün gün takip edilir).</li>
         <li>
           <b>🧠 Yapay zeka (üst çubuk):</b> sistemlerin ne öğrendiği, ne kadar dürüst olduğu ve kendini geliştirme önerileri.
         </li>

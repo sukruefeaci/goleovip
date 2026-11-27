@@ -759,3 +759,8 @@ details.rest .oa-list, details.rest .match-list, details.rest .lc-list { opacity
 .gp-odds b { font-size: 17px; font-variant-numeric: tabular-nums; }
 .seg a { padding: 6px 12px; border-radius: 9px; color: var(--muted); font-weight: 700; font-size: 13.5px; }
 .seg a.on { background: var(--surface-2); color: var(--text); }
+
+/* Dönüş sekmesi */
+.dn-why { margin: 2px 0 0; padding-left: 16px; display: grid; gap: 2px; }
+.dn-group { margin-bottom: 18px; }
+.dn-total { margin-bottom: 14px; display: grid; gap: 6px; }

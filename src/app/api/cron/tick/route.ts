@@ -11,6 +11,7 @@ import { getStore, setJSON } from "@/lib/auth/store";
 import { postSharedResults } from "@/lib/tgStats";
 import { syncDay } from "@/lib/providers/apiFootball";
 import { postPrematchResults, sharePrematchPicks } from "@/lib/tgPre";
+import { recordDonus, settleDonus } from "@/lib/donus";
 
 /**
  * Otomatik zamanlayıcı (ör. cron-job.org her 5 dk): kimse siteye bakmasa da
@@ -92,6 +93,10 @@ async function run(): Promise<Record<string, unknown>> {
       settleConsensus(yesterday, now, b),
     ]);
     return { mac_oncesi: mb + md, canli: cb + cd, uclu: ub + ud };
+  }, log);
+  await step("donus", async () => {
+    const s = (await settleDonus(today)) + (await settleDonus(yesterday));
+    return { sonuc: s, kayit: await recordDonus((await loadAnalyses()).analyses, Date.now()) };
   }, log);
   await save();
   // 3) Telegram: paylaşılan tahminlerin sonuçları ve maç önü paylaşımı (öncelikli)
