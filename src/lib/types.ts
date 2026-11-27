@@ -69,6 +69,8 @@ export interface MatchInput {
   headToHead: { home: number; away: number }[];
   euro: EuroMarket;
   iddaa: OddsLine[];
+  /** Takım istatistiği olmayan maçlarda modelin hesaplamadığı korner/kart çizgileri (yalnız Oran açığı için) */
+  iddaaStat?: OddsLine[];
   updatedAt: string;
   warnings: string[];
   /** FotMob eşleşmesi (sakat/cezalı listesi buradan) */

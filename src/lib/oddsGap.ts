@@ -117,7 +117,8 @@ export function gapsFor(a: Analysis, af?: AfOdds | null): GapMatch | null {
   };
 
   const rows: GapRow[] = [];
-  for (const l of m.iddaa) {
+  // korner/kart çizgileri: istatistiği olmayan maçlarda ayrı alanda durur
+  for (const l of [...m.iddaa, ...(m.iddaaStat ?? [])]) {
     if (l.odd < GAP_MIN_ODD) continue;
     let def;
     try {

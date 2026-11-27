@@ -189,7 +189,9 @@ async function syncInner(analyses: Analysis[], now: number, maxCalls: number) {
     const f = matchFixture(list, { home: a.match.home.name, away: a.match.away.name, kickoff: a.match.kickoff });
     if (!f) continue;
     matched++;
-    count.set(f.tid, (count.get(f.tid) ?? 0) + 1);
+    // iddaa'da korner çizgisi olan maçların ligleri önce (açıklar en çok orada çıkar)
+    const corners = (a.match.iddaaStat ?? []).some((l) => l.key.startsWith("cor"));
+    count.set(f.tid, (count.get(f.tid) ?? 0) + (corners ? 3 : 1));
   }
   const odds: OddsState = (await getJSON<OddsState>(ODDS_KEY).catch(() => null)) ?? { v: 1, odds: {}, tAt: {} };
   const due = [...count.entries()]
