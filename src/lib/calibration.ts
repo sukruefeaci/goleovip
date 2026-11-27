@@ -61,6 +61,38 @@ export function scoreStats(list: { id?: string; home?: string; away?: string; ki
   return st;
 }
 
+export interface HtftStats {
+  n: number;
+  exact: number; // en olası İY/MS birebir tuttu
+  top3: number; // gerçek sonuç en olası 3 içinde
+  ht: number; // ilk yarı sonucu doğru
+  ft: number; // maç sonucu doğru
+  recent: { date: string; home: string; away: string; pred: string; real: string }[];
+}
+
+/** Kayıtlardan İY/MS tahmini karnesi (ilk yarı skoru bilinen maçlar) */
+export function htftStats(list: { home?: string; away?: string; kickoff?: string; summary?: { htftTop?: string[] }; result?: { hg: number; ag: number; hht?: number; aht?: number } }[]): HtftStats {
+  const st: HtftStats = { n: 0, exact: 0, top3: 0, ht: 0, ft: 0, recent: [] };
+  const res = (d: number) => (d > 0 ? "1" : d < 0 ? "2" : "X");
+  for (const e of list) {
+    const top = e.summary?.htftTop;
+    const r = e.result;
+    if (!top?.length || !r || typeof r.hht !== "number" || typeof r.aht !== "number") continue;
+    const real = `${res(r.hht - r.aht)}/${res(r.hg - r.ag)}`;
+    const [pHt, pFt] = top[0].split("/");
+    st.n++;
+    if (top[0] === real) {
+      st.exact++;
+      st.recent.push({ date: (e.kickoff ?? "").slice(0, 10), home: e.home ?? "", away: e.away ?? "", pred: top[0], real });
+    }
+    if (top.includes(real)) st.top3++;
+    if (pHt === real.split("/")[0]) st.ht++;
+    if (pFt === real.split("/")[1]) st.ft++;
+  }
+  st.recent = st.recent.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8);
+  return st;
+}
+
 export interface Sample {
   pred: number;
   won: boolean;
@@ -137,6 +169,8 @@ export interface Calibration {
   leagues?: Record<string, Bin>;
   /** Maç önü skor tahmini karnesi (en olası skor ↔ gerçek skor) */
   scores?: ScoreStats;
+  /** Maç önü İY/MS tahmini karnesi */
+  htft?: HtftStats;
   prev?: { day: string; sys: Record<SystemKey, Bin[]> }; // bir önceki günün karnesi (değişimi göstermek için)
 }
 
@@ -324,6 +358,7 @@ async function rebuild(now = Date.now()): Promise<Calibration> {
     dims: { mac: fitDims(mac), canli: fitDims(canli), oran: fitDims(oran) },
     leagues,
     scores: scoreStats(allSnaps),
+    htft: htftStats(allSnaps as Parameters<typeof htftStats>[0]),
     // gün değiştiyse önceki günün karnesini sakla, değişmediyse eskisini koru
     prev: old?.v === 1 ? (old.day !== today ? { day: old.day, sys: old.sys } : old.prev) : undefined,
   };

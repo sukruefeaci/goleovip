@@ -73,7 +73,7 @@ export interface SnapEntry {
   pick: SnapPick | null;
   /** Oran analizi sayfasının tercihi (geçmişte aynı oranlı maçlar) */
   oddsPick?: OddsSnapPick | null;
-  summary: { over25: number; btts: number; topScore: string; p1x2: [number, number, number] };
+  summary: { over25: number; btts: number; topScore: string; p1x2: [number, number, number]; /** En olası 3 İY/MS sonucu (olasılık sırasıyla) */ htftTop?: string[] };
   prior?: LivePrior;
   result?: SnapResult;
 }
@@ -131,6 +131,7 @@ function toEntry(a: Analysis): SnapEntry {
       btts: a.summary.btts,
       topScore: a.summary.topScores[0]?.score ?? "",
       p1x2: a.model1x2,
+      htftTop: [...(a.htft ?? [])].sort((x, y) => y.prob - x.prob).slice(0, 3).map((h) => h.outcome),
     },
   };
 }

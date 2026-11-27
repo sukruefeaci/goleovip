@@ -258,8 +258,8 @@ export default async function AiPage({ searchParams }: { searchParams: Promise<{
                   </b>
                 </div>
                 {sc.recent.length > 0 && (
-                  <details>
-                    <summary className="small">Tam tutan son skorlar</summary>
+                  <details open>
+                    <summary className="small">✓ Tam tutan son skorlar</summary>
                     {sc.recent.map((r, i) => (
                       <div key={i} className="learn-row small">
                         <span>
@@ -279,6 +279,55 @@ export default async function AiPage({ searchParams }: { searchParams: Promise<{
           })()
         ) : (
           <p className="muted small">Henüz hesaplanmadı. Karne her 6 saatte yenilenir; admin isen aşağıdaki &quot;yeniden hesapla&quot; ile hemen görebilirsin.</p>
+        )}
+      </section>
+
+      <section className="card pad ai-score">
+        <h2 className="card-title">⏱️ İlk yarı / maç sonucu karnesi (maç önü)</h2>
+        {c?.htft && c.htft.n > 0 ? (
+          (() => {
+            const h = c.htft;
+            const pct = (x: number) => `%${Math.round((x / h.n) * 100)}`;
+            const rows: [string, number][] = [
+              ["En olası İY/MS tam tuttu", h.exact],
+              ["Gerçek sonuç en olası 3 içinde", h.top3],
+              ["İlk yarı sonucu doğru", h.ht],
+              ["Maç sonucu doğru", h.ft],
+            ];
+            return (
+              <>
+                {rows.map(([t, v]) => (
+                  <div key={t} className="learn-row">
+                    <span>{t}</span>
+                    <b>
+                      {v} / {h.n} · {pct(v)}
+                    </b>
+                  </div>
+                ))}
+                {h.recent.length > 0 && (
+                  <details open>
+                    <summary className="small">✓ Tam tutan son İY/MS tahminleri</summary>
+                    {h.recent.map((r, i) => (
+                      <div key={i} className="learn-row small">
+                        <span>
+                          {r.date} · {r.home} – {r.away}
+                        </span>
+                        <b className="pos">{r.real}</b>
+                      </div>
+                    ))}
+                  </details>
+                )}
+                <p className="muted small">
+                  Maç sayfasındaki &quot;En olası sonuç&quot; ile gerçek ilk yarı / maç sonucu karşılaştırılır. En olası İY/MS bile genelde %25–40 ihtimallidir;
+                  tam tutma oranının %25–30 civarı olması normaldir.
+                </p>
+              </>
+            );
+          })()
+        ) : (
+          <p className="muted small">
+            İY/MS tahminleri bugünden itibaren kaydediliyor (önceden kaydedilmiyordu). Maçlar bitip karne yenilendikçe burada rakamlar birikecek.
+          </p>
         )}
       </section>
 
