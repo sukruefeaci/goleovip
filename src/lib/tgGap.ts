@@ -118,7 +118,21 @@ function gapCaption(g: GapMatch, r: GapRow): string {
 }
 
 /** Şartı geçen en büyük açığı kanala gönderir (her maç-seçenek bir kez, beklemeye uyarak). Dönen: gönderilen sayısı */
+const RESULT_KEY = "tg:gap:result";
+export const gapLastResult = () => getJSON<{ at: string; r: number | string }>(RESULT_KEY).catch(() => null);
+
 export async function shareOddsGaps(analyses: Analysis[], now = Date.now()): Promise<number | string> {
+  let r: number | string;
+  try {
+    r = await shareInner(analyses, now);
+  } catch (e) {
+    r = `hata: ${(e as Error).message}`;
+  }
+  await setJSON(RESULT_KEY, { at: new Date(now).toISOString(), r }).catch(() => {});
+  return r;
+}
+
+async function shareInner(analyses: Analysis[], now: number): Promise<number | string> {
   const cfg = telegramConfig();
   const store = getStore();
   if (!cfg || !store) return "Telegram ayarlı değil";
@@ -134,9 +148,10 @@ export async function shareOddsGaps(analyses: Analysis[], now = Date.now()): Pro
     return t > now + 10 * 60_000 && t <= now + set.hoursBefore * 3600_000;
   });
   const cands = scanGaps(soon, set.minGap / 100, now, afFor)
-    .flatMap((g) => g.rows.filter((r) => r.odd >= set.minOdd).map((r) => ({ g, r })))
+    // yurt dışına göre tutma ihtimali eşiğin üstünde olanlar (ör. %50 üstü)
+    .flatMap((g) => g.rows.filter((r) => r.odd >= set.minOdd && r.pForeign * 100 > set.minProb).map((r) => ({ g, r })))
     .sort((x, y) => y.r.gap - x.r.gap);
-  if (!cands.length) return 0;
+  if (!cands.length) return "şartı geçen açık yok";
 
   let pick: (typeof cands)[number] | null = null;
   for (const c of cands)
@@ -144,7 +159,7 @@ export async function shareOddsGaps(analyses: Analysis[], now = Date.now()): Pro
       pick = c;
       break;
     }
-  if (!pick) return 0;
+  if (!pick) return "uygun açıkların hepsi zaten paylaşıldı";
   // aynı anda iki çalışma olursa yalnız biri gönderir
   if ((await store.incr(LOCK_KEY, 50).catch(() => 2)) !== 1) return 0;
   const sk = sentKey(pick.g.a.match.id, pick.r.key);

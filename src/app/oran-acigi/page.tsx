@@ -5,6 +5,7 @@ import { isLineGap, lineGapSize, scanGaps, type GapRow } from "@/lib/oddsGap";
 import { afKey, findAfOdds, loadAfDay } from "@/lib/providers/apiFootball";
 import { loadOpDay, needsOpSync, opKey, syncOddsPapi } from "@/lib/providers/oddsPapi";
 import { inBackground } from "@/lib/background";
+import { shareOddsGaps } from "@/lib/tgGap";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +72,8 @@ export default async function OddsGapPage({ searchParams }: { searchParams: Prom
   const matches = all
     .map((g) => ({ ...g, rows: onlyLine ? g.rows.filter(isLineGap) : g.rows }))
     .filter((g) => g.rows.length);
+  // açık varsa kanala paylaşımı da dene (bekleme süresi ve şartlar tgGap'te)
+  if (all.length) inBackground(() => shareOddsGaps(analyses).catch(() => null));
   const lineCount = all.reduce((n, g) => n + g.rows.filter(isLineGap).length, 0);
   // Açık yoksa: iddaa'nın yurt dışına en yakın (en az marjlı) verdiği seçenekler
   const nearest = matches.length

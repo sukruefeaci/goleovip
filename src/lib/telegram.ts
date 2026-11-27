@@ -27,11 +27,12 @@ export interface TelegramSettings {
 export interface GapSettings {
   enabled: boolean;
   minGap: number; // %, açık bu değer ve üstündeyse
+  minProb: number; // %, yurt dışına göre tutma ihtimali bu değerin üstündeyse
   minOdd: number;
   cooldownMin: number;
   hoursBefore: number;
 }
-export const DEFAULT_GAP: GapSettings = { enabled: true, minGap: 0, minOdd: 1.3, cooldownMin: 15, hoursBefore: 24 };
+export const DEFAULT_GAP: GapSettings = { enabled: true, minGap: 0, minProb: 50, minOdd: 1.3, cooldownMin: 15, hoursBefore: 36 };
 export interface PreSettings {
   enabled: boolean;
   minProb: number; // %

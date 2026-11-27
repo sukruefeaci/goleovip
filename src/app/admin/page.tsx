@@ -3,6 +3,7 @@ import { adminEmails, isAdmin } from "@/lib/admin";
 import { getStore } from "@/lib/auth/store";
 import { isTelegramEnabled, telegramConfig, telegramSettings } from "@/lib/telegram";
 import { KIND_LABEL, SCOPE_LABEL, sharedStats, type StatsKind, type StatsScope } from "@/lib/tgStats";
+import { gapLastResult } from "@/lib/tgGap";
 import { saveGapSettings, savePreSettings, saveSettings, sendPreResultsNow, sendResultsNow, shareStats, toggleTelegram } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +38,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const scope: StatsScope = d && d in SCOPE_LABEL ? (d as StatsScope) : "bugun";
   const cfg = telegramConfig();
   const tracking = !!getStore();
+  const gapLast = await gapLastResult();
   const [enabled, st, set] = await Promise.all([isTelegramEnabled(), tracking ? sharedStats(scope, Date.now(), kind).catch((e) => (console.error("Admin istatistik:", e), null)) : Promise.resolve(null), telegramSettings()]);
   const p = st?.pnl;
 
@@ -152,6 +154,10 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               <span>Oran açıklarını kanalda paylaş</span>
             </label>
             <label>
+              <span>Yurt dışına göre tutma ihtimali en az (%) · bunun üstü paylaşılır</span>
+              <input name="minProb" type="number" inputMode="numeric" min={0} max={95} step={1} defaultValue={set.gap.minProb} required />
+            </label>
+            <label>
               <span>En az açık (%) · 0 = artıya geçen her açık</span>
               <input name="minGap" type="number" inputMode="decimal" min={0} max={50} step={0.1} defaultValue={set.gap.minGap} required />
             </label>
@@ -169,6 +175,12 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             </label>
             <button className="btn primary block">💾 Oran açığı ayarlarını kaydet</button>
           </form>
+          {gapLast && (
+            <p className="muted small" style={{ marginBottom: 0 }}>
+              Son kontrol {new Date(gapLast.at).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" })}:{" "}
+              {gapLast.r === 1 ? "1 açık paylaşıldı ✅" : gapLast.r === 0 ? "paylaşılacak açık yok" : String(gapLast.r)}
+            </p>
+          )}
         </section>
       )}
 
