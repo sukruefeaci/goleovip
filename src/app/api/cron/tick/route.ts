@@ -13,6 +13,7 @@ import { afKey, syncDay } from "@/lib/providers/apiFootball";
 import { opKey, syncOddsPapi } from "@/lib/providers/oddsPapi";
 import { postPrematchResults, sharePrematchPicks } from "@/lib/tgPre";
 import { recordDonus, settleDonus } from "@/lib/donus";
+import { shareOddsGaps } from "@/lib/tgGap";
 
 /**
  * Otomatik zamanlayıcı (ör. cron-job.org her 5 dk): kimse siteye bakmasa da
@@ -84,6 +85,7 @@ async function run(): Promise<Record<string, unknown>> {
   await save();
   // 1b) yurt dışı oranlar: OddsPapi (Pinnacle), kısa sürer, kota korumalı
   if (opKey()) await step("oddspapi", async () => syncOddsPapi((await loadAnalyses()).analyses, Date.now()), log);
+  await step("telegram_oran_acigi", async () => shareOddsGaps((await loadAnalyses()).analyses, Date.now()), log);
   await save();
   // 2) biten maçları sonuçlandır
   await step("sonuclar", async () => {

@@ -64,6 +64,27 @@ export async function sendPreResultsNow() {
   );
 }
 
+export async function saveGapSettings(formData: FormData) {
+  await requireAdmin();
+  const num = (k: string) => Number(String(formData.get(k) ?? "").replace(",", "."));
+  const minGap = Math.round(num("minGap") * 10) / 10;
+  const minOdd = Math.round(num("minOdd") * 100) / 100;
+  const cooldownMin = Math.round(num("cooldownMin"));
+  const hoursBefore = Math.round(num("hoursBefore"));
+  if (!(minGap >= 0 && minGap <= 50)) back("En az açık %0 ile %50 arasında olmalı.", false);
+  if (!(minOdd >= 1.01 && minOdd <= 20)) back("En düşük oran 1.01 ile 20 arasında olmalı.", false);
+  if (!(cooldownMin >= 0 && cooldownMin <= 600)) back("Bekleme süresi 0 ile 600 dakika arasında olmalı.", false);
+  if (!(hoursBefore >= 1 && hoursBefore <= 48)) back("Maça kalan süre 1 ile 48 saat arasında olmalı.", false);
+  const cur = await telegramSettings();
+  const enabled = formData.get("enabled") === "on";
+  await saveTelegramSettings({ ...cur, gap: { enabled, minGap, minOdd, cooldownMin, hoursBefore } });
+  back(
+    enabled
+      ? `Oran açığı paylaşımı açık: açık ≥ %${minGap}, oran ≥ ${minOdd.toFixed(2)}, maça ${hoursBefore} saat kala, bekleme ${cooldownMin} dk.`
+      : "Oran açığı paylaşımı kapatıldı.",
+  );
+}
+
 export async function savePreSettings(formData: FormData) {
   await requireAdmin();
   const num = (k: string) => Number(String(formData.get(k) ?? "").replace(",", "."));

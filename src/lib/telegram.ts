@@ -21,7 +21,17 @@ export interface TelegramSettings {
   results: boolean; // paylaşılan tahminlerin sonucunu (kazandı/kaybetti) da gönder
   /** Maç önü (Maçlar sistemi) paylaşımı */
   pre: PreSettings;
+  /** Oran açığı paylaşımı */
+  gap: GapSettings;
 }
+export interface GapSettings {
+  enabled: boolean;
+  minGap: number; // %, açık bu değer ve üstündeyse
+  minOdd: number;
+  cooldownMin: number;
+  hoursBefore: number;
+}
+export const DEFAULT_GAP: GapSettings = { enabled: true, minGap: 0, minOdd: 1.3, cooldownMin: 15, hoursBefore: 24 };
 export interface PreSettings {
   enabled: boolean;
   minProb: number; // %
@@ -38,9 +48,9 @@ let settingsMemo: { at: number; v: TelegramSettings } | null = null;
 export async function telegramSettings(): Promise<TelegramSettings> {
   if (settingsMemo && Date.now() - settingsMemo.at < 15_000) return settingsMemo.v;
   const cfg = telegramConfig();
-  const base: TelegramSettings = { minProb: cfg?.minProb ?? 70, minOdd: LIVE_MIN_ODD, cooldownMin: cfg?.cooldownMin ?? 30, results: true, pre: DEFAULT_PRE };
+  const base: TelegramSettings = { minProb: cfg?.minProb ?? 70, minOdd: LIVE_MIN_ODD, cooldownMin: cfg?.cooldownMin ?? 30, results: true, pre: DEFAULT_PRE, gap: DEFAULT_GAP };
   const saved = getStore() ? await getJSON<Partial<TelegramSettings>>(SETTINGS_KEY).catch(() => null) : null;
-  const v = { ...base, ...(saved ?? {}), pre: { ...DEFAULT_PRE, ...(saved?.pre ?? {}) } };
+  const v = { ...base, ...(saved ?? {}), pre: { ...DEFAULT_PRE, ...(saved?.pre ?? {}) }, gap: { ...DEFAULT_GAP, ...(saved?.gap ?? {}) } };
   settingsMemo = { at: Date.now(), v };
   return v;
 }

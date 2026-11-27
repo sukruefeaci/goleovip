@@ -3,7 +3,7 @@ import { adminEmails, isAdmin } from "@/lib/admin";
 import { getStore } from "@/lib/auth/store";
 import { isTelegramEnabled, telegramConfig, telegramSettings } from "@/lib/telegram";
 import { KIND_LABEL, SCOPE_LABEL, sharedStats, type StatsKind, type StatsScope } from "@/lib/tgStats";
-import { savePreSettings, saveSettings, sendPreResultsNow, sendResultsNow, shareStats, toggleTelegram } from "./actions";
+import { saveGapSettings, savePreSettings, saveSettings, sendPreResultsNow, sendResultsNow, shareStats, toggleTelegram } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -135,6 +135,39 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </form>
           <form action={sendPreResultsNow} style={{ marginTop: 10 }}>
             <button className="btn block">📨 Bekleyen maç önü sonuçlarını şimdi gönder</button>
+          </form>
+        </section>
+      )}
+
+      {cfg && (
+        <section className="card pad adm">
+          <h2 className="card-title">🔍 Oran açığı paylaşımı</h2>
+          <p className="muted small" style={{ marginTop: 0 }}>
+            iddaa oranı yurt dışının (Pinnacle) adil oranının üstüne çıkınca &quot;ORAN AÇIĞI YAKALANDI&quot; görseli kanala gider. Her maç-seçenek bir kez,
+            en büyük açık önce. Yukarıdaki &quot;Paylaşımı durdur&quot; bunu da durdurur.
+          </p>
+          <form action={saveGapSettings} className="adm-form" style={{ borderTop: 0, paddingTop: 0, marginTop: 0 }}>
+            <label className="adm-check">
+              <input name="enabled" type="checkbox" defaultChecked={set.gap.enabled} />
+              <span>Oran açıklarını kanalda paylaş</span>
+            </label>
+            <label>
+              <span>En az açık (%) · 0 = artıya geçen her açık</span>
+              <input name="minGap" type="number" inputMode="decimal" min={0} max={50} step={0.1} defaultValue={set.gap.minGap} required />
+            </label>
+            <label>
+              <span>En düşük oran</span>
+              <input name="minOdd" type="number" inputMode="decimal" min={1.01} max={20} step={0.01} defaultValue={set.gap.minOdd.toFixed(2)} required />
+            </label>
+            <label>
+              <span>İki paylaşım arası en az (dakika)</span>
+              <input name="cooldownMin" type="number" inputMode="numeric" min={0} max={600} step={1} defaultValue={set.gap.cooldownMin} required />
+            </label>
+            <label>
+              <span>Maça en çok kaç saat kala</span>
+              <input name="hoursBefore" type="number" inputMode="numeric" min={1} max={48} step={1} defaultValue={set.gap.hoursBefore} required />
+            </label>
+            <button className="btn primary block">💾 Oran açığı ayarlarını kaydet</button>
           </form>
         </section>
       )}
