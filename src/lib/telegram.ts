@@ -31,8 +31,9 @@ export interface GapSettings {
   minOdd: number;
   cooldownMin: number;
   hoursBefore: number;
+  results?: boolean; // sonuçlanınca kazandı/kaybetti mesajı
 }
-export const DEFAULT_GAP: GapSettings = { enabled: true, minGap: 0, minProb: 50, minOdd: 1.3, cooldownMin: 15, hoursBefore: 36 };
+export const DEFAULT_GAP: GapSettings = { enabled: true, minGap: 0, minProb: 50, minOdd: 1.3, cooldownMin: 15, hoursBefore: 36, results: true };
 export interface PreSettings {
   enabled: boolean;
   minProb: number; // %

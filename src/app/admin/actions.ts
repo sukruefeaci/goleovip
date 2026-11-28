@@ -5,7 +5,8 @@ import { currentUser } from "@/lib/auth/current";
 import { isAdmin } from "@/lib/admin";
 import { saveTelegramSettings, setTelegramEnabled, telegramSettings } from "@/lib/telegram";
 import { postPrematchResults } from "@/lib/tgPre";
-import { postSharedResults, SCOPE_LABEL, shareStatsToChannel, type StatsScope } from "@/lib/tgStats";
+import { parseKind, postSharedResults, SCOPE_LABEL, shareStatsToChannel, type StatsScope } from "@/lib/tgStats";
+import { postGapResults } from "@/lib/tgGap";
 
 async function requireAdmin() {
   if (!isAdmin(await currentUser())) redirect("/admin");
@@ -23,7 +24,7 @@ export async function toggleTelegram(formData: FormData) {
 export async function shareStats(formData: FormData) {
   await requireAdmin();
   const scope = String(formData.get("scope")) as StatsScope;
-  const kind = formData.get("kind") === "mac" ? "mac" : "canli";
+  const kind = parseKind(formData.get("kind"));
   if (!(scope in SCOPE_LABEL)) back("Geçersiz dönem.", false);
   const r = await shareStatsToChannel(scope, kind);
   if (r.ok) back(`${SCOPE_LABEL[scope]} istatistik görseli kanalda paylaşıldı.`);
@@ -79,7 +80,7 @@ export async function saveGapSettings(formData: FormData) {
   if (!(hoursBefore >= 1 && hoursBefore <= 48)) back("Maça kalan süre 1 ile 48 saat arasında olmalı.", false);
   const cur = await telegramSettings();
   const enabled = formData.get("enabled") === "on";
-  await saveTelegramSettings({ ...cur, gap: { enabled, minGap, minProb, minOdd, cooldownMin, hoursBefore } });
+  await saveTelegramSettings({ ...cur, gap: { enabled, minGap, minProb, minOdd, cooldownMin, hoursBefore, results: formData.get("results") === "on" } });
   back(
     enabled
       ? `Oran açığı paylaşımı açık: açık ≥ %${minGap}, yurt dışına göre tutma > %${minProb}, oran ≥ ${minOdd.toFixed(2)}, maça ${hoursBefore} saat kala, bekleme ${cooldownMin} dk.`
@@ -106,4 +107,12 @@ export async function savePreSettings(formData: FormData) {
       ? `Maç önü paylaşımı açık: olasılık ≥ %${minProb}, oran ≥ ${minOdd.toFixed(2)}, maça ${hoursBefore} saat kala, bekleme ${cooldownMin} dk.`
       : "Maç önü paylaşımı kapatıldı.",
   );
+}
+
+/** Sonuçlanan oran açığı paylaşımlarının kazandı / kaybetti mesajlarını hemen gönder (eski paylaşımlar dahil) */
+export async function sendGapResultsNow() {
+  await requireAdmin();
+  const r = await postGapResults(Date.now(), true, 10);
+  if (typeof r === "number") back(r ? `${r} oran açığı sonucu kanala gönderildi.` : "Gönderilecek sonuçlanmış oran açığı paylaşımı yok (sonuçlar maç bitiminden ~2 saat sonra işlenir).");
+  else back(`Gönderilemedi: ${r}`, false);
 }

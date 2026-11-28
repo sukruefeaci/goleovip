@@ -37,6 +37,11 @@ export interface SnapResult {
   ag: number;
   hht?: number;
   aht?: number;
+  /** Maç istatistikleri (FotMob): korner ve kart (sarı + kırmızı) */
+  hc?: number;
+  ac?: number;
+  cards?: number;
+  fmId?: number;
   pickWon: boolean | null;
   oddsWon?: boolean | null; // Oran analizi tercihi tuttu mu
   settledAt: string;
@@ -258,7 +263,60 @@ export function parseHalfTime(json: unknown): { hht: number; aht: number } | nul
 }
 
 /** Tercih tuttu mu? (ilk yarı gerektiren pazarda ilk yarı skoru yoksa null) */
-export function pickWon(key: string, r: { hg: number; ag: number; hht?: number; aht?: number }): boolean | null {
+/** matchDetails içinden korner ve kart sayıları */
+export function parseMatchStats(json: unknown): { hc: number; ac: number; cards: number } | null {
+  const periods = (json as { content?: { stats?: { Periods?: { All?: { stats?: { stats?: { title?: string; stats?: unknown[] }[] }[] } } } } })?.content?.stats?.Periods?.All?.stats;
+  if (!periods) return null;
+  const find = (t: string) => {
+    for (const g of periods) for (const x of g.stats ?? []) if (x.title === t && Array.isArray(x.stats)) return x.stats.map((v) => Number(v));
+    return null;
+  };
+  const c = find("Corners"), y = find("Yellow cards"), r = find("Red cards");
+  if (!c || c.some((v) => !Number.isFinite(v))) return null;
+  const sum = (a: number[] | null) => (a ? a.reduce((s, v) => s + (Number.isFinite(v) ? v : 0), 0) : 0);
+  return { hc: c[0], ac: c[1], cards: sum(y) + sum(r) };
+}
+
+/** Kayıtta sonuç yoksa FotMob'dan bitmiş maçın skorunu bulur */
+export async function fotmobFinalScore(e: { kickoff: string; home: string; away: string; fotmobId?: number }): Promise<SnapResult | null> {
+  try {
+    const d = ymd(new Date(e.kickoff));
+    const f = await cachedFetch(`fotmob-results-${d}.json`, "FotMob sonuçlar", `https://www.fotmob.com/api/data/matches?date=${d}`, 10 * MIN);
+    const ko = Date.parse(e.kickoff);
+    const m = parseFotmobResults(JSON.parse(f.text)).find(
+      (x) => x.id === e.fotmobId || (Math.abs(x.kickoff.getTime() - ko) < 90 * MIN && nameSimilarity(x.home, e.home) >= 0.6 && nameSimilarity(x.away, e.away) >= 0.6),
+    );
+    return m && m.finished ? { hg: m.hg, ag: m.ag, pickWon: null, settledAt: new Date().toISOString(), fmId: m.id } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Sonuçta istatistik yoksa FotMob'dan tamamlar (korner/kart tercihleri için). Maç bulunamazsa sonucu olduğu gibi döner. */
+export async function withMatchStats(e: { kickoff: string; home: string; away: string; fotmobId?: number }, r: SnapResult): Promise<SnapResult> {
+  if (typeof r.hc === "number" && r.hht !== undefined) return r;
+  let id = r.fmId ?? e.fotmobId;
+  try {
+    if (!id) {
+      const d = ymd(new Date(e.kickoff));
+      const f = await cachedFetch(`fotmob-results-${d}.json`, "FotMob sonuçlar", `https://www.fotmob.com/api/data/matches?date=${d}`, 60 * MIN);
+      const ko = Date.parse(e.kickoff);
+      id = parseFotmobResults(JSON.parse(f.text)).find(
+        (x) => Math.abs(x.kickoff.getTime() - ko) < 90 * MIN && nameSimilarity(x.home, e.home) >= 0.6 && nameSimilarity(x.away, e.away) >= 0.6,
+      )?.id;
+    }
+    if (!id) return r;
+    const det = await cachedFetch(`fotmob-details-${id}-final.json`, "FotMob ayrıntı", `https://www.fotmob.com/api/data/matchDetails?matchId=${id}`, 24 * 60 * MIN);
+    const j = JSON.parse(det.text);
+    const st = parseMatchStats(j);
+    const ht = r.hht === undefined ? parseHalfTime(j) : null;
+    return { ...r, ...(st ?? {}), ...(ht ?? {}), fmId: id };
+  } catch {
+    return r;
+  }
+}
+
+export function pickWon(key: string, r: { hg: number; ag: number; hht?: number; aht?: number; hc?: number; ac?: number; cards?: number }): boolean | null {
   let def;
   try {
     def = describe(key);
@@ -266,11 +324,20 @@ export function pickWon(key: string, r: { hg: number; ag: number; hht?: number; 
     return null;
   }
   const res = (d: number) => (d > 0 ? "1" : d === 0 ? "X" : "2");
+  if (def.kind === "corners_total" || def.kind === "corners_home" || def.kind === "corners_away" || def.kind === "cards") return statWon(def, r);
   if (def.kind === "ft") return def.pred!(r.hg, r.ag);
   if (r.hht === undefined || r.aht === undefined) return null;
   if (def.kind === "ht") return def.pred!(r.hht, r.aht);
   if (def.kind === "htft") return `${res(r.hht - r.aht)}/${res(r.hg - r.ag)}` === def.selection;
   return null;
+}
+
+/** Korner / kart tercihleri: istatistik varsa çizgiye göre */
+function statWon(def: { kind: string; line?: number; over?: boolean }, r: { hc?: number; ac?: number; cards?: number }): boolean | null {
+  const v =
+    def.kind === "corners_total" ? (r.hc ?? NaN) + (r.ac ?? NaN) : def.kind === "corners_home" ? r.hc : def.kind === "corners_away" ? r.ac : def.kind === "cards" ? r.cards : undefined;
+  if (typeof v !== "number" || !Number.isFinite(v) || typeof def.line !== "number") return null;
+  return def.over ? v > def.line : v < def.line;
 }
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, "");
@@ -311,15 +378,18 @@ export async function settleDay(date: string, now = Date.now(), budgetMs = 4000)
       );
     if (!fm || !fm.finished) continue;
     let ht: { hht: number; aht: number } | null = null;
+    let st: { hc: number; ac: number; cards: number } | null = null;
     {
       try {
         const det = await cachedFetch(`fotmob-details-${fm.id}-final.json`, "FotMob ayrıntı", `https://www.fotmob.com/api/data/matchDetails?matchId=${fm.id}`, 24 * 60 * MIN);
-        ht = parseHalfTime(JSON.parse(det.text));
+        const j = JSON.parse(det.text);
+        ht = parseHalfTime(j);
+        st = parseMatchStats(j);
       } catch {
         ht = null;
       }
     }
-    const r = { hg: fm.hg, ag: fm.ag, ...(ht ?? {}) };
+    const r = { hg: fm.hg, ag: fm.ag, ...(ht ?? {}), ...(st ?? {}), fmId: fm.id };
     const won = e.pick ? pickWon(e.pick.key, r) : null;
     const oddsWon = e.oddsPick ? pickWon(e.oddsPick.key, r) : undefined;
     e.result = { ...r, pickWon: won, ...(oddsWon !== undefined ? { oddsWon } : {}), settledAt: new Date(now).toISOString() };

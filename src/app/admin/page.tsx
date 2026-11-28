@@ -2,9 +2,9 @@ import { currentUser } from "@/lib/auth/current";
 import { adminEmails, isAdmin } from "@/lib/admin";
 import { getStore } from "@/lib/auth/store";
 import { isTelegramEnabled, telegramConfig, telegramSettings } from "@/lib/telegram";
-import { KIND_LABEL, SCOPE_LABEL, sharedStats, type StatsKind, type StatsScope } from "@/lib/tgStats";
+import { KIND_LABEL, parseKind, SCOPE_LABEL, sharedStats, type StatsKind, type StatsScope } from "@/lib/tgStats";
 import { gapLastResult } from "@/lib/tgGap";
-import { saveGapSettings, savePreSettings, saveSettings, sendPreResultsNow, sendResultsNow, shareStats, toggleTelegram } from "./actions";
+import { sendGapResultsNow, saveGapSettings, savePreSettings, saveSettings, sendPreResultsNow, sendResultsNow, shareStats, toggleTelegram } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +34,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   }
 
   const { ok, err, d, t } = await searchParams;
-  const kind: StatsKind = t === "mac" ? "mac" : "canli";
+  const kind: StatsKind = parseKind(t);
   const scope: StatsScope = d && d in SCOPE_LABEL ? (d as StatsScope) : "bugun";
   const cfg = telegramConfig();
   const tracking = !!getStore();
@@ -173,8 +173,18 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               <span>Maça en çok kaç saat kala</span>
               <input name="hoursBefore" type="number" inputMode="numeric" min={1} max={48} step={1} defaultValue={set.gap.hoursBefore} required />
             </label>
+            <label className="adm-check">
+              <input name="results" type="checkbox" defaultChecked={set.gap.results !== false} />
+              <span>Maç bitince sonucu (✅ kazandı / ❌ kaybetti) görsel ve metinle gönder</span>
+            </label>
             <button className="btn primary block">💾 Oran açığı ayarlarını kaydet</button>
           </form>
+          <form action={sendGapResultsNow} style={{ marginTop: 10 }}>
+            <button className="btn block">📨 Sonuçlanan oran açıklarını şimdi gönder</button>
+          </form>
+          <p className="muted small" style={{ marginBottom: 0 }}>
+            Paylaşılanları ve sonuçlarını aşağıdaki <b>Kanal istatistiği → 🔍 Oran açığı</b> sekmesinde görebilir, karne görselini kanalda paylaşabilirsin.
+          </p>
           {gapLast && (
             <p className="muted small" style={{ marginBottom: 0 }}>
               Son kontrol {new Date(gapLast.at).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" })}:{" "}
@@ -191,9 +201,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           kontrol et, sonra kanalda paylaş.
         </p>
         <div className="daytabs sk-tabs" role="tablist">
-          {(["canli", "mac"] as StatsKind[]).map((k) => (
+          {(["canli", "mac", "acik"] as StatsKind[]).map((k) => (
             <a key={k} href={`/admin?d=${scope}&t=${k}`} className={k === kind ? "on" : ""} role="tab" aria-selected={k === kind}>
-              {k === "canli" ? "🔴" : "⚽"} {KIND_LABEL[k]}
+              {k === "canli" ? "🔴" : k === "mac" ? "⚽" : "🔍"} {KIND_LABEL[k]}
             </a>
           ))}
         </div>
@@ -255,7 +265,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                   <div key={r.id + r.at} className="learn-row">
                     <b className={r.won === true ? "pos" : r.won === false ? "neg" : "muted"}>{r.won === true ? "✓" : r.won === false ? "✗" : "…"}</b>
                     <span className="small">
-                      {r.home} – {r.away} · {r.minute} {r.hg}-{r.ag}
+                      {r.home} – {r.away} · {kind === "acik" ? `açık ${r.minute}` : kind === "mac" ? "maç önü" : `${r.minute} ${r.hg}-${r.ag}`}
                     </span>
                     <span className="small">
                       <b>{r.label}</b> @ {r.odd ? r.odd.toFixed(2) : "oransız"}

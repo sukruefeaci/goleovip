@@ -1,6 +1,7 @@
 import { C, div, isTelegramEnabled, loadFonts, loadShared, sendPhoto, SHARED_KEY, telegramConfig, telegramSettings, type SharedPick } from "./telegram";
 import { getStore, setJSON } from "./auth/store";
 import { loadPreShared, preSharedWithResults } from "./tgPre";
+import { loadGapShared, settleGapShared, type GapShared } from "./tgGap";
 import { loadLiveDay, settleLive } from "./liveTracking";
 import { dayPnl, type DayPnl } from "./pnl";
 
@@ -21,8 +22,9 @@ export interface StatsRow extends SharedPick {
   fag?: number;
 }
 
-export type StatsKind = "canli" | "mac";
-export const KIND_LABEL: Record<StatsKind, string> = { canli: "Canlı", mac: "Maç önü" };
+export type StatsKind = "canli" | "mac" | "acik";
+export const KIND_LABEL: Record<StatsKind, string> = { canli: "Canlı", mac: "Maç önü", acik: "Oran açığı" };
+export const parseKind = (t: unknown): StatsKind => (t === "mac" ? "mac" : t === "acik" ? "acik" : "canli");
 
 export interface SharedStats {
   scope: StatsScope;
@@ -36,6 +38,7 @@ export interface SharedStats {
 
 export async function sharedStats(scope: StatsScope, now = Date.now(), kind: StatsKind = "canli"): Promise<SharedStats> {
   if (kind === "mac") return preStats(scope, now);
+  if (kind === "acik") return gapStats(scope, now);
   const today = trDay(now);
   const yesterday = trDay(now - 86400_000);
   const week = trDay(now - 6 * 86400_000);
@@ -105,6 +108,50 @@ async function preStats(scope: StatsScope, now: number): Promise<SharedStats> {
   };
 }
 
+/** Oran açığı paylaşımlarının karnesi */
+async function gapStats(scope: StatsScope, now: number): Promise<SharedStats> {
+  const today = trDay(now),
+    yesterday = trDay(now - 86400_000),
+    week = trDay(now - 6 * 86400_000);
+  const all = await settleGapShared(now, 6000).catch(() => loadGapShared());
+  const dayOf = (p: GapShared) => trDay(Date.parse(p.kickoff));
+  const picked = all.filter((p) => {
+    const d = dayOf(p);
+    return scope === "bugun" ? d === today || trDay(Date.parse(p.at)) === today : scope === "dun" ? d === yesterday : scope === "7gun" ? d >= week : true;
+  });
+  const rows: StatsRow[] = picked.map((p) => ({
+    id: `${p.id}|${p.key}`,
+    date: dayOf(p),
+    fotmobId: 0,
+    league: p.league,
+    home: p.home,
+    away: p.away,
+    label: p.label,
+    odd: p.odd,
+    prob: 0,
+    confidence: 0,
+    minute: `+%${Math.round(p.gap * 100)}`,
+    hg: 0,
+    ag: 0,
+    at: p.at,
+    won: typeof p.won === "boolean" ? p.won : p.won === null ? null : undefined,
+    fhg: p.res?.hg,
+    fag: p.res?.ag,
+  }));
+  rows.sort((a, b) => b.at.localeCompare(a.at));
+  const wins = rows.filter((r) => r.won === true && r.odd > 1);
+  const dates = rows.map((r) => r.date).sort();
+  return {
+    scope,
+    kind: "acik",
+    rows,
+    pnl: dayPnl(rows.map((r) => ({ odd: r.odd, won: r.won }))),
+    avgWinOdd: wins.length ? wins.reduce((s, r) => s + r.odd, 0) / wins.length : null,
+    from: dates[0] ?? null,
+    to: dates.at(-1) ?? null,
+  };
+}
+
 /* ------------------------------------------------------------ görsel */
 
 const fmtDate = (d: string) => d.split("-").reverse().join(".");
@@ -157,7 +204,7 @@ export function statsCard(st: SharedStats) {
         div({ fontSize: 38, fontWeight: 700, marginLeft: 16 }, "goleo"),
         div({ fontSize: 24, fontWeight: 700, background: C.gold, color: "#1a1240", borderRadius: 10, padding: "4px 12px", marginLeft: 10 }, "VIP"),
       ),
-      div({ fontSize: 28, fontWeight: 700, color: C.muted }, st.kind === "mac" ? "MAÇ ÖNÜ TAHMİN KARNESİ" : "CANLI TAHMİN KARNESİ"),
+      div({ fontSize: 28, fontWeight: 700, color: C.muted }, st.kind === "mac" ? "MAÇ ÖNÜ TAHMİN KARNESİ" : st.kind === "acik" ? "ORAN AÇIĞI KARNESİ" : "CANLI TAHMİN KARNESİ"),
     ),
     div({ fontSize: 46, fontWeight: 700, marginTop: 30 }, SCOPE_LABEL[st.scope]),
     div({ fontSize: 26, color: C.muted, marginTop: 4 }, period ? `${period} · kanalda paylaşılan tahminler` : "kanalda paylaşılan tahminler"),
@@ -192,7 +239,7 @@ export function statsCaption(st: SharedStats): string {
   const p = st.pnl;
   const rate = p.settled ? Math.round((p.hits / p.settled) * 100) : 0;
   return [
-    `📊 <b>${st.kind === "mac" ? "Maç önü" : "Canlı"} tahmin karnesi · ${SCOPE_LABEL[st.scope]}</b>`,
+    `📊 <b>${st.kind === "mac" ? "Maç önü tahmin" : st.kind === "acik" ? "Oran açığı" : "Canlı tahmin"} karnesi · ${SCOPE_LABEL[st.scope]}</b>`,
     p.settled ? `✅ ${p.hits}/${p.settled} tuttu (%${rate})` : "Henüz sonuçlanan paylaşım yok.",
     st.avgWinOdd ? `Tutanların ortalama oranı: <b>${st.avgWinOdd.toFixed(2)}</b>` : "",
     ``,
