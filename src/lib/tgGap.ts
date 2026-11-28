@@ -24,6 +24,8 @@ export interface GapShared {
   gap: number;
   line: boolean;
   at: string;
+  /** Karşılaştırılan yurt dışı şirket */
+  book?: string;
   /** Sonuç: maç bitince işlenir */
   res?: { hg: number; ag: number; hc?: number; ac?: number; cards?: number };
   won?: boolean | null;
@@ -36,6 +38,8 @@ const sentKey = (id: string, key: string) => `tg:gap:${id}:${key}`;
 
 export const loadGapShared = async () => (await getJSON<GapShared[]>(LIST_KEY).catch(() => null)) ?? [];
 
+/** iddaa oranı: tüm iddaa bayi sitelerinde aynıdır */
+export const IDDAA_WHERE = "iddaa · Nesine, Misli, Bilyoner, Oley ve tüm iddaa sitelerinde";
 const fmtLine = (x: number) => x.toFixed(1).replace(".", ",");
 const sign = (g: number) => `${g >= 0 ? "+" : "−"}%${Math.abs(g * 100).toFixed(1).replace(".", ",")}`;
 
@@ -84,14 +88,19 @@ export function gapCard(g: GapMatch, r: GapRow) {
     div(
       { marginTop: 24, justifyContent: "space-between" },
       box("iddaa oranı", r.odd.toFixed(2), C.gold),
-      box("Yurt dışı adil", r.fairOdd.toFixed(2)),
+      box(`${r.book ?? "Yurt dışı"} adil oranı`, r.fairOdd.toFixed(2)),
       box("Açık", sign(r.gap), r.gap >= 0 ? C.good : "#ff5d6c"),
     ),
-    lineTxt ? div({ fontSize: 27, marginTop: 22, color: C.text }, lineTxt) : div({}),
+    div(
+      { marginTop: 20, fontSize: 27, color: C.text, flexDirection: "column" },
+      div({}, `Oran nerede: ${IDDAA_WHERE}`),
+      div({ color: C.muted, marginTop: 6 }, `Karşılaştırma: ${r.book ?? g.reference} (yurt dışı, marjı atılmış adil oran)`),
+    ),
+    lineTxt ? div({ fontSize: 27, marginTop: 16, color: C.text }, lineTxt) : div({}),
     div({ flex: 1 }),
     div(
       { fontSize: 22, color: C.muted, justifyContent: "space-between" },
-      div({}, `Kaynak: ${g.reference} (marjı atılmış) · 18+ · Bilgi amaçlıdır.`),
+      div({}, "18+ · Bilgi amaçlıdır."),
       div({}, "goleo VIP"),
     ),
   );
@@ -99,7 +108,7 @@ export function gapCard(g: GapMatch, r: GapRow) {
 
 export async function renderGapImage(g: GapMatch, r: GapRow): Promise<Buffer> {
   const { ImageResponse } = await import("next/og");
-  const res = new ImageResponse(gapCard(g, r), { width: 1200, height: 880, fonts: await loadFonts() });
+  const res = new ImageResponse(gapCard(g, r), { width: 1200, height: 960, fonts: await loadFonts() });
   return Buffer.from(await res.arrayBuffer());
 }
 
@@ -113,7 +122,8 @@ function gapCaption(g: GapMatch, r: GapRow): string {
     `<b>${esc(a.match.home.name)} – ${esc(a.match.away.name)}</b>`,
     ``,
     `🎯 <b>${esc(r.market)} · ${esc(r.selection)}</b> @ <b>${r.odd.toFixed(2)}</b>`,
-    `Yurt dışı adil oran ${r.fairOdd.toFixed(2)} · Açık <b>${sign(r.gap)}</b>`,
+    `🏷️ Oran: <b>iddaa</b> (Nesine, Misli, Bilyoner, Oley ve tüm iddaa sitelerinde aynı)`,
+    `🌍 ${esc(r.book ?? g.reference)} adil oranı ${r.fairOdd.toFixed(2)} · Açık <b>${sign(r.gap)}</b>`,
     `Yurt dışına göre tutma ihtimali %${Math.round(r.pForeign * 100)}`,
     isSuspectGap(r) ? `⚠️ Çok büyük açık: son dakika kadro/saha haberi ya da oran hatası olabilir, oynamadan önce kontrol et.` : "",
     isLineGap(r) && r.line ? `📏 Yurt dışı bu oranı ${fmtLine(r.line.equivLine!)} ${r.line.side}'te verirdi (${lineGapSize(r)} çizgi fark)` : "",
@@ -193,6 +203,7 @@ async function shareInner(analyses: Analysis[], now: number): Promise<number | s
     fair: pick.r.fairOdd,
     gap: pick.r.gap,
     line: isLineGap(pick.r),
+    book: pick.r.book ?? pick.g.reference,
     at: new Date(now).toISOString(),
   });
   await setJSON(LIST_KEY, list.slice(-500));
@@ -281,7 +292,7 @@ function gapResultCard(p: GapShared) {
         { flexDirection: "column", maxWidth: 760 },
         div({ fontSize: 26, color: C.muted }, "Oran açığı tercihi"),
         div({ fontSize: 46, fontWeight: 700, marginTop: 4 }, p.label),
-        div({ fontSize: 26, color: C.muted, marginTop: 6 }, `iddaa ${p.odd.toFixed(2)} · yurt dışı adil ${p.fair.toFixed(2)} · açık ${sign(p.gap)}`),
+        div({ fontSize: 26, color: C.muted, marginTop: 6 }, `iddaa ${p.odd.toFixed(2)} · ${p.book ?? "yurt dışı"} adil ${p.fair.toFixed(2)} · açık ${sign(p.gap)}`),
       ),
       div({ fontSize: 58, fontWeight: 700, color }, won ? "KAZANDI" : "KAYBETTİ"),
     ),

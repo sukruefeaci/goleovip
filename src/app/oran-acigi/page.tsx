@@ -32,11 +32,11 @@ function GapLine({ r }: { r: GapRow }) {
       </div>
       <div className="gp-odds">
         <div>
-          <small>iddaa</small>
+          <small>iddaa (tüm siteler)</small>
           <b className="gold">{r.odd.toFixed(2)}</b>
         </div>
         <div>
-          <small>Yurt dışı adil</small>
+          <small>{r.book ?? "Yurt dışı"} adil</small>
           <b>{r.fairOdd.toFixed(2)}</b>
         </div>
         <div>

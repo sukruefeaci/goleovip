@@ -24,6 +24,8 @@ export interface GapRow {
   fairOdd: number; // yurt dışı adil oran
   gap: number; // iddaa oranı × ihtimal − 1
   direct: boolean;
+  /** Karşılaştırılan yurt dışı şirket (ör. Pinnacle) */
+  book?: string;
   /**
    * Alt/Üst çizgi bilgisi. equivLine: yurt dışının iddaa'nın bu oranını (ya da daha düşüğünü) vereceği en uç çizgi.
    * Üst'te equivLine > line ise iddaa aynı oranı daha kolay çizgide veriyor (ör. iddaa 1.5 Üst 1.62 ≈ yurt dışı 2.5 Üst).
@@ -141,7 +143,11 @@ export function gapsFor(a: Analysis, af?: AfOdds | null): GapMatch | null {
       if (r) ({ p, direct } = r);
     } else if (ctx && def.category !== "Korner" && def.category !== "Kart") p = probability(def, ctx);
     if (p === null || !(p >= MIN_P && p < 0.995)) continue;
-    const row: GapRow = { key: l.key, market: def.market, selection: def.selection, odd: l.odd, pForeign: p, fairOdd: 1 / p, gap: l.odd * p - 1, direct };
+    const fam = FAMILIES[mk]?.af as keyof AfOdds["books"] | undefined;
+    const book =
+      (af && (mk === "1x2" ? af.books.h2h : mk === "btts" ? af.books.btts : fam ? af.books[fam] : af.books.h2h ?? af.books.ou)) ||
+      (fd ? m.euro.reference : undefined);
+    const row: GapRow = { key: l.key, market: def.market, selection: def.selection, odd: l.odd, pForeign: p, fairOdd: 1 / p, gap: l.odd * p - 1, direct, book };
     if (FAMILIES[mk]) {
       const f = FAMILIES[mk];
       const side = a2 === "o" ? "Üst" : "Alt";
